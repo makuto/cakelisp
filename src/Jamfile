@@ -1,0 +1,5 @@
+Main cakelisp : Main.cpp Tokenizer.cpp ;
+
+MakeLocate cakelisp : ../cakelisp ;
+
+SubDir . src ;

@@ -1,0 +1,91 @@
+##
+## Compilation
+##
+
+C++ = clang++ ;
+LINK = clang++ ;
+# C++ = g++ ;
+# LINK = g++ ;
+
+# If I was building a library, these would be useful
+# LINKFLAGS = -shared ;
+# if $(UNIX)      { SUFSHR = .so ; }
+# else if $(NT)   { SUFSHR = .dll ; }
+
+## Compiler arguments
+
+# Arguments used on all projects, regardless of any variables
+C++FLAGS = -std=c++11 -Wall -Wextra -Wno-unused-parameter
+# Only for profiling, i.e. not release builds
+# -DTRACY_ENABLE
+# BT_USE_DOUBLE_PRECISION solves the Dantzig LCP missing definition
+# Disabled now that I'm compiling Bullet in single-precision
+# -DBT_USE_DOUBLE_PRECISION
+-g ;
+
+# HDRS = src
+# # Dependencies/base2.0
+# # Dependencies/glm
+# # Dependencies/tracy
+# Dependencies/curl/include
+# Dependencies/rapidjson/include
+# Dependencies/mecab/build/local/include
+# Dependencies/parallel-hashmap/parallel_hashmap
+# ;
+
+# TODO: Make base hold all this weirdness?
+# if $(DEBUG_BUILD)
+# {
+#   SFML_LINKLIBS = -lsfml-audio-d -lsfml-graphics-d -lsfml-window-d -lsfml-system-d ;
+# }
+# else
+# {
+#   SFML_LINKLIBS = -lsfml-audio -lsfml-graphics -lsfml-window -lsfml-system ;
+# }
+
+OPTIM = -O0 ;
+
+##
+## Linking
+##
+
+LINKLIBS =
+# Standard (e.g. for Tracy)
+-lpthread -ldl
+;
+
+# LINKFLAGS = -Wl,-rpath,. ;
+
+LINKFLAGS = -g ;
+# TODO: Copy libs to better directory, or static link?
+# -Wl,-rpath,.:Dependencies/curl/local_install/lib:Dependencies/mecab/build/local/lib ;
+
+##
+## Jam stuff
+##
+
+# Fix for unnecessary rebuilding any Jam project
+KEEPOBJS = true ; # This doesn't actually fix anything, though it seems like it should
+NOARSCAN = true ; # This actually fixes the problem
+#AR = ar rUu ; # I was thinking maybe the AR command was wrong (always outputting deterministically)
+               # It doesn't seem like this is the problem though
+AR = ar cr ;
+
+# Cross compilation
+# E.g.
+# jam -j4 -q -sCROSS_COMPILE_WINDOWS=true
+# if $(CROSS_COMPILE_WINDOWS)
+# {
+# 	CC = x86_64-w64-mingw32-gcc ;
+# 	LINK = x86_64-w64-mingw32-gcc ;
+# 	AR = x86_64-w64-mingw32-ar ;
+# 	SUFSHR = .dll ;
+# }
+
+# Some helpful Jam commands
+# -q        : stop on failed target
+# -jN       : use N cores
+# -sVAR=VAL : Set VAR to VAL. Note that setting WINDOWS=false is the same as setting UNREAL=true,
+#              frustratingly
+# -dx       : print commands being used
+# -n        : don't actually run commands

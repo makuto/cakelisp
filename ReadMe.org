@@ -1,0 +1,21 @@
+#+TITLE:Cakelisp
+
+This is my experiment of writing a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it (too)]].
+
+The end goal is a hot-reloadable, non-garbage-collected language ideal for high performance, iteratively-developed programs.
+
+This is the first language project I've embarked on, so it will be riddled with mistakes and naïveté. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance. It is more of a learning experience.
+
+* Desired features
+- The metaprogramming capabilities of Lisp
+- The performance of C
+- "Real" types: Types are identical to C types, e.g. ~int~ is 32 bits with no sign bit or anything like other Lisp implementations do
+- No garbage collection: I can handle my own memory
+- Hot reloading: It should be possible to make modifications to functions *and structures* at runtime to quickly iterate
+- Truly seamless C interoperability: No bindings, no wrappers: C types and functions are as easy to call as they are in C
+
+* Plan
+- Tokenize and parser written in C++
+- Export AST to C (C++?). Lisp-y constructs shouldn't stray too far from C style
+- Compile generated C
+- For metaprograms, feed AST into compiled C executables, as long as there are macros to parse
