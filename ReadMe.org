@@ -19,3 +19,12 @@ This is the first language project I've embarked on, so it will be riddled with 
 - Export AST to C (C++?). Lisp-y constructs shouldn't stray too far from C style
 - Compile generated C
 - For metaprograms, feed AST into compiled C executables, as long as there are macros to parse
+
+* Similar languages
+- [[http://www.call-cc.org/][Chicken scheme]]: Transpiles to C. This one seemed the "best" of the competitors. Has heavyweight C function bindings, GC
+- Bone Lisp: Lisp with no GC
+- [[https://github.com/carp-lang/Carp][Carp]]: Performance-oriented, see [[https://github.com/carp-lang/Carp/blob/master/docs/LanguageGuide.md][Language guide]]
+- [[https://common-lisp.net/project/ecl/static/manual/index.html#Top][ECL]]: embeddable common lisp
+- [[https://github.com/ska80/thinlisp][Thinlisp]]: No GC, write your stuff in CL using SBCL environment, then compile down to C
+- [[https://ferret-lang.org/][Ferret]]: Lisp compiled down to C++
+- [[https://github.com/tomhrr/dale][Dale]]: "Lisp-flavoured C"
