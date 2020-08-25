@@ -20,12 +20,16 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	bool verbose = false;
+
 	char lineBuffer[2048] = {0};
 	int lineNumber = 1;
 	std::vector<Token> tokens;
 	while (fgets(lineBuffer, sizeof(lineBuffer), file))
 	{
-		printf("%s", lineBuffer);
+		if (verbose)
+			printf("%s", lineBuffer);
+
 		const char* error = tokenizeLine(lineBuffer, lineNumber, tokens);
 		if (error != nullptr)
 		{
@@ -38,13 +42,48 @@ int main(int argc, char* argv[])
 
 	printf("\nResult:\n");
 
+	int nestingDepth = 0;
 	for (Token& token : tokens)
 	{
+		for (int i = 0; i < nestingDepth; ++i)
+			printf("\t");
+
 		printf("%s", tokenTypeToString(token.type));
-		if (token.type == TokenType_Symbol && token.contents)
-			printf("%s\n", token.contents);
+
+		bool printRanges = true;
+		if (printRanges)
+		{
+			printf("\t\tline %d, from line character %d to %d", token.lineNumber, token.columnStart,
+			       token.columnEnd);
+		}
+
+		if (token.type == TokenType_OpenParen)
+			++nestingDepth;
+		else if (token.type == TokenType_CloseParen)
+		{
+			--nestingDepth;
+			if (nestingDepth < 0)
+			{
+				printf("\nError: Mismatched parenthesis. Too many closing parentheses\n");
+				return 1;
+			}
+		}
+
+		if (!token.contents.empty())
+		{
+			printf("\n");
+			for (int i = 0; i < nestingDepth; ++i)
+				printf("\t");
+			printf("\t%s\n", token.contents.c_str());
+		}
 		else
 			printf("\n");
+	}
+
+	if (nestingDepth != 0)
+	{
+		printf("Error: Mismatched parenthesis. Missing closing parentheses\n");
+		return 1;
 	}
 
 	fclose(file);

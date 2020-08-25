@@ -16,6 +16,7 @@ enum TokenizeState
 const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
                          std::vector<Token>& tokensOut)
 {
+	bool verbose = false;
 	const char* A_OK = nullptr;
 
 	TokenizeState tokenizeState = TokenizeState_Normal;
@@ -29,6 +30,7 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 		{                                                                        \
 			*contentsBufferWrite = *currentChar;                                 \
 			++contentsBufferWrite;                                               \
+			*contentsBufferWrite = '\0';                                         \
 		}                                                                        \
 		else                                                                     \
 		{                                                                        \
@@ -37,12 +39,16 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 	}
 #define CopyContentsAndReset(outputString)    \
 	{                                         \
-		outputString = nullptr;               \
+		outputString = contentsBuffer;        \
 		contentsBufferWrite = contentsBuffer; \
 	}
 
+	int columnStart = 0;
+
 	for (const char* currentChar = inputLine; *currentChar != '\0'; ++currentChar)
 	{
+		int currentColumn = currentChar - inputLine;
+
 		switch (tokenizeState)
 		{
 			case TokenizeState_Normal:
@@ -51,48 +57,59 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 					return A_OK;
 				else if (*currentChar == '(')
 				{
-					Token openParen = {TokenType_OpenParen, nullptr};
+					Token openParen = {TokenType_OpenParen, "", lineNumber, currentColumn,
+					                   currentColumn + 1};
 					tokensOut.push_back(openParen);
 				}
 				else if (*currentChar == ')')
 				{
-					Token closeParen = {TokenType_CloseParen, nullptr};
+					Token closeParen = {TokenType_CloseParen, "", lineNumber, currentColumn,
+					                    currentColumn + 1};
 					tokensOut.push_back(closeParen);
-				}
-				else if (std::isalpha(*currentChar))
-				{
-					tokenizeState = TokenizeState_Symbol;
-					WriteContents(*currentChar);
 				}
 				else if (*currentChar == '"')
 				{
 					tokenizeState = TokenizeState_InString;
+					columnStart = currentColumn;
+				}
+				else if (std::isspace(*currentChar))
+				{
+					// We could error here if the last symbol was a open paren, but we'll just
+					// ignore it for now and be extra permissive
+				}
+				else
+				{
+					// Basically anything but parens, whitespace, or quotes can be symbols!
+					tokenizeState = TokenizeState_Symbol;
+					columnStart = currentColumn;
+					WriteContents(*currentChar);
 				}
 				break;
 			case TokenizeState_Symbol:
+			{
+				bool isParenthesis = *currentChar == ')' || *currentChar == '(';
 				// Finished the symbol
-				if (*currentChar == ' ' || *currentChar == '\n')
+				if (std::isspace(*currentChar) || *currentChar == '\n' || isParenthesis)
 				{
-					printf("%s\n", contentsBuffer);
-					Token symbol = {TokenType_Symbol, nullptr};
+					if (verbose)
+						printf("%s\n", contentsBuffer);
+					Token symbol = {TokenType_Symbol, "", lineNumber, columnStart, currentColumn};
 					CopyContentsAndReset(symbol.contents);
 					tokensOut.push_back(symbol);
 
-					tokenizeState = TokenizeState_Normal;
-				}
-				else
-				{
-					WriteContents(*currentChar);
-				}
-				break;
-			case TokenizeState_InString:
-				if (*currentChar == '"' && previousChar != '\\')
-				{
-					Token string = {TokenType_String, nullptr};
-					CopyContentsAndReset(string.contents);
-					tokensOut.push_back(string);
+					if (*currentChar == '(')
+					{
+						Token openParen = {TokenType_OpenParen, "", lineNumber, currentColumn,
+						                   currentColumn + 1};
+						tokensOut.push_back(openParen);
+					}
+					else if (*currentChar == ')')
+					{
+						Token closeParen = {TokenType_CloseParen, "", lineNumber, currentColumn,
+						                    currentColumn + 1};
+						tokensOut.push_back(closeParen);
+					}
 
-					contentsBufferWrite = contentsBuffer;
 					tokenizeState = TokenizeState_Normal;
 				}
 				else
@@ -100,8 +117,40 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 					WriteContents(*currentChar);
 				}
 				break;
+			}
+			case TokenizeState_InString:
+				if (*currentChar == '"')
+				{
+					if (previousChar == '\\')
+					{
+						// Remove the delimiter from the contents
+						contentsBufferWrite--;
+						WriteContents(*currentChar);
+					}
+					else
+					{
+						Token string = {TokenType_String, "", lineNumber, columnStart,
+						                currentColumn + 1};
+						CopyContentsAndReset(string.contents);
+						tokensOut.push_back(string);
+
+						contentsBufferWrite = contentsBuffer;
+						tokenizeState = TokenizeState_Normal;
+					}
+				}
+				else
+				{
+					WriteContents(*currentChar);
+				}
+				break;
+			default:
+				return "Unknown state! Aborting";
 		}
+
+		previousChar = *currentChar;
 	}
+#undef WriteContents
+#undef CopyContentsAndReset
 
 	if (tokenizeState != TokenizeState_Normal)
 	{
@@ -115,8 +164,6 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 				return "Unhandled unexpected state";
 		}
 	}
-#undef WriteContents
-#undef CopyContentsAndReset
 
 	return A_OK;
 }
@@ -131,8 +178,6 @@ const char* tokenTypeToString(TokenType type)
 			return "CloseParen";
 		case TokenType_Symbol:
 			return "Symbol";
-		case TokenType_Constant:
-			return "Constant";
 		case TokenType_String:
 			return "String";
 		default:
