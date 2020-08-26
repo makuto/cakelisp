@@ -1,4 +1,8 @@
-Main cakelisp : Main.cpp Tokenizer.cpp ;
+Main cakelisp : Main.cpp
+Tokenizer.cpp
+ParserGenerator.cpp
+Utilities.cpp
+;
 
 MakeLocate cakelisp : ../cakelisp ;
 

@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <vector>
 
+#include "ParserGenerator.hpp"
 #include "Tokenizer.hpp"
+#include "Utilities.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -45,8 +47,7 @@ int main(int argc, char* argv[])
 	int nestingDepth = 0;
 	for (Token& token : tokens)
 	{
-		for (int i = 0; i < nestingDepth; ++i)
-			printf("\t");
+		printIndentToDepth(nestingDepth);
 
 		printf("%s", tokenTypeToString(token.type));
 
@@ -72,8 +73,7 @@ int main(int argc, char* argv[])
 		if (!token.contents.empty())
 		{
 			printf("\n");
-			for (int i = 0; i < nestingDepth; ++i)
-				printf("\t");
+			printIndentToDepth(nestingDepth);
 			printf("\t%s\n", token.contents.c_str());
 		}
 		else
@@ -82,11 +82,17 @@ int main(int argc, char* argv[])
 
 	if (nestingDepth != 0)
 	{
-		printf("Error: Mismatched parenthesis. Missing closing parentheses\n");
+		printf(
+		    "Error: Mismatched parenthesis. Missing closing parentheses, or too many opening "
+		    "parentheses\n");
 		return 1;
 	}
 
 	fclose(file);
+
+	std::vector<GenerateOperation> operations;
+	if (parserGenerateCode(tokens, operations) != 0)
+		return 1;
 
 	return 0;
 }
