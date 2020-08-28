@@ -1,3 +1,3 @@
 #!/bin/sh
 
-jam -j4 && ./cakelisp test/Test.cake
+jam -j4 && ./cakelisp test/Basic.cake

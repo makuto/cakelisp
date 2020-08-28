@@ -12,6 +12,8 @@ enum TokenType
 	TokenType_String
 };
 
+const char* tokenTypeToString(TokenType type);
+
 struct Token
 {
 	TokenType type;
@@ -30,5 +32,3 @@ void destroyToken(Token* token);
 // No state past a single line means this could be called in parallel
 const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
                          std::vector<Token>& tokensOut);
-
-const char* tokenTypeToString(TokenType type);

@@ -13,6 +13,8 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	printf("\nTokenization:\n");
+
 	FILE* file = nullptr;
 	const char* filename = argv[1];
 	file = fopen(filename, "r");
@@ -20,6 +22,10 @@ int main(int argc, char* argv[])
 	{
 		printf("Error: Could not open %s\n", filename);
 		return 1;
+	}
+	else
+	{
+		printf("Opened %s\n", filename);
 	}
 
 	bool verbose = false;
@@ -35,7 +41,7 @@ int main(int argc, char* argv[])
 		const char* error = tokenizeLine(lineBuffer, lineNumber, tokens);
 		if (error != nullptr)
 		{
-			printf("%s:%d: %s\n", filename, lineNumber, error);
+			printf("%s:%d: error: %s\n", filename, lineNumber, error);
 			return 1;
 		}
 
@@ -65,7 +71,10 @@ int main(int argc, char* argv[])
 			--nestingDepth;
 			if (nestingDepth < 0)
 			{
-				printf("\nError: Mismatched parenthesis. Too many closing parentheses\n");
+				printf(
+				    "\n%s:1: error: Mismatched parenthesis. Too many closing parentheses, or "
+				    "missing opening parenthesies\n",
+				    filename);
 				return 1;
 			}
 		}
@@ -83,16 +92,26 @@ int main(int argc, char* argv[])
 	if (nestingDepth != 0)
 	{
 		printf(
-		    "Error: Mismatched parenthesis. Missing closing parentheses, or too many opening "
-		    "parentheses\n");
+		    "%s:1: error: Mismatched parenthesis. Missing closing parentheses, or too many opening "
+		    "parentheses\n", filename);
 		return 1;
 	}
 
 	fclose(file);
 
+	printf("\nParsing and code generation:\n");
+
 	std::vector<GenerateOperation> operations;
-	if (parserGenerateCode(tokens, operations) != 0)
+	if (parserGenerateCode(filename, tokens, operations) != 0)
 		return 1;
+	else
+	{
+		printf("\nResult:\n");
+		for (const GenerateOperation& operation : operations)
+		{
+			printf("%s", operation.output.c_str());
+		}
+	}
 
 	return 0;
 }

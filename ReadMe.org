@@ -12,19 +12,31 @@ This is the first language project I've embarked on, so it will be riddled with 
 - "Real" types: Types are identical to C types, e.g. ~int~ is 32 bits with no sign bit or anything like other Lisp implementations do
 - No garbage collection: I can handle my own memory
 - Hot reloading: It should be possible to make modifications to functions *and structures* at runtime to quickly iterate
-- Truly seamless C interoperability: No bindings, no wrappers: C types and functions are as easy to call as they are in C
-
+- Truly seamless C interoperability: No bindings, no wrappers: C types and functions are as easy to declare and call as they are in C. In order to support this, I've decided to ignore type deduction when possible and instead rely on the C compiler/linker to relay typing errors. Cakelisp will blindly generate what look like C function calls without knowing if that function actually exists, because the C compiler will tell us what the answer is
+- Output is human-readable C/C++ source and header files. This is so if I decide it was unsuccessful, or only useful in some scenarios (e.g. generating serialization wrappers), I can still use the output code from hand-written C/C++ code
 * Plan
 - Tokenize and parser written in C++
 - Export AST to C (C++?). Lisp-y constructs shouldn't stray too far from C style
 - Compile generated C
 - For metaprograms, feed AST into compiled C executables, as long as there are macros to parse
 
+** Detailed function
+1. Tokenize ~.cake~ file into Token array
+2. Iterate through token array, looking for generator definitions
+3. If there are generator definitions, generate code for those definitions, compile it, load it via dynamic linking, then add it to the environment's generator table. Base-level generators will need to be written in C++ to bootstrap the language
+4. Iterate through token array, looking for generator invocations
+5. Run generator as requested by invocation
+6. Return to step 2 in case generators created generators
+7. Once no generators are invoked, output the generator operations
+8. From generator operations, create C/C++ header and source files, as well as line mapping files. Mapping files will record C source location to Cakelisp source location pairs, so debuggers, C compiler errors etc. all map back to the Cakelisp that caused that line
+9. Compile generated C/C++ files. If there are warnings or errors, use the mapping file to associate them back to the original Cakelisp lines that caused that code to be output
 * Similar languages
-- [[http://www.call-cc.org/][Chicken scheme]]: Transpiles to C. This one seemed the "best" of the competitors. Has heavyweight C function bindings, GC
-- Bone Lisp: Lisp with no GC
-- [[https://github.com/carp-lang/Carp][Carp]]: Performance-oriented, see [[https://github.com/carp-lang/Carp/blob/master/docs/LanguageGuide.md][Language guide]]
+- [[http://www.call-cc.org/][Chicken scheme]]: Transpiles to C. This one seemed the "best" of the competitors, because it's fairly active still. Has heavyweight C function bindings, GC
 - [[https://common-lisp.net/project/ecl/static/manual/index.html#Top][ECL]]: embeddable common lisp
-- [[https://github.com/ska80/thinlisp][Thinlisp]]: No GC, write your stuff in CL using SBCL environment, then compile down to C
 - [[https://ferret-lang.org/][Ferret]]: Lisp compiled down to C++
-- [[https://github.com/tomhrr/dale][Dale]]: "Lisp-flavoured C"
+
+The following I believe have little or no activity, implying they are no longer supported:
+- [[https://github.com/tomhrr/dale][Dale]]: "Lisp-flavoured C". Hasn't been touched in over two years. It is similar to what I'm going for, I think
+- [[https://github.com/wolfgangj/bone-lisp][Bone Lisp]]: Lisp with no GC. Creator has abandoned it, but it still gets some attention
+- [[https://github.com/carp-lang/Carp][Carp]]: Performance-oriented. see [[https://github.com/carp-lang/Carp/blob/master/docs/LanguageGuide.md][Language guide]]
+- [[https://github.com/ska80/thinlisp][Thinlisp]]: No GC option available. Write your stuff in CL using the cushy SBCL environment, then compile down to C for good performance
