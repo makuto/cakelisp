@@ -51,7 +51,8 @@ int main(int argc, char* argv[])
 	printf("\nResult:\n");
 
 	int nestingDepth = 0;
-	for (Token& token : tokens)
+	const Token* lastTopLevelOpenParen = nullptr;
+	for (const Token& token : tokens)
 	{
 		printIndentToDepth(nestingDepth);
 
@@ -60,40 +61,40 @@ int main(int argc, char* argv[])
 		bool printRanges = true;
 		if (printRanges)
 		{
-			printf("\t\tline %d, from line character %d to %d", token.lineNumber, token.columnStart,
+			printf("\t\tline %d, from line character %d to %d\n", token.lineNumber, token.columnStart,
 			       token.columnEnd);
 		}
 
 		if (token.type == TokenType_OpenParen)
+		{
+			if (nestingDepth == 0)
+				lastTopLevelOpenParen = &token;
 			++nestingDepth;
+		}
 		else if (token.type == TokenType_CloseParen)
 		{
 			--nestingDepth;
 			if (nestingDepth < 0)
 			{
-				printf(
-				    "\n%s:1: error: Mismatched parenthesis. Too many closing parentheses, or "
-				    "missing opening parenthesies\n",
-				    filename);
+				ErrorAtToken(filename, token,
+				             "Mismatched parenthesis. Too many closing parentheses, or missing "
+				             "opening parenthesies");
 				return 1;
 			}
 		}
 
 		if (!token.contents.empty())
 		{
-			printf("\n");
 			printIndentToDepth(nestingDepth);
 			printf("\t%s\n", token.contents.c_str());
 		}
-		else
-			printf("\n");
 	}
 
 	if (nestingDepth != 0)
 	{
-		printf(
-		    "%s:1: error: Mismatched parenthesis. Missing closing parentheses, or too many opening "
-		    "parentheses\n", filename);
+		ErrorAtToken(
+		    filename, *lastTopLevelOpenParen,
+		    "Mismatched parenthesis. Missing closing parentheses, or too many opening parentheses");
 		return 1;
 	}
 

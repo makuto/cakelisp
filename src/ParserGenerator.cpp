@@ -5,6 +5,10 @@
 // TODO: Replace with fast hash table
 #include <unordered_map>
 
+// TODO: safe version of strcat
+#include <stdio.h>
+#include <string.h>
+
 enum ParserGeneratorStateType
 {
 	ParserGeneratorStateType_None,
@@ -20,6 +24,41 @@ struct ParserGeneratorState
 	const Token* endTrigger;
 };
 
+//
+// Environment
+//
+
+typedef void (*GeneratorFunc)(const char* filename, const std::vector<Token>& tokens,
+                              int startTokenIndex, std::vector<GenerateOperation>& operationsOut);
+
+// TODO: Replace with fast hash table
+static std::unordered_map<std::string, GeneratorFunc> environmentGenerators;
+typedef std::unordered_map<std::string, GeneratorFunc>::iterator GeneratorIterator;
+
+void CImportGenerator(const char* filename, const std::vector<Token>& tokens, int startTokenIndex,
+                      std::vector<GenerateOperation>& operationsOut);
+void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int startTokenIndex,
+                    std::vector<GenerateOperation>& operationsOut);
+
+GeneratorFunc findGenerator(const char* functionName)
+{
+	// For testing only: Lazy-initialize the bootstrapping/fundamental generators
+	if (environmentGenerators.empty())
+	{
+		environmentGenerators["c-import"] = CImportGenerator;
+		environmentGenerators["defun"] = DefunGenerator;
+	}
+
+	GeneratorIterator findIt = environmentGenerators.find(std::string(functionName));
+	if (findIt != environmentGenerators.end())
+		return findIt->second;
+	return nullptr;
+}
+
+//
+// Token parsing helpers
+//
+
 // Generators receive the entire invocation. This function makes it easy to strip it away. It is
 // useful to get the whole invocation in case the same generator is used with multiple different
 // invocation strings
@@ -31,16 +70,12 @@ void StripInvocation(int& startTokenIndex, int& endTokenIndex)
 	endTokenIndex -= 1;
 }
 
-typedef void (*GeneratorFunc)(const char* filename, const std::vector<Token>& tokens,
-                              int startTokenIndex, std::vector<GenerateOperation>& operationsOut);
-
 // Note that the tokenizer should've already confirmed our parenthesis match, so we won't do
 // validation here
 int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenIndex)
 {
 	if (tokens[startTokenIndex].type != TokenType_OpenParen)
-		printf(
-		    "Warning: FindCloseParenTokenIndex() expects to start on the opening parenthesis\n");
+		printf("Warning: FindCloseParenTokenIndex() expects to start on the opening parenthesis\n");
 
 	int depth = 0;
 	int numTokens = tokens.size();
@@ -85,6 +120,61 @@ bool GeneratorExpectInInvocation(const char* filename, const char* message,
 	return true;
 }
 
+// TODO: Come up with better name
+bool isSpecialSymbol(const Token& token)
+{
+	if (token.type == TokenType_Symbol)
+	{
+		// The size check allows functions to be declared named ':' or '&', but not ':bad' or '&bad'
+		return token.contents.size() > 1 && (token.contents[0] == ':' || token.contents[0] == '&');
+	}
+	else
+	{
+		printf("Warning: isSpecialSymbol() expects only Symbol types\n");
+		return true;
+	}
+}
+
+// This function would be simpler and faster if there was an actual syntax tree, because we wouldn't
+// be repeatedly traversing all the arguments
+int getExpectedArgument(const char* filename, const char* message, const std::vector<Token>& tokens,
+                        int startTokenIndex, int desiredArgumentIndex, int endTokenIndex)
+{
+	int currentArgumentIndex = 0;
+	for (int i = startTokenIndex + 1; i < endTokenIndex; ++i)
+	{
+		if (currentArgumentIndex == desiredArgumentIndex)
+			return i;
+
+		const Token& token = tokens[i];
+		if (token.type == TokenType_OpenParen)
+		{
+			// Skip any nesting
+			i = FindCloseParenTokenIndex(tokens, i);
+		}
+
+		++currentArgumentIndex;
+	}
+
+	ErrorAtTokenf(filename, tokens[endTokenIndex], "missing arguments: %s", message);
+	return -1;
+}
+
+bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex)
+{
+	if (tokens[startTokenIndex].type == TokenType_OpenParen &&
+	    FindCloseParenTokenIndex(tokens, startTokenIndex) + 1 < endTokenIndex)
+		return false;
+	else if (tokens[startTokenIndex].type == TokenType_Symbol &&
+	         startTokenIndex + 1 < endTokenIndex)
+		return false;
+	return true;
+}
+
+//
+// Generators
+//
+
 void CImportGenerator(const char* filename, const std::vector<Token>& tokens, int startTokenIndex,
                       std::vector<GenerateOperation>& operationsOut)
 {
@@ -116,36 +206,152 @@ void CImportGenerator(const char* filename, const std::vector<Token>& tokens, in
 	}
 }
 
-// TODO: Come up with better name
-bool isSpecialSymbol(const Token& token)
-{
-	if (token.type == TokenType_Symbol)
-	{
-		// The size check allows functions to be declared named ':' or '&', but not ':bad' or '&bad'
-		return token.contents.size() > 1 && (token.contents[0] == ':' || token.contents[0] == '&');
-	}
-	else
-	{
-		printf("Warning: isSpecialSymbol() expects only Symbol types\n");
-		return true;
-	}
-}
-
 // Returns whether parsing was successful
-bool tokenizedCTypeToString(const char* filename, char* buffer, int bufferLength,
-                            const std::vector<Token>& tokens, int startTokenIndex)
+bool tokenizedCTypeToString_Recursive(const char* filename, char* buffer, int bufferLength,
+                                      char* afterNameBuffer, int afterNameBufferLength,
+                                      const std::vector<Token>& tokens, int startTokenIndex,
+                                      bool allowArray)
 {
-	if (tokens[startTokenIndex].type == TokenType_Symbol &&
-	    !isSpecialSymbol(tokens[startTokenIndex]))
+	if (tokens[startTokenIndex].type == TokenType_Symbol)
 	{
-		SafeSnprinf(buffer, bufferLength, "%s", tokens[startTokenIndex].contents.c_str());
+		if (isSpecialSymbol(tokens[startTokenIndex]))
+		{
+			ErrorAtToken(filename, tokens[startTokenIndex],
+			             "types must not be : keywords or & sentinels. A generator may be "
+			             "misinterpreting the special symbol, or you have made a mistake");
+			return false;
+		}
+
+		// TODO: Check for length
+		strcat(buffer, tokens[startTokenIndex].contents.c_str());
 		return true;
 	}
 	else
 	{
-		ErrorAtToken(filename, tokens[startTokenIndex], "Type could not be parsed");
-		// TODO Parse type
-		return false;
+		// Some examples:
+		// (const int)
+		// (* (const char))
+		// (& (const (<> std::vector Token)))
+		// ([] (const char))
+		// ([] ([] 10 float)) ;; 2D Array with one specified dimension
+
+		const Token& typeInvocation = tokens[startTokenIndex + 1];
+		if (!GeneratorExpectType(filename, "C/C++ type parser generator", typeInvocation,
+		                         TokenType_Symbol))
+			return false;
+
+		int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+		if (typeInvocation.contents.compare("const") == 0)
+		{
+			// Prepend const-ness
+			strcat(buffer, "const ");
+			int typeIndex = getExpectedArgument(filename, "const requires type", tokens,
+			                                    startTokenIndex, 1, endTokenIndex);
+			if (typeIndex == -1)
+				return false;
+
+			return tokenizedCTypeToString_Recursive(filename, buffer, bufferLength, afterNameBuffer,
+			                                        afterNameBufferLength, tokens, typeIndex,
+			                                        allowArray);
+		}
+		else if (typeInvocation.contents.compare("*") == 0 ||
+		         typeInvocation.contents.compare("&") == 0)
+		{
+			// Append pointer/reference
+			int typeIndex = getExpectedArgument(filename, "expected type", tokens, startTokenIndex,
+			                                    1, endTokenIndex);
+			if (typeIndex == -1)
+				return false;
+
+			if (!tokenizedCTypeToString_Recursive(filename, buffer, bufferLength, afterNameBuffer,
+			                                      afterNameBufferLength, tokens, typeIndex,
+			                                      allowArray))
+				return false;
+
+			strcat(buffer, typeInvocation.contents.c_str());
+		}
+		else if (typeInvocation.contents.compare("<>") == 0)
+		{
+			int typeIndex = getExpectedArgument(filename, "expected template name", tokens,
+			                                    startTokenIndex, 1, endTokenIndex);
+			if (typeIndex == -1)
+				return false;
+
+			if (!tokenizedCTypeToString_Recursive(filename, buffer, bufferLength, afterNameBuffer,
+			                                      afterNameBufferLength, tokens, typeIndex,
+			                                      allowArray))
+				return false;
+
+			strcat(buffer, "<");
+			for (int startTemplateParameter = typeIndex + 1; startTemplateParameter < endTokenIndex;
+			     ++startTemplateParameter)
+			{
+				// Override allowArray for subsequent parsing, because otherwise, the array args
+				// will be appended to the wrong buffer, and you cannot declare arrays in template
+				// parameters anyways (as far as I can tell)
+				if (!tokenizedCTypeToString_Recursive(
+				        filename, buffer, bufferLength, afterNameBuffer, afterNameBufferLength,
+				        tokens, startTemplateParameter, /*allowArray=*/false))
+					return false;
+
+				if (!isLastArgument(tokens, startTemplateParameter, endTokenIndex))
+					strcat(buffer, ", ");
+
+				// Skip over tokens of the type we just parsed (the for loop increment will move us
+				// off the end paren)
+				if (tokens[startTemplateParameter].type == TokenType_OpenParen)
+					startTemplateParameter =
+					    FindCloseParenTokenIndex(tokens, startTemplateParameter);
+			}
+			strcat(buffer, ">");
+		}
+		else if (typeInvocation.contents.compare("[]") == 0)
+		{
+			if (!allowArray)
+			{
+				ErrorAtToken(
+				    filename, tokens[startTokenIndex],
+				    "cannot declare array in this context. You may need to use a pointer instead");
+				return false;
+			}
+
+			int firstArgIndex = getExpectedArgument(filename, "expected type or array size", tokens,
+			                                        startTokenIndex, 1, endTokenIndex);
+			if (firstArgIndex == -1)
+				return false;
+
+			// Arrays must append their brackets after the name (must be in separate buffer)
+			bool arraySizeIsFirstArgument = tokens[firstArgIndex].type == TokenType_Symbol &&
+			                                std::isdigit(tokens[firstArgIndex].contents[0]);
+			int typeIndex = firstArgIndex;
+			if (arraySizeIsFirstArgument)
+			{
+				typeIndex = getExpectedArgument(filename, "expected array type", tokens,
+				                                startTokenIndex, 2, endTokenIndex);
+				if (typeIndex == -1)
+					return false;
+
+				// Array size specified as first argument
+				strcat(afterNameBuffer, "[");
+				strcat(afterNameBuffer, tokens[firstArgIndex].contents.c_str());
+				strcat(afterNameBuffer, "]");
+			}
+			else
+				strcat(afterNameBuffer, "[]");
+
+			// Type parsing happens after the [] have already been appended because the array's type
+			// may include another array dimension, which must be specified after the current array
+			return tokenizedCTypeToString_Recursive(filename, buffer, bufferLength, afterNameBuffer,
+			                                        afterNameBufferLength, tokens, typeIndex,
+			                                        /*allowArray=*/true);
+		}
+		else
+		{
+			ErrorAtToken(filename, typeInvocation, "unknown C/C++ type specifier");
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -163,7 +369,8 @@ void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int 
 		return;
 
 	int argsIndex = nameIndex + 1;
-	if (!GeneratorExpectInInvocation(filename, "defun expected name", tokens, argsIndex, endDefunTokenIndex))
+	if (!GeneratorExpectInInvocation(filename, "defun expected name", tokens, argsIndex,
+	                                 endDefunTokenIndex))
 		return;
 	const Token& argsStart = tokens[argsIndex];
 	if (!GeneratorExpectType(filename, "defun", argsStart, TokenType_OpenParen))
@@ -182,7 +389,7 @@ void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int 
 	struct DefunArgument
 	{
 		int startTypeIndex;
-		const Token* name;
+		int nameIndex;
 	};
 	std::vector<DefunArgument> arguments;
 	DefunArgument currentArgument = {};
@@ -210,7 +417,7 @@ void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int 
 			}
 			else
 			{
-				currentArgument.name = &currentToken;
+				currentArgument.nameIndex = i;
 				// Finished with an argument
 				arguments.push_back(currentArgument);
 				currentArgument = {};
@@ -224,7 +431,8 @@ void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int 
 			    currentToken.contents.compare("&return") == 0)
 			{
 				state = ReturnType;
-				if (!GeneratorExpectInInvocation(filename, "&return expected type", tokens, i + 1, endArgsIndex))
+				if (!GeneratorExpectInInvocation(filename, "&return expected type", tokens, i + 1,
+				                                 endArgsIndex))
 					return;
 				// Wait until next token to get type
 				continue;
@@ -246,21 +454,14 @@ void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int 
 			}
 
 			// We've now introduced an expectation that a name will follow
-			if (!GeneratorExpectInInvocation(filename, "expected argument name", tokens, i + 1, endArgsIndex))
+			if (!GeneratorExpectInInvocation(filename, "expected argument name", tokens, i + 1,
+			                                 endArgsIndex))
 				return;
 		}
 	}
 
-	for (DefunArgument arg : arguments)
-	{
-		char typeBuffer[128] = {0};
-		bool typeValid = tokenizedCTypeToString(filename, typeBuffer, sizeof(typeBuffer), tokens,
-		                                        arg.startTypeIndex);
-		if (!typeValid)
-			return;
-	}
-
 	char returnTypeBuffer[128] = {0};
+	char returnAfterNameBuffer[16] = {0};
 	bool returnTypeValid = false;
 	// Unspecified means void, unlike lisp, which deduces return
 	if (returnTypeStart == -1)
@@ -270,8 +471,25 @@ void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int 
 	}
 	else
 	{
-		returnTypeValid = tokenizedCTypeToString(filename, returnTypeBuffer,
-		                                         sizeof(returnTypeBuffer), tokens, returnTypeStart);
+		const Token& returnTypeToken = tokens[returnTypeStart];
+
+		// Check whether any arguments followed return type, because they will be ignored
+		{
+			int returnTypeEndIndex = returnTypeStart;
+			if (returnTypeToken.type == TokenType_OpenParen)
+				returnTypeEndIndex = FindCloseParenTokenIndex(tokens, returnTypeStart);
+
+			if (returnTypeEndIndex + 1 < endArgsIndex)
+			{
+				const Token& extraneousToken = tokens[returnTypeEndIndex + 1];
+				ErrorAtToken(filename, extraneousToken, "Arguments after &return type are ignored");
+				return;
+			}
+		}
+
+		returnTypeValid = tokenizedCTypeToString_Recursive(
+		    filename, returnTypeBuffer, sizeof(returnTypeBuffer), returnAfterNameBuffer,
+		    sizeof(returnAfterNameBuffer), tokens, returnTypeStart, /*allowArray=*/false);
 	}
 
 	if (!returnTypeValid)
@@ -302,26 +520,47 @@ void DefunGenerator(const char* filename, const std::vector<Token>& tokens, int 
 	operationsOut.push_back({nameToken.contents, &nameToken, &nameToken});
 
 	operationsOut.push_back({"(", &argsStart, &argsStart});
-	operationsOut.push_back({")", &tokens[endArgsIndex], &tokens[endArgsIndex]});
-}
 
-// TODO: Replace with fast hash table
-static std::unordered_map<std::string, GeneratorFunc> environmentGenerators;
-typedef std::unordered_map<std::string, GeneratorFunc>::iterator GeneratorIterator;
-
-GeneratorFunc findGenerator(const char* functionName)
-{
-	// For testing only: Lazy-initialize the bootstrapping/fundamental generators
-	if (environmentGenerators.empty())
+	// Output arguments
+	int numFunctionArguments = arguments.size();
+	for (int i = 0; i < numFunctionArguments; ++i)
 	{
-		environmentGenerators["c-import"] = CImportGenerator;
-		environmentGenerators["defun"] = DefunGenerator;
+		const DefunArgument& arg = arguments[i];
+		char typeBuffer[128] = {0};
+		char afterNameBuffer[16] = {0};
+		bool typeValid = tokenizedCTypeToString_Recursive(
+		    filename, typeBuffer, sizeof(typeBuffer), afterNameBuffer, sizeof(afterNameBuffer),
+		    tokens, arg.startTypeIndex, /*allowArray=*/true);
+		if (!typeValid)
+			return;
+
+		// Type
+		{
+			// TODO: Come up with better thing for this? Operation padding options?
+			char typeBufferWithSpace[128] = {0};
+			PrintfBuffer(typeBufferWithSpace, "%s ", typeBuffer);
+			operationsOut.push_back(
+			    {typeBufferWithSpace, &tokens[arg.startTypeIndex], &tokens[arg.nameIndex - 1]});
+		}
+		// Name
+		operationsOut.push_back(
+		    {tokens[arg.nameIndex].contents, &tokens[arg.nameIndex], &tokens[arg.nameIndex]});
+		// Array
+		operationsOut.push_back(
+		    {afterNameBuffer, &tokens[arg.startTypeIndex], &tokens[arg.nameIndex - 1]});
+
+		if (i + 1 < numFunctionArguments)
+		{
+			// It's a little weird to have to pick who is responsible for the comma. In this case
+			// both the name and the type of the next arg are responsible, because there wouldn't be
+			// a comma if there wasn't a next arg
+			DefunArgument& nextArg = arguments[i + 1];
+			operationsOut.push_back(
+			    {", ", &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
+		}
 	}
 
-	GeneratorIterator findIt = environmentGenerators.find(std::string(functionName));
-	if (findIt != environmentGenerators.end())
-		return findIt->second;
-	return nullptr;
+	operationsOut.push_back({")", &tokens[endArgsIndex], &tokens[endArgsIndex]});
 }
 
 int parserGenerateCode(const char* filename, const std::vector<Token>& tokens,
