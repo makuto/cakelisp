@@ -13,7 +13,7 @@ enum TokenizeState
 };
 
 // Returns nullptr if no errors, else the error text
-const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
+const char* tokenizeLine(const char* inputLine, const char* source, unsigned int lineNumber,
                          std::vector<Token>& tokensOut)
 {
 	bool verbose = false;
@@ -57,13 +57,13 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 					return A_OK;
 				else if (*currentChar == '(')
 				{
-					Token openParen = {TokenType_OpenParen, "", lineNumber, currentColumn,
+					Token openParen = {TokenType_OpenParen, "", source, lineNumber, currentColumn,
 					                   currentColumn + 1};
 					tokensOut.push_back(openParen);
 				}
 				else if (*currentChar == ')')
 				{
-					Token closeParen = {TokenType_CloseParen, "", lineNumber, currentColumn,
+					Token closeParen = {TokenType_CloseParen, "", source, lineNumber, currentColumn,
 					                    currentColumn + 1};
 					tokensOut.push_back(closeParen);
 				}
@@ -93,20 +93,23 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 				{
 					if (verbose)
 						printf("%s\n", contentsBuffer);
-					Token symbol = {TokenType_Symbol, "", lineNumber, columnStart, currentColumn};
+					Token symbol = {TokenType_Symbol, "",          source,
+					                lineNumber,       columnStart, currentColumn};
 					CopyContentsAndReset(symbol.contents);
 					tokensOut.push_back(symbol);
 
 					if (*currentChar == '(')
 					{
-						Token openParen = {TokenType_OpenParen, "", lineNumber, currentColumn,
-						                   currentColumn + 1};
+						Token openParen = {
+						    TokenType_OpenParen, "", source, lineNumber, currentColumn,
+						    currentColumn + 1};
 						tokensOut.push_back(openParen);
 					}
 					else if (*currentChar == ')')
 					{
-						Token closeParen = {TokenType_CloseParen, "", lineNumber, currentColumn,
-						                    currentColumn + 1};
+						Token closeParen = {
+						    TokenType_CloseParen, "", source, lineNumber, currentColumn,
+						    currentColumn + 1};
 						tokensOut.push_back(closeParen);
 					}
 
@@ -129,8 +132,8 @@ const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
 					}
 					else
 					{
-						Token string = {TokenType_String, "", lineNumber, columnStart,
-						                currentColumn + 1};
+						Token string = {TokenType_String, "",          source,
+						                lineNumber,       columnStart, currentColumn + 1};
 						CopyContentsAndReset(string.contents);
 						tokensOut.push_back(string);
 

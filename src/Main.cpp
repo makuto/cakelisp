@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
 		if (verbose)
 			printf("%s", lineBuffer);
 
-		const char* error = tokenizeLine(lineBuffer, lineNumber, tokens);
+		const char* error = tokenizeLine(lineBuffer, filename, lineNumber, tokens);
 		if (error != nullptr)
 		{
 			printf("%s:%d: error: %s\n", filename, lineNumber, error);
@@ -61,8 +61,8 @@ int main(int argc, char* argv[])
 		bool printRanges = true;
 		if (printRanges)
 		{
-			printf("\t\tline %d, from line character %d to %d\n", token.lineNumber, token.columnStart,
-			       token.columnEnd);
+			printf("\t\tline %d, from line character %d to %d\n", token.lineNumber,
+			       token.columnStart, token.columnEnd);
 		}
 
 		if (token.type == TokenType_OpenParen)
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
 			--nestingDepth;
 			if (nestingDepth < 0)
 			{
-				ErrorAtToken(filename, token,
+				ErrorAtToken(token,
 				             "Mismatched parenthesis. Too many closing parentheses, or missing "
 				             "opening parenthesies");
 				return 1;
@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
 	if (nestingDepth != 0)
 	{
 		ErrorAtToken(
-		    filename, *lastTopLevelOpenParen,
+		    *lastTopLevelOpenParen,
 		    "Mismatched parenthesis. Missing closing parentheses, or too many opening parentheses");
 		return 1;
 	}
@@ -102,15 +102,37 @@ int main(int argc, char* argv[])
 
 	printf("\nParsing and code generation:\n");
 
-	std::vector<GenerateOperation> operations;
-	if (parserGenerateCode(filename, tokens, operations) != 0)
+	GeneratorOutput generatedOutput;
+	if (parserGenerateCode(tokens, generatedOutput) != 0)
 		return 1;
 	else
 	{
+		NameStyleSettings nameSettings;
+
 		printf("\nResult:\n");
-		for (const GenerateOperation& operation : operations)
+
+		printf("\tTo source file:\n");
+		for (const StringOutput& operation : generatedOutput.source)
 		{
-			printf("%s", operation.output.c_str());
+			debugPrintStringOutput(nameSettings, operation);
+		}
+
+		printf("\n\tTo header file:\n");
+		for (const StringOutput& operation : generatedOutput.header)
+		{
+			debugPrintStringOutput(nameSettings, operation);
+		}
+
+		printf("\n\tImports:\n");
+		for (const ImportMetadata& import : generatedOutput.imports)
+		{
+			printf("%s\t(%s)\n", import.importName.c_str(), importTypeToString(import.type));
+		}
+
+		printf("\n\tFunctions:\n");
+		for (const FunctionMetadata& function : generatedOutput.functions)
+		{
+			printf("%s\n", function.name.c_str());
 		}
 	}
 

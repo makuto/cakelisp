@@ -2,7 +2,10 @@ Main cakelisp : Main.cpp
 Tokenizer.cpp
 ParserGenerator.cpp
 Utilities.cpp
+Converters.cpp
 ;
+
+Main dynamicLoadTest : DynamicLoader.cpp ;
 
 MakeLocate cakelisp : ../cakelisp ;
 

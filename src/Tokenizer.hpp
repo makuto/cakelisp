@@ -20,6 +20,10 @@ struct Token
 	// Only non-empty if type is ambiguous
 	std::string contents;
 
+	// The origin of this token, for debugging etc.
+	// This is a filename for handwritten code, and possibly something else for generated tokens
+	const char* source;
+	// Starting at 1, because no text editor starts at "line 0"
 	unsigned int lineNumber;
 	// Includes quotation marks of strings. \t etc. only count as 1 column
 	int columnStart;
@@ -29,6 +33,7 @@ struct Token
 
 void destroyToken(Token* token);
 
+// Source should be the filename for handwritten code
 // No state past a single line means this could be called in parallel
-const char* tokenizeLine(const char* inputLine, unsigned int lineNumber,
+const char* tokenizeLine(const char* inputLine, const char* source, unsigned int lineNumber,
                          std::vector<Token>& tokensOut);
