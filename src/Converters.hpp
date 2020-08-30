@@ -17,15 +17,19 @@ enum NameStyleMode
 	// types without knowing which is which, e.g.:
 	//  my-cake-type arg1, int arg2 -> MyCakeType arg1, int arg2
 	// caketype arg1, int arg2 -> caketype arg1, int arg2
-	NameStyleMode_PascalCaseIfPlural
+	NameStyleMode_PascalCaseIfLispy
 };
 
 struct NameStyleSettings
 {
-	// It is unwise to change this to pascal case because it will destroy C types which start with
-	// lowercase characters (e.g. "int")
-	NameStyleMode typeNameMode = NameStyleMode_PascalCaseIfPlural;
-	NameStyleMode functionNameMode = NameStyleMode_CamelCase;
+	// In general, you should write C/C++ types as they appear in C/C++, because then ETAGS etc. can
+	// still find the C++ definition without running our conversion functions. If you really don't
+	// want to, then typeNameMode should get you what you need, generally.
+	//
+	// WARNING: It is unwise to change this to pascal case because it will destroy C types which
+	// start with lowercase characters (e.g. "int")
+	NameStyleMode typeNameMode = NameStyleMode_PascalCaseIfLispy;
+	NameStyleMode functionNameMode = NameStyleMode_Underscores;
 	NameStyleMode argumentNameMode = NameStyleMode_CamelCase;
 	NameStyleMode variableNameMode = NameStyleMode_CamelCase;
 	NameStyleMode globalVariableNameMode = NameStyleMode_CamelCase;

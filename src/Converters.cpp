@@ -11,9 +11,14 @@ bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize)
 {
 	**at = c;
 	++(*at);
-	if (*at >= bufferStart + bufferSize)
+	char* endOfBuffer = bufferStart + bufferSize - 1;
+	if (*at >= endOfBuffer)
 	{
-		printf("Error: lispNameStyleToCNameStyle(): buffer too small");
+		printf(
+		    "\nError: lispNameStyleToCNameStyle(): buffer of size %d was too small. String will be "
+		    "cut off\n",
+		    bufferSize);
+		*endOfBuffer = '\0';
 		return false;
 	}
 
@@ -26,9 +31,14 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 	{
 		**at = *c;
 		++(*at);
-		if (*at >= bufferStart + bufferSize)
+		char* endOfBuffer = bufferStart + bufferSize - 1;
+		if (*at >= endOfBuffer)
 		{
-			printf("Error: lispNameStyleToCNameStyle(): buffer too small");
+			printf(
+			    "\nError: lispNameStyleToCNameStyle(): buffer of size %d was too small. String "
+			    "will be cut off\n",
+			    bufferSize);
+			*(endOfBuffer) = '\0';
 			return false;
 		}
 	}
@@ -40,11 +50,8 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
                                int bufferOutSize)
 {
 	bool upcaseNextCharacter = false;
-	if (mode == NameStyleMode_PascalCase)
-		upcaseNextCharacter = true;
-
 	bool isPlural = false;
-	bool startsWithSymbol = false;
+	bool requiredSymbolConversion = false;
 
 	char* bufferWrite = bufferOut;
 
@@ -61,7 +68,7 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 				case NameStyleMode_CamelCase:
 					upcaseNextCharacter = true;
 					break;
-				case NameStyleMode_PascalCaseIfPlural:
+				case NameStyleMode_PascalCaseIfLispy:
 					isPlural = true;
 					upcaseNextCharacter = true;
 					break;
@@ -91,7 +98,7 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 					    "wasn't a C++-style :: scope resolution operator; is a generator wrongly "
 					    "interpreting a special symbol?\n");
 
-				startsWithSymbol = true;
+				requiredSymbolConversion = true;
 				if (!writeStringToBuffer("Colon", &bufferWrite, bufferOut, bufferOutSize))
 					return;
 			}
@@ -113,7 +120,7 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 		}
 		else
 		{
-			startsWithSymbol = true;
+			requiredSymbolConversion = true;
 			// Name has characters C considers invalid, but Cakelisp allows
 			// This is pretty odd
 			switch (*c)
@@ -151,15 +158,19 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 		}
 	}
 
-	// See comment above NameStyleMode_PascalCaseIfPlural declaration
-	if (isPlural && mode == NameStyleMode_PascalCaseIfPlural)
+	// If we have used '-' or non-C/C++ valid symbols in our name, assume it's safe to uppercase the
+	// first letter. See comment above NameStyleMode_PascalCaseIfLispy declaration. PascalCase just
+	// blindly changes the first letter, which can cause issues with Types
+	bool isLispy = isPlural || requiredSymbolConversion;
+	if (mode == NameStyleMode_PascalCase || (isLispy && mode == NameStyleMode_PascalCaseIfLispy))
 	{
+		//
 		bufferOut[0] = toupper(bufferOut[0]);
 	}
 
 	// E.g. "+" becomes "add", but in special symbols translators I didn't want to have to check for
 	// first character. Fix it up here
-	if (startsWithSymbol && mode == NameStyleMode_CamelCase)
+	if (requiredSymbolConversion && mode == NameStyleMode_CamelCase)
 		bufferOut[0] = tolower(bufferOut[0]);
 
 	*bufferWrite = '\0';

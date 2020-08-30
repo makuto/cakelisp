@@ -2,7 +2,8 @@
 
 #include <cstdio>  //  sprintf
 
-#define MAX_NAME_LENGTH 128
+#define MAX_NAME_LENGTH 64
+#define MAX_PATH_LENGTH 128
 
 void printIndentToDepth(int depth);
 
@@ -31,3 +32,5 @@ void printIndentToDepth(int depth);
 #define ErrorAtToken(token, message)                                                             \
 	printf("%s:%d:%d: error: %s\n", (token).source, (token).lineNumber, 1 + (token).columnStart, \
 	       message)
+
+#define PushBackAll(dest, src) (dest).insert((dest).end(), (src).begin(), (src).end())

@@ -35,6 +35,7 @@ struct StringOutput
 
 struct FunctionMetadata
 {
+	// The Cakelisp name, NOT the converted C name
 	std::string name;
 	const Token* startToken;
 	const Token* endToken;

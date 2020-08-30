@@ -169,6 +169,11 @@ bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int e
 	return true;
 }
 
+void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag)
+{
+	operation.modifiers = (StringOutputModifierFlags)((int)operation.modifiers | (int)flag);
+}
+
 //
 // Generators
 //
@@ -212,7 +217,8 @@ void CImportGenerator(const std::vector<Token>& tokens, int startTokenIndex,
 		         currentToken.contents.empty())
 			continue;
 
-		char includeBuffer[128] = {0};
+		// TODO: Convert to StringOutputs?
+		char includeBuffer[MAX_PATH_LENGTH] = {0};
 		// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
 		if (currentToken.contents[0] == '<')
 		{
@@ -234,12 +240,20 @@ void CImportGenerator(const std::vector<Token>& tokens, int startTokenIndex,
 	}
 }
 
-// Returns whether parsing was successful
-bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afterNameBuffer,
-                                      int afterNameBufferLength, const std::vector<Token>& tokens,
-                                      int startTokenIndex, NameStyleMode typeNameMode,
-                                      bool allowArray)
+// afterNameOutput must be a separate buffer because some C type specifiers (e.g. array []) need to
+// come after the type. Returns whether parsing was successful
+bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
+                                      bool allowArray, std::vector<StringOutput>& typeOutput,
+                                      std::vector<StringOutput>& afterNameOutput)
 {
+	if (&typeOutput == &afterNameOutput)
+	{
+		printf(
+		    "Error: tokenizedCTypeToString_Recursive() requires a separate output buffer for "
+		    "after-name types\n");
+		return false;
+	}
+
 	// A type name
 	if (tokens[startTokenIndex].type == TokenType_Symbol)
 	{
@@ -251,16 +265,10 @@ bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afte
 			return false;
 		}
 
-		// Convert lisp style type names to C style. This would normally be done by Convert*
-		// StringOutputModifierFlags, but because we are returning a string directly, we'll do it
-		// explicitly
-		// TODO: Make C type output also use string modifiers?
-		char convertedName[MAX_NAME_LENGTH] = {0};
-		lispNameStyleToCNameStyle(typeNameMode, tokens[startTokenIndex].contents.c_str(),
-		                          convertedName, sizeof(convertedName));
+		typeOutput.push_back({tokens[startTokenIndex].contents.c_str(),
+		                      StringOutMod_ConvertTypeName, &tokens[startTokenIndex],
+		                      &tokens[startTokenIndex]});
 
-		// TODO: Check for length
-		strcat(buffer, convertedName);
 		return true;
 	}
 	else
@@ -281,15 +289,16 @@ bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afte
 		if (typeInvocation.contents.compare("const") == 0)
 		{
 			// Prepend const-ness
-			strcat(buffer, "const ");
+			typeOutput.push_back(
+			    {"const", StringOutMod_SpaceAfter, &typeInvocation, &typeInvocation});
+
 			int typeIndex = getExpectedArgument("const requires type", tokens, startTokenIndex, 1,
 			                                    endTokenIndex);
 			if (typeIndex == -1)
 				return false;
 
-			return tokenizedCTypeToString_Recursive(buffer, bufferLength, afterNameBuffer,
-			                                        afterNameBufferLength, tokens, typeIndex,
-			                                        typeNameMode, allowArray);
+			return tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
+			                                        afterNameOutput);
 		}
 		else if (typeInvocation.contents.compare("*") == 0 ||
 		         typeInvocation.contents.compare("&") == 0)
@@ -300,12 +309,12 @@ bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afte
 			if (typeIndex == -1)
 				return false;
 
-			if (!tokenizedCTypeToString_Recursive(buffer, bufferLength, afterNameBuffer,
-			                                      afterNameBufferLength, tokens, typeIndex,
-			                                      typeNameMode, allowArray))
+			if (!tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
+			                                      afterNameOutput))
 				return false;
 
-			strcat(buffer, typeInvocation.contents.c_str());
+			typeOutput.push_back({typeInvocation.contents.c_str(), StringOutMod_None,
+			                      &typeInvocation, &typeInvocation});
 		}
 		else if (typeInvocation.contents.compare("<>") == 0)
 		{
@@ -314,25 +323,26 @@ bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afte
 			if (typeIndex == -1)
 				return false;
 
-			if (!tokenizedCTypeToString_Recursive(buffer, bufferLength, afterNameBuffer,
-			                                      afterNameBufferLength, tokens, typeIndex,
-			                                      typeNameMode, allowArray))
+			if (!tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
+			                                      afterNameOutput))
 				return false;
 
-			strcat(buffer, "<");
+			typeOutput.push_back({"<", StringOutMod_None, &typeInvocation, &typeInvocation});
 			for (int startTemplateParameter = typeIndex + 1; startTemplateParameter < endTokenIndex;
 			     ++startTemplateParameter)
 			{
 				// Override allowArray for subsequent parsing, because otherwise, the array args
 				// will be appended to the wrong buffer, and you cannot declare arrays in template
 				// parameters anyways (as far as I can tell)
-				if (!tokenizedCTypeToString_Recursive(buffer, bufferLength, afterNameBuffer,
-				                                      afterNameBufferLength, tokens,
-				                                      startTemplateParameter, typeNameMode, /*allowArray=*/false))
+				if (!tokenizedCTypeToString_Recursive(tokens, startTemplateParameter,
+				                                      /*allowArray=*/false, typeOutput,
+				                                      afterNameOutput))
 					return false;
 
 				if (!isLastArgument(tokens, startTemplateParameter, endTokenIndex))
-					strcat(buffer, ", ");
+					typeOutput.push_back({",", StringOutMod_SpaceAfter,
+					                      &tokens[startTemplateParameter],
+					                      &tokens[startTemplateParameter]});
 
 				// Skip over tokens of the type we just parsed (the for loop increment will move us
 				// off the end paren)
@@ -340,7 +350,7 @@ bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afte
 					startTemplateParameter =
 					    FindCloseParenTokenIndex(tokens, startTemplateParameter);
 			}
-			strcat(buffer, ">");
+			typeOutput.push_back({">", StringOutMod_None, &typeInvocation, &typeInvocation});
 		}
 		else if (typeInvocation.contents.compare("[]") == 0)
 		{
@@ -369,18 +379,23 @@ bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afte
 					return false;
 
 				// Array size specified as first argument
-				strcat(afterNameBuffer, "[");
-				strcat(afterNameBuffer, tokens[firstArgIndex].contents.c_str());
-				strcat(afterNameBuffer, "]");
+				afterNameOutput.push_back(
+				    {"[", StringOutMod_None, &typeInvocation, &typeInvocation});
+				afterNameOutput.push_back({tokens[firstArgIndex].contents.c_str(),
+				                           StringOutMod_None, &tokens[firstArgIndex],
+				                           &tokens[firstArgIndex]});
+				afterNameOutput.push_back(
+				    {"]", StringOutMod_None, &typeInvocation, &typeInvocation});
 			}
 			else
-				strcat(afterNameBuffer, "[]");
+				afterNameOutput.push_back(
+				    {"[]", StringOutMod_None, &typeInvocation, &typeInvocation});
 
 			// Type parsing happens after the [] have already been appended because the array's type
 			// may include another array dimension, which must be specified after the current array
-			return tokenizedCTypeToString_Recursive(buffer, bufferLength, afterNameBuffer,
-			                                        afterNameBufferLength, tokens, typeIndex,
-			                                        typeNameMode, /*allowArray=*/true);
+			return tokenizedCTypeToString_Recursive(tokens, typeIndex,
+			                                        /*allowArray=*/true, typeOutput,
+			                                        afterNameOutput);
 		}
 		else
 		{
@@ -393,8 +408,6 @@ bool tokenizedCTypeToString_Recursive(char* buffer, int bufferLength, char* afte
 
 void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
 {
-	// TODO: Get this passed in from the top!
-	NameStyleMode typeNameMode = NameStyleMode_PascalCaseIfPlural;
 	int endDefunTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 	int endTokenIndex = endDefunTokenIndex;
 	int startNameTokenIndex = startTokenIndex;
@@ -495,14 +508,13 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 		}
 	}
 
-	char returnTypeBuffer[128] = {0};
-	char returnAfterNameBuffer[16] = {0};
-	bool returnTypeValid = false;
-	// Unspecified means void, unlike lisp, which deduces return
 	if (returnTypeStart == -1)
 	{
-		PrintfBuffer(returnTypeBuffer, "%s", "void");
-		returnTypeValid = true;
+		// The type was implicit; blame the "defun"
+		output.source.push_back({"void", StringOutMod_SpaceAfter,
+		                         &tokens[startTokenIndex], &tokens[startTokenIndex]});
+		output.header.push_back({"void", StringOutMod_SpaceAfter,
+		                         &tokens[startTokenIndex], &tokens[startTokenIndex]});
 	}
 	else
 	{
@@ -522,34 +534,27 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 			}
 		}
 
-		returnTypeValid = tokenizedCTypeToString_Recursive(
-		    returnTypeBuffer, sizeof(returnTypeBuffer), returnAfterNameBuffer,
-		    sizeof(returnAfterNameBuffer), tokens, returnTypeStart, typeNameMode,
-		    /*allowArray=*/false);
-	}
+		std::vector<StringOutput> typeOutput;
+		std::vector<StringOutput> afterNameOutput;
+		// Arrays cannot be return types, they must be * instead
+		if (!tokenizedCTypeToString_Recursive(tokens, returnTypeStart,
+		                                      /*allowArray=*/false, typeOutput, afterNameOutput))
+			return;
 
-	if (!returnTypeValid)
-		return;
+		if (!afterNameOutput.empty())
+		{
+			const Token* problemToken = afterNameOutput.begin()->startToken;
+			ErrorAtToken(*problemToken,
+			             "Return types cannot have this type. An error in the code has occurred, "
+			             "because the parser shouldn't have gotten this far");
+			return;
+		}
 
-	if (returnTypeStart == -1)
-	{
-		// The type was implicit; blame the "defun"
-		output.source.push_back({returnTypeBuffer, StringOutMod_SpaceAfter,
-		                         &tokens[startTokenIndex], &tokens[startTokenIndex]});
-		output.header.push_back({returnTypeBuffer, StringOutMod_SpaceAfter,
-		                         &tokens[startTokenIndex], &tokens[startTokenIndex]});
-	}
-	else
-	{
-		const Token& returnTypeToken = tokens[returnTypeStart];
-		const Token* returnTypeEndToken = &returnTypeToken;
-		if (returnTypeToken.type != TokenType_Symbol)
-			returnTypeEndToken = &tokens[FindCloseParenTokenIndex(tokens, startTokenIndex)];
+		// Functions need a space between type and name; add it
+		addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
 
-		output.source.push_back(
-		    {returnTypeBuffer, StringOutMod_SpaceAfter, &returnTypeToken, returnTypeEndToken});
-		output.header.push_back(
-		    {returnTypeBuffer, StringOutMod_SpaceAfter, &returnTypeToken, returnTypeEndToken});
+		output.source.insert(output.source.end(), typeOutput.begin(), typeOutput.end());
+		output.header.insert(output.header.end(), typeOutput.begin(), typeOutput.end());
 	}
 
 	output.source.push_back(
@@ -565,31 +570,29 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 	for (int i = 0; i < numFunctionArguments; ++i)
 	{
 		const DefunArgument& arg = arguments[i];
-		char typeBuffer[128] = {0};
-		char afterNameBuffer[16] = {0};
-		bool typeValid = tokenizedCTypeToString_Recursive(
-		    typeBuffer, sizeof(typeBuffer), afterNameBuffer, sizeof(afterNameBuffer), tokens,
-		    arg.startTypeIndex, typeNameMode, /*allowArray=*/true);
+		std::vector<StringOutput> typeOutput;
+		std::vector<StringOutput> afterNameOutput;
+		bool typeValid =
+		    tokenizedCTypeToString_Recursive(tokens, arg.startTypeIndex,
+		                                     /*allowArray=*/true, typeOutput, afterNameOutput);
 		if (!typeValid)
 			return;
 
+		addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
+
 		// Type
-		{
-			output.source.push_back({typeBuffer, StringOutMod_SpaceAfter,
-			                         &tokens[arg.startTypeIndex], &tokens[arg.nameIndex - 1]});
-			output.header.push_back({typeBuffer, StringOutMod_SpaceAfter,
-			                         &tokens[arg.startTypeIndex], &tokens[arg.nameIndex - 1]});
-		}
+		PushBackAll(output.source, typeOutput);
+		PushBackAll(output.header, typeOutput);
+
 		// Name
 		output.source.push_back({tokens[arg.nameIndex].contents, StringOutMod_ConvertArgumentName,
 		                         &tokens[arg.nameIndex], &tokens[arg.nameIndex]});
 		output.header.push_back({tokens[arg.nameIndex].contents, StringOutMod_ConvertArgumentName,
 		                         &tokens[arg.nameIndex], &tokens[arg.nameIndex]});
+
 		// Array
-		output.source.push_back({afterNameBuffer, StringOutMod_None, &tokens[arg.startTypeIndex],
-		                         &tokens[arg.nameIndex - 1]});
-		output.header.push_back({afterNameBuffer, StringOutMod_None, &tokens[arg.startTypeIndex],
-		                         &tokens[arg.nameIndex - 1]});
+		PushBackAll(output.source, afterNameOutput);
+		PushBackAll(output.header, afterNameOutput);
 
 		if (i + 1 < numFunctionArguments)
 		{
@@ -751,6 +754,17 @@ NameStyleMode getNameStyleModeForFlags(NameStyleSettings& settings,
 		if (mode)
 			printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
 		mode = settings.typeNameMode;
+
+		static bool hasWarned = false;
+		if (!hasWarned && mode == NameStyleMode_PascalCase)
+		{
+			hasWarned = true;
+			printf(
+			    "\nWarning: Use of PascalCase for type names is discouraged because it will "
+			    "destroy lowercase C type names. You should use PascalCaseIfPlural instead, which "
+			    "will only apply case changes if the name looks lisp-y. This warning will only "
+			    "appear once.\n");
+		}
 	}
 	if (modifierFlags & StringOutMod_ConvertFunctionName)
 	{
@@ -782,11 +796,10 @@ NameStyleMode getNameStyleModeForFlags(NameStyleSettings& settings,
 
 void debugPrintStringOutput(NameStyleSettings& settings, const StringOutput& outputOperation)
 {
-	NameStyleMode mode =
-	    getNameStyleModeForFlags(settings, outputOperation.modifiers);
+	NameStyleMode mode = getNameStyleModeForFlags(settings, outputOperation.modifiers);
 	if (mode)
 	{
-		char convertedName[128] = {0};
+		char convertedName[MAX_NAME_LENGTH] = {0};
 		lispNameStyleToCNameStyle(mode, outputOperation.output.c_str(), convertedName,
 		                          sizeof(convertedName));
 		printf("%s", convertedName);

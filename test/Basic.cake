@@ -16,6 +16,10 @@
                           ;; Need to upcase singular argument type names manually (see PascalCaseIfPlural comments)
                           (& (const (<> std::vector Token))) tokens
                           int start-token-index
+                          ;; generate-operation is a C++ type, but because of PascalCaseIfPlural,
+                          ;; the lispy version becomes GenerateOperation. It's probably a good idea
+                          ;; to write GenerateOperation here instead, because then ETAGS etc. can
+                          ;; still find the C++ definition without running our conversion functions
                           (& (<> std::vector (* generate-operation) other-thing)) operations-out)
   (return 0))
 
@@ -26,8 +30,13 @@
 
 ;; Terminology notes: :thing is a keyword symbol. &thing is a symbol or marker symbol (maybe I call it a sentinel?)
 
+;; Becomes add() once converted
 (defun + (int a int b &return int)
   (return 0))
 
 (defun vec-+ (int a int b &return int)
   (return 0))
+
+;; Test max buffer length handling
+;; (defun ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff (int a int b &return int)
+  ;; (return 0))
