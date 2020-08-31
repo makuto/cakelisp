@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <cctype>
 
+#include "Utilities.hpp"
+
 static const char commentCharacter = ';';
 
 enum TokenizeState
@@ -185,5 +187,74 @@ const char* tokenTypeToString(TokenType type)
 			return "String";
 		default:
 			return "Unknown type";
+	}
+}
+
+bool validateParentheses(const std::vector<Token>& tokens)
+{
+	int nestingDepth = 0;
+	const Token* lastTopLevelOpenParen = nullptr;
+	for (const Token& token : tokens)
+	{
+		if (token.type == TokenType_OpenParen)
+		{
+			if (nestingDepth == 0)
+				lastTopLevelOpenParen = &token;
+
+			++nestingDepth;
+		}
+		else if (token.type == TokenType_CloseParen)
+		{
+			--nestingDepth;
+			if (nestingDepth < 0)
+			{
+				ErrorAtToken(token,
+				             "Mismatched parenthesis. Too many closing parentheses, or missing "
+				             "opening parenthesies");
+				return false;
+			}
+		}
+	}
+
+	if (nestingDepth != 0)
+	{
+		ErrorAtToken(
+		    *lastTopLevelOpenParen,
+		    "Mismatched parenthesis. Missing closing parentheses, or too many opening parentheses");
+		return false;
+	}
+
+	return true;
+}
+
+void printFormattedToken(const Token& token)
+{
+	switch (token.type)
+	{
+		case TokenType_OpenParen:
+			printf("(");
+			break;
+		case TokenType_CloseParen:
+			printf(")");
+			break;
+		case TokenType_Symbol:
+			printf("%s ", token.contents.c_str());
+			break;
+		case TokenType_String:
+			// TODO: String convert to what it would look like when it was loaded
+			printf("\"%s\"", token.contents.c_str());
+			break;
+		default:
+			printf("Unknown type");
+			break;
+	}
+}
+
+void printTokens(const std::vector<Token>& tokens)
+{
+	// Note that token parens could be invalid, so we shouldn't do things which rely validity
+	for (const Token& token : tokens)
+	{
+		printFormattedToken(token);
 	}
 }

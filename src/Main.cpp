@@ -48,54 +48,46 @@ int main(int argc, char* argv[])
 		lineNumber++;
 	}
 
-	printf("\nResult:\n");
+	printf("Tokenized %d lines\n", lineNumber - 1);
 
-	int nestingDepth = 0;
-	const Token* lastTopLevelOpenParen = nullptr;
-	for (const Token& token : tokens)
+	if (!validateParentheses(tokens))
+		return 1;
+
+	bool printTokenizerOutput = false;
+	if (printTokenizerOutput)
 	{
-		printIndentToDepth(nestingDepth);
+		printf("\nResult:\n");
 
-		printf("%s", tokenTypeToString(token.type));
-
-		bool printRanges = true;
-		if (printRanges)
-		{
-			printf("\t\tline %d, from line character %d to %d\n", token.lineNumber,
-			       token.columnStart, token.columnEnd);
-		}
-
-		if (token.type == TokenType_OpenParen)
-		{
-			if (nestingDepth == 0)
-				lastTopLevelOpenParen = &token;
-			++nestingDepth;
-		}
-		else if (token.type == TokenType_CloseParen)
-		{
-			--nestingDepth;
-			if (nestingDepth < 0)
-			{
-				ErrorAtToken(token,
-				             "Mismatched parenthesis. Too many closing parentheses, or missing "
-				             "opening parenthesies");
-				return 1;
-			}
-		}
-
-		if (!token.contents.empty())
+		// No need to validate, we already know it's safe
+		int nestingDepth = 0;
+		for (const Token& token : tokens)
 		{
 			printIndentToDepth(nestingDepth);
-			printf("\t%s\n", token.contents.c_str());
-		}
-	}
 
-	if (nestingDepth != 0)
-	{
-		ErrorAtToken(
-		    *lastTopLevelOpenParen,
-		    "Mismatched parenthesis. Missing closing parentheses, or too many opening parentheses");
-		return 1;
+			printf("%s", tokenTypeToString(token.type));
+
+			bool printRanges = true;
+			if (printRanges)
+			{
+				printf("\t\tline %d, from line character %d to %d\n", token.lineNumber,
+				       token.columnStart, token.columnEnd);
+			}
+
+			if (token.type == TokenType_OpenParen)
+			{
+				++nestingDepth;
+			}
+			else if (token.type == TokenType_CloseParen)
+			{
+				--nestingDepth;
+			}
+
+			if (!token.contents.empty())
+			{
+				printIndentToDepth(nestingDepth);
+				printf("\t%s\n", token.contents.c_str());
+			}
+		}
 	}
 
 	fclose(file);
@@ -111,29 +103,7 @@ int main(int argc, char* argv[])
 
 		printf("\nResult:\n");
 
-		printf("\tTo source file:\n");
-		for (const StringOutput& operation : generatedOutput.source)
-		{
-			debugPrintStringOutput(nameSettings, operation);
-		}
-
-		printf("\n\tTo header file:\n");
-		for (const StringOutput& operation : generatedOutput.header)
-		{
-			debugPrintStringOutput(nameSettings, operation);
-		}
-
-		printf("\n\tImports:\n");
-		for (const ImportMetadata& import : generatedOutput.imports)
-		{
-			printf("%s\t(%s)\n", import.importName.c_str(), importTypeToString(import.type));
-		}
-
-		printf("\n\tFunctions:\n");
-		for (const FunctionMetadata& function : generatedOutput.functions)
-		{
-			printf("%s\n", function.name.c_str());
-		}
+		printGeneratorOutput(generatedOutput, nameSettings);
 	}
 
 	return 0;

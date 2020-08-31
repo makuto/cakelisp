@@ -21,7 +21,7 @@ struct Token
 	std::string contents;
 
 	// The origin of this token, for debugging etc.
-	// This is a filename for handwritten code, and possibly something else for generated tokens
+	// This is a filename for handwritten code, and something else for macro-generated tokens
 	const char* source;
 	// Starting at 1, because no text editor starts at "line 0"
 	unsigned int lineNumber;
@@ -37,3 +37,8 @@ void destroyToken(Token* token);
 // No state past a single line means this could be called in parallel
 const char* tokenizeLine(const char* inputLine, const char* source, unsigned int lineNumber,
                          std::vector<Token>& tokensOut);
+
+bool validateParentheses(const std::vector<Token>& tokens);
+
+void printTokens(const std::vector<Token>& tokens);
+

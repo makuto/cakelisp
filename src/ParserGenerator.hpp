@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Tokenizer.hpp"
 #include "Converters.hpp"
+#include "Tokenizer.hpp"
 
 #include <string>
 #include <vector>
@@ -23,6 +23,8 @@ enum StringOutputModifierFlags
 	StringOutMod_NameConverters_END = StringOutMod_ConvertGlobalVariableName,
 };
 
+// Rather than needing to allocate and edit a buffer eventually equal to the size of the final
+// output, store output operations instead. This also facilitates source <-> generated mapping data
 struct StringOutput
 {
 	std::string output;
@@ -33,27 +35,44 @@ struct StringOutput
 	const Token* endToken;
 };
 
+// Types can contain macro invocations. This should be used whenever programmatically dealing with
+// types, otherwise you'll need to handle the macro expansion yourself
+struct ExpandedType
+{
+	std::vector<Token> type;
+	const Token* preExpansionStart;
+	const Token* preExpansionEnd;
+};
+
+struct FunctionArgumentMetadata
+{
+	ExpandedType type;
+	const Token* name;
+};
+
 struct FunctionMetadata
 {
 	// The Cakelisp name, NOT the converted C name
 	std::string name;
 	const Token* startToken;
 	const Token* endToken;
+
+	std::vector<FunctionArgumentMetadata> arguments;
 };
 
-enum ImportType
+enum ImportLanguage
 {
-	ImportType_None = 0,
-	ImportType_C,
-	ImportType_Cakelisp
+	ImportLanguage_None = 0,
+	ImportLanguage_C,
+	ImportLanguage_Cakelisp
 };
 
-const char* importTypeToString(ImportType type);
+const char* importLanguageToString(ImportLanguage type);
 
 struct ImportMetadata
 {
 	std::string importName;
-	ImportType type;
+	ImportLanguage language;
 	const Token* triggerToken;
 };
 
@@ -69,3 +88,5 @@ struct GeneratorOutput
 int parserGenerateCode(const std::vector<Token>& tokens, GeneratorOutput& output);
 
 void debugPrintStringOutput(NameStyleSettings& settings, const StringOutput& outputOperation);
+void printGeneratorOutput(const GeneratorOutput& generatedOutput,
+                          const NameStyleSettings& nameSettings);

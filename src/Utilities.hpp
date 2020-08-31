@@ -33,4 +33,8 @@ void printIndentToDepth(int depth);
 	printf("%s:%d:%d: error: %s\n", (token).source, (token).lineNumber, 1 + (token).columnStart, \
 	       message)
 
+#define NoteAtToken(token, message)                                                             \
+	printf("%s:%d:%d: note: %s\n", (token).source, (token).lineNumber, 1 + (token).columnStart, \
+	       message)
+
 #define PushBackAll(dest, src) (dest).insert((dest).end(), (src).begin(), (src).end())

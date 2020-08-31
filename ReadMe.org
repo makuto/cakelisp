@@ -30,7 +30,34 @@ This is the first language project I've embarked on, so it will be riddled with 
 7. Once no generators are invoked, output the generator operations
 8. From generator operations, create C/C++ header and source files, as well as line mapping files. Mapping files will record C source location to Cakelisp source location pairs, so debuggers, C compiler errors etc. all map back to the Cakelisp that caused that line
 9. Compile generated C/C++ files. If there are warnings or errors, use the mapping file to associate them back to the original Cakelisp lines that caused that code to be output
-* Similar languages
+
+* Compared to C-mera
+The most similar thing to Cakelisp is [[https://github.com/kiselgra/c-mera][C-mera]]. I was not aware of it until after I got a good ways into the project. I will be forging ahead with my own version, which has the following features C-mera lacks (to my limited knowledge):
+- Automatic header file generation
+- Powerful mapping file for debugging, error reporting, etc. on the source code, not just the generated code
+- Intended to support more than "just" code generation, e.g. code to support hot-reloading and runtime type information will be created
+- I will likely add some global environment that will be modifiable by any modules in the project. This is useful for things like automatic "command" function generation with project-wide scope
+
+Features C-mera has that Cakelisp doesn't:
+- Access to Common Lisp macros, which is a huge swath of useful code generators
+- Support for generating other languages. At this point, the C/C++ output is hardcoded, and would be a bit painful to change
+- Multiple contributors and years of refinement
+- It's done, and has proven itself useful
+- Almost definitely has a cleaner implementation
+** Implementation language pros and cons
+Cakelisp is written in C/C++ while C-mera is written in Common Lisp. 
+
+This is good and bad: the advanages of writing it in C/C++ are:
+- It is fast; no garbage collection pauses etc. to deal with. This might not actually be the case if intermediate compilation and loading of generators and macros ends up being slow
+- C++ is what I'm most familiar with; it would've taken me much longer in Common Lisp simply because I'm inexperienced in it
+- Cakelisp does not depend on a runtime, which means it would be possible to integrate the Cakelisp compiler into the project being compiled itself. This could be pretty handy for in-process self-modification thanks to the hot-reloading features
+- Macros and generators can be written in the same language being generated (and in Cakelisp, of course, because Cakelisp itself can load its own generated code to expand itself)
+
+The bad things:
+- There's no macro-writing library to draw from (macros which help write macros)
+- Like previously mentioned, macros and generators need to be converted to C/C++ and compiled by an external compiler to be executed, whereas Common Lisp would make this whole process much easier by natively supporting macro code generation and evaluation
+
+* (Somewhat) Similar languages
 - [[http://www.call-cc.org/][Chicken scheme]]: Transpiles to C. This one seemed the "best" of the competitors, because it's fairly active still. Has heavyweight C function bindings, GC
 - [[https://common-lisp.net/project/ecl/static/manual/index.html#Top][ECL]]: embeddable common lisp
 - [[https://ferret-lang.org/][Ferret]]: Lisp compiled down to C++

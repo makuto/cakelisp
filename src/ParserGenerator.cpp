@@ -40,6 +40,17 @@ void CImportGenerator(const std::vector<Token>& tokens, int startTokenIndex,
                       GeneratorOutput& output);
 void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output);
 
+// Unlike generators, macros output tokens only
+// Note that this is for the macro invocation; defining macros is actually done via a generator
+typedef void (*MacroFunc)(const std::vector<Token>& tokens, int startTokenIndex,
+                          std::vector<Token>& output);
+
+// TODO: Replace with fast hash table
+static std::unordered_map<std::string, MacroFunc> environmentMacros;
+typedef std::unordered_map<std::string, MacroFunc>::iterator MacroIterator;
+
+void SquareMacro(const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output);
+
 GeneratorFunc findGenerator(const char* functionName)
 {
 	// For testing only: Lazy-initialize the bootstrapping/fundamental generators
@@ -51,6 +62,22 @@ GeneratorFunc findGenerator(const char* functionName)
 
 	GeneratorIterator findIt = environmentGenerators.find(std::string(functionName));
 	if (findIt != environmentGenerators.end())
+		return findIt->second;
+	return nullptr;
+}
+
+MacroFunc findMacro(const char* functionName)
+{
+	// For testing only: Lazy-initialize the bootstrapping/fundamental generators
+	if (environmentMacros.empty())
+	{
+		// environmentMacros["c-import"] = CImportGenerator;
+		// For testing
+		environmentMacros["square"] = SquareMacro;
+	}
+
+	MacroIterator findIt = environmentMacros.find(std::string(functionName));
+	if (findIt != environmentMacros.end())
 		return findIt->second;
 	return nullptr;
 }
@@ -106,8 +133,8 @@ bool GeneratorExpectType(const char* generatorName, const Token& token, TokenTyp
 }
 
 // Errors and returns false if out of invocation (or at closing paren)
-bool GeneratorExpectInInvocation(const char* message, const std::vector<Token>& tokens,
-                                 int indexToCheck, int endInvocationIndex)
+bool ExpectInInvocation(const char* message, const std::vector<Token>& tokens, int indexToCheck,
+                        int endInvocationIndex)
 {
 	if (indexToCheck >= endInvocationIndex)
 	{
@@ -184,8 +211,8 @@ void CImportGenerator(const std::vector<Token>& tokens, int startTokenIndex,
 	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 	// Generators receive the entire invocation. We'll ignore it in this case
 	StripInvocation(startTokenIndex, endTokenIndex);
-	if (!GeneratorExpectInInvocation("expected path(s) to include", tokens, startTokenIndex,
-	                                 endTokenIndex + 1))
+	if (!ExpectInInvocation("expected path(s) to include", tokens, startTokenIndex,
+	                        endTokenIndex + 1))
 		return;
 
 	enum CImportState
@@ -236,7 +263,7 @@ void CImportGenerator(const std::vector<Token>& tokens, int startTokenIndex,
 			output.header.push_back({std::string(includeBuffer), StringOutMod_NewlineAfter,
 			                         &currentToken, &currentToken});
 
-		output.imports.push_back({currentToken.contents, ImportType_C, &currentToken});
+		output.imports.push_back({currentToken.contents, ImportLanguage_C, &currentToken});
 	}
 }
 
@@ -419,7 +446,7 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 		return;
 
 	int argsIndex = nameIndex + 1;
-	if (!GeneratorExpectInInvocation("defun expected name", tokens, argsIndex, endDefunTokenIndex))
+	if (!ExpectInInvocation("defun expected name", tokens, argsIndex, endDefunTokenIndex))
 		return;
 	const Token& argsStart = tokens[argsIndex];
 	if (!GeneratorExpectType("defun", argsStart, TokenType_OpenParen))
@@ -480,8 +507,7 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 			    currentToken.contents.compare("&return") == 0)
 			{
 				state = ReturnType;
-				if (!GeneratorExpectInInvocation("&return expected type", tokens, i + 1,
-				                                 endArgsIndex))
+				if (!ExpectInInvocation("&return expected type", tokens, i + 1, endArgsIndex))
 					return;
 				// Wait until next token to get type
 				continue;
@@ -503,7 +529,7 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 			}
 
 			// We've now introduced an expectation that a name will follow
-			if (!GeneratorExpectInInvocation("expected argument name", tokens, i + 1, endArgsIndex))
+			if (!ExpectInInvocation("expected argument name", tokens, i + 1, endArgsIndex))
 				return;
 		}
 	}
@@ -511,10 +537,10 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 	if (returnTypeStart == -1)
 	{
 		// The type was implicit; blame the "defun"
-		output.source.push_back({"void", StringOutMod_SpaceAfter,
-		                         &tokens[startTokenIndex], &tokens[startTokenIndex]});
-		output.header.push_back({"void", StringOutMod_SpaceAfter,
-		                         &tokens[startTokenIndex], &tokens[startTokenIndex]});
+		output.source.push_back(
+		    {"void", StringOutMod_SpaceAfter, &tokens[startTokenIndex], &tokens[startTokenIndex]});
+		output.header.push_back(
+		    {"void", StringOutMod_SpaceAfter, &tokens[startTokenIndex], &tokens[startTokenIndex]});
 	}
 	else
 	{
@@ -622,12 +648,71 @@ void DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 	output.source.push_back(
 	    {"}", StringOutMod_NewlineAfter, &tokens[endTokenIndex], &tokens[endTokenIndex]});
 
+	// TODO: Populate
+	std::vector<FunctionArgumentMetadata> argumentsMetadata;
 	output.functions.push_back(
-	    {nameToken.contents, &tokens[startTokenIndex], &tokens[endTokenIndex]});
+	    {nameToken.contents, &tokens[startTokenIndex], &tokens[endTokenIndex], std::move(argumentsMetadata)});
 }
 
+//
+// Macros
+//
+
+// TODO: Only necessary for macro definition generated body
+// invocationSource should be a human-generated file, when possible
+// void makeMacroSource(char* buffer, int bufferSize, const char* invocationSource)
+// {
+// 	SafeSnprinf(buffer, bufferSize, "%s.macroexpand", invocationSource);
+// }
+
+void SquareMacro(const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	const Token& startToken = tokens[startTokenIndex];
+
+	// Skip opening paren of invocation
+	int nameTokenIndex = startTokenIndex + 1;
+
+	int startArgsIndex = nameTokenIndex + 1;
+	if (!ExpectInInvocation("expected expression to square", tokens, startArgsIndex,
+	                        endInvocationIndex))
+		return;
+
+	// TODO bad way to retrieve args
+	int endArgsIndex = endInvocationIndex;
+
+	// TODO: Source line numbers?
+	output.push_back({TokenType_OpenParen, "", startToken.source, startToken.lineNumber,
+	                  startToken.columnStart, startToken.columnEnd});
+	output.push_back({TokenType_Symbol, "*", startToken.source, startToken.lineNumber,
+	                  startToken.columnStart, startToken.columnEnd});
+
+	// Note: this will cause the passed in argument to be evaluated twice
+	for (int numTimes = 0; numTimes < 2; ++numTimes)
+	{
+		for (int i = startArgsIndex; i < endArgsIndex; ++i)
+		{
+			Token generatedToken = tokens[i];
+			// TODO: Add annotations saying it was from macroexpansion?
+			output.push_back(generatedToken);
+		}
+	}
+
+	const Token& endToken = tokens[endInvocationIndex];
+
+	output.push_back({TokenType_CloseParen, "", endToken.source, endToken.lineNumber,
+	                  endToken.columnStart, endToken.columnEnd});
+}
+
+//
+// Evaluator
+//
+
+// TODO: Rename and specify recursive
 int parserGenerateCode(const std::vector<Token>& tokens, GeneratorOutput& output)
 {
+	// TODO Figure out if we need this
 	std::vector<ParserGeneratorState> stack;
 	ParserGeneratorState defaultState;
 
@@ -686,23 +771,60 @@ int parserGenerateCode(const std::vector<Token>& tokens, GeneratorOutput& output
 			{
 				if (depth == 1)
 				{
-					GeneratorFunc invokedGenerator = findGenerator(token.contents.c_str());
-					if (!invokedGenerator)
+					MacroFunc invokedMacro = findMacro(token.contents.c_str());
+					if (invokedMacro)
 					{
-						ErrorAtTokenf(token,
-						              "Unknown function %s. Only macros/generators may be invoked "
-						              "at top level",
-						              token.contents.c_str());
-						++numErrors;
+						std::vector<Token> macroOutputTokens;
+						// Have the macro generate some code for us!
+						// (Get opening paren)
+						invokedMacro(tokens, currentTokenIndex - 1, macroOutputTokens);
 
-						ParserGeneratorState newState = {ParserGeneratorStateType_Error, depth,
-						                                 &token, nullptr};
-						stack.push_back(newState);
+						// Macro must generate valid parentheses pairs!
+						bool validateResult = validateParentheses(macroOutputTokens);
+						if (!validateResult)
+						{
+							NoteAtToken(tokens[currentTokenIndex - 1],
+							            "Code was generated from macro. See erroneous macro "
+							            "expansion below:");
+							printTokens(macroOutputTokens);
+							return 1;
+						}
+
+						GeneratorOutput macroOutput;
+						// TODO: Have macro output to regular output. Only macro and generator
+						// definitions need to go to intermediate files
+						int result = parserGenerateCode(macroOutputTokens, macroOutput);
+						if (result != 0)
+						{
+							NoteAtToken(
+							    tokens[currentTokenIndex - 1],
+							    "Code was generated from macro. See macro expansion below:");
+							printTokens(macroOutputTokens);
+							return result;
+						}
+						NameStyleSettings nameSettings;
+						printGeneratorOutput(macroOutput, nameSettings);
 					}
 					else
 					{
-						// Give the entire invocation (go back one to get open paren)
-						invokedGenerator(tokens, currentTokenIndex - 1, output);
+						GeneratorFunc invokedGenerator = findGenerator(token.contents.c_str());
+						if (!invokedGenerator)
+						{
+							ErrorAtTokenf(token,
+							              "Unknown function %s. Only macros and generators may be "
+							              "invoked at top level",
+							              token.contents.c_str());
+							++numErrors;
+
+							ParserGeneratorState newState = {ParserGeneratorStateType_Error, depth,
+							                                 &token, nullptr};
+							stack.push_back(newState);
+						}
+						else
+						{
+							// Give the entire invocation (go back one to get open paren)
+							invokedGenerator(tokens, currentTokenIndex - 1, output);
+						}
 					}
 				}
 				else
@@ -710,9 +832,9 @@ int parserGenerateCode(const std::vector<Token>& tokens, GeneratorOutput& output
 					// printIndentToDepth(stack.size());
 					// printf("Invoke function %s\n", token.contents.c_str());
 					// output.source.push_back({"printf("});
-					ParserGeneratorState newState = {ParserGeneratorStateType_FunctionInvocation,
-					                                 depth, &token, nullptr};
-					stack.push_back(newState);
+					// ParserGeneratorState newState = {ParserGeneratorStateType_FunctionInvocation,
+					                                 // depth, &token, nullptr};
+					// stack.push_back(newState);
 				}
 			}
 		}
@@ -729,15 +851,15 @@ int parserGenerateCode(const std::vector<Token>& tokens, GeneratorOutput& output
 	return numErrors;
 }
 
-const char* importTypeToString(ImportType type)
+const char* importLanguageToString(ImportLanguage type)
 {
 	switch (type)
 	{
-		case ImportType_None:
+		case ImportLanguage_None:
 			return "None";
-		case ImportType_C:
+		case ImportLanguage_C:
 			return "C";
-		case ImportType_Cakelisp:
+		case ImportLanguage_Cakelisp:
 			return "Cakelisp";
 		default:
 			return "Unknown";
@@ -745,14 +867,14 @@ const char* importTypeToString(ImportType type)
 }
 
 // TODO This should be automatically generated
-NameStyleMode getNameStyleModeForFlags(NameStyleSettings& settings,
+NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
                                        StringOutputModifierFlags modifierFlags)
 {
 	NameStyleMode mode = NameStyleMode_None;
+	int numMatchingFlags = 0;
 	if (modifierFlags & StringOutMod_ConvertTypeName)
 	{
-		if (mode)
-			printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
+		++numMatchingFlags;
 		mode = settings.typeNameMode;
 
 		static bool hasWarned = false;
@@ -768,33 +890,32 @@ NameStyleMode getNameStyleModeForFlags(NameStyleSettings& settings,
 	}
 	if (modifierFlags & StringOutMod_ConvertFunctionName)
 	{
-		if (mode)
-			printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
+		++numMatchingFlags;
 		mode = settings.functionNameMode;
 	}
 	if (modifierFlags & StringOutMod_ConvertArgumentName)
 	{
-		if (mode)
-			printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
+		++numMatchingFlags;
 		mode = settings.argumentNameMode;
 	}
 	if (modifierFlags & StringOutMod_ConvertVariableName)
 	{
-		if (mode)
-			printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
+		++numMatchingFlags;
 		mode = settings.variableNameMode;
 	}
 	if (modifierFlags & StringOutMod_ConvertGlobalVariableName)
 	{
-		if (mode)
-			printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
+		++numMatchingFlags;
 		mode = settings.globalVariableNameMode;
 	}
+
+	if (numMatchingFlags > 1)
+		printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
 
 	return mode;
 }
 
-void debugPrintStringOutput(NameStyleSettings& settings, const StringOutput& outputOperation)
+void debugPrintStringOutput(const NameStyleSettings& settings, const StringOutput& outputOperation)
 {
 	NameStyleMode mode = getNameStyleModeForFlags(settings, outputOperation.modifiers);
 	if (mode)
@@ -811,4 +932,35 @@ void debugPrintStringOutput(NameStyleSettings& settings, const StringOutput& out
 		printf(" ");
 	if (outputOperation.modifiers & StringOutMod_NewlineAfter)
 		printf("\n");
+}
+
+//
+// Debugging
+//
+void printGeneratorOutput(const GeneratorOutput& generatedOutput,
+                          const NameStyleSettings& nameSettings)
+{
+	printf("\tTo source file:\n");
+	for (const StringOutput& operation : generatedOutput.source)
+	{
+		debugPrintStringOutput(nameSettings, operation);
+	}
+
+	printf("\n\tTo header file:\n");
+	for (const StringOutput& operation : generatedOutput.header)
+	{
+		debugPrintStringOutput(nameSettings, operation);
+	}
+
+	printf("\n\tImports:\n");
+	for (const ImportMetadata& import : generatedOutput.imports)
+	{
+		printf("%s\t(%s)\n", import.importName.c_str(), importLanguageToString(import.language));
+	}
+
+	printf("\n\tFunctions:\n");
+	for (const FunctionMetadata& function : generatedOutput.functions)
+	{
+		printf("%s\n", function.name.c_str());
+	}
 }

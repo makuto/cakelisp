@@ -40,3 +40,5 @@
 ;; Test max buffer length handling
 ;; (defun ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff (int a int b &return int)
   ;; (return 0))
+
+(square (defun oh-no (&return std::string)(return "Hello macros!")))
