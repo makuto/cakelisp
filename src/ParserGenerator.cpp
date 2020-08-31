@@ -732,7 +732,7 @@ bool HandleInvocation_Recursive(const std::vector<Token>& tokens, int invocation
 		bool macroSucceeded = invokedMacro(tokens, invocationStartIndex, macroOutputTokens);
 		// Don't even try to validate the code if the macro wasn't satisfied
 		if (!macroSucceeded)
-			return macroSucceeded;
+			return false;
 
 		// TODO: Pretty print to macro expand file and change output token source to
 		// point there
@@ -758,7 +758,7 @@ bool HandleInvocation_Recursive(const std::vector<Token>& tokens, int invocation
 			NoteAtToken(invocationStart,
 			            "Code was generated from macro. See macro expansion below:");
 			printTokens(macroOutputTokens);
-			return result;
+			return false;
 		}
 
 		// TODO Remove, debug only
@@ -770,6 +770,7 @@ bool HandleInvocation_Recursive(const std::vector<Token>& tokens, int invocation
 		GeneratorFunc invokedGenerator = findGenerator(invocationName.contents.c_str());
 		if (!invokedGenerator)
 		{
+			// TODO: Fallback to C, C++, and (generated) Cakelisp function invocation generator
 			ErrorAtTokenf(invocationStart,
 			              "Unknown function %s. Only macros and generators may be "
 			              "invoked at top level",
