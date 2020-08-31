@@ -12,15 +12,16 @@ enum StringOutputModifierFlags
 	StringOutMod_NewlineAfter = 1 << 0,
 	StringOutMod_SpaceAfter = 1 << 1,
 
-	// Don't add to the beginning/end without updating the start and end values
 	StringOutMod_ConvertTypeName = 1 << 2,
 	StringOutMod_ConvertFunctionName = 1 << 3,
 	StringOutMod_ConvertArgumentName = 1 << 4,
 	StringOutMod_ConvertVariableName = 1 << 5,
 	StringOutMod_ConvertGlobalVariableName = 1 << 6,
 
-	StringOutMod_NameConverters_START = StringOutMod_ConvertTypeName,
-	StringOutMod_NameConverters_END = StringOutMod_ConvertGlobalVariableName,
+	StringOutMod_SurroundWithQuotes = 1 << 7,
+
+	// StringOutMod_NameConverters_START = StringOutMod_ConvertTypeName,
+	// StringOutMod_NameConverters_END = StringOutMod_ConvertGlobalVariableName,
 };
 
 // Rather than needing to allocate and edit a buffer eventually equal to the size of the final
@@ -85,7 +86,8 @@ struct GeneratorOutput
 	std::vector<ImportMetadata> imports;
 };
 
-int parserGenerateCode(const std::vector<Token>& tokens, GeneratorOutput& output);
+int EvaluateGenerate_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
+                               GeneratorOutput& output);
 
 void debugPrintStringOutput(NameStyleSettings& settings, const StringOutput& outputOperation);
 void printGeneratorOutput(const GeneratorOutput& generatedOutput,

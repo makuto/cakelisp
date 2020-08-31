@@ -29,6 +29,8 @@ struct NameStyleSettings
 	// WARNING: It is unwise to change this to pascal case because it will destroy C types which
 	// start with lowercase characters (e.g. "int")
 	NameStyleMode typeNameMode = NameStyleMode_PascalCaseIfLispy;
+	// Using a different mode than your C/C++ conventions helps to distinguish Cakelisp functions
+	// from C/C++ functions, if you want that
 	NameStyleMode functionNameMode = NameStyleMode_Underscores;
 	NameStyleMode argumentNameMode = NameStyleMode_CamelCase;
 	NameStyleMode variableNameMode = NameStyleMode_CamelCase;

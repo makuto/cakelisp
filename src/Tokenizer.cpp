@@ -124,24 +124,15 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				break;
 			}
 			case TokenizeState_InString:
-				if (*currentChar == '"')
+				if (*currentChar == '"' && previousChar != '\\')
 				{
-					if (previousChar == '\\')
-					{
-						// Remove the delimiter from the contents
-						contentsBufferWrite--;
-						WriteContents(*currentChar);
-					}
-					else
-					{
-						Token string = {TokenType_String, "",          source,
-						                lineNumber,       columnStart, currentColumn + 1};
-						CopyContentsAndReset(string.contents);
-						tokensOut.push_back(string);
+					Token string = {TokenType_String, "",          source,
+					                lineNumber,       columnStart, currentColumn + 1};
+					CopyContentsAndReset(string.contents);
+					tokensOut.push_back(string);
 
-						contentsBufferWrite = contentsBuffer;
-						tokenizeState = TokenizeState_Normal;
-					}
+					contentsBufferWrite = contentsBuffer;
+					tokenizeState = TokenizeState_Normal;
 				}
 				else
 				{
@@ -241,7 +232,6 @@ void printFormattedToken(const Token& token)
 			printf("%s ", token.contents.c_str());
 			break;
 		case TokenType_String:
-			// TODO: String convert to what it would look like when it was loaded
 			printf("\"%s\"", token.contents.c_str());
 			break;
 		default:

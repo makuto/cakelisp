@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize)
+static bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize)
 {
 	**at = c;
 	++(*at);
@@ -25,7 +25,7 @@ bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize)
 	return true;
 }
 
-bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize)
+static bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize)
 {
 	for (const char* c = str; *c != '\0'; ++c)
 	{

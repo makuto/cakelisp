@@ -95,9 +95,10 @@ int main(int argc, char* argv[])
 	printf("\nParsing and code generation:\n");
 
 	GeneratorOutput generatedOutput;
-	if (parserGenerateCode(tokens, generatedOutput) != 0)
+	int numErrors = EvaluateGenerate_Recursive(tokens, /*startTokenIndex=*/0, generatedOutput);
+	if (numErrors)
 		return 1;
-	else
+
 	{
 		NameStyleSettings nameSettings;
 
