@@ -1,5 +1,7 @@
 #+TITLE:Cakelisp
 
+[[file:images/CakeLisp_gradient_128.png]]
+
 This is my experiment of writing a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it (too)]].
 
 The end goal is a hot-reloadable, non-garbage-collected language ideal for high performance, iteratively-developed programs.
