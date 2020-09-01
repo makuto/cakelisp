@@ -32,26 +32,38 @@ int main(int argc, char* argv[])
 
 	char lineBuffer[2048] = {0};
 	int lineNumber = 1;
-	std::vector<Token> tokens;
-	while (fgets(lineBuffer, sizeof(lineBuffer), file))
+	// We need to be very careful about when we delete this so as to not invalidate pointers
+	// It is immutable to also disallow any pointer invalidation if we were to resize it
+	const std::vector<Token>* tokens = nullptr;
 	{
-		if (verbose)
-			printf("%s", lineBuffer);
-
-		const char* error = tokenizeLine(lineBuffer, filename, lineNumber, tokens);
-		if (error != nullptr)
+		std::vector<Token>* tokens_CREATIONONLY = new std::vector<Token>;
+		while (fgets(lineBuffer, sizeof(lineBuffer), file))
 		{
-			printf("%s:%d: error: %s\n", filename, lineNumber, error);
-			return 1;
+			if (verbose)
+				printf("%s", lineBuffer);
+
+			const char* error =
+			    tokenizeLine(lineBuffer, filename, lineNumber, *tokens_CREATIONONLY);
+			if (error != nullptr)
+			{
+				printf("%s:%d: error: %s\n", filename, lineNumber, error);
+				return 1;
+			}
+
+			lineNumber++;
 		}
 
-		lineNumber++;
+		// Make it const to avoid pointer invalidation due to resize
+		tokens = tokens_CREATIONONLY;
 	}
 
 	printf("Tokenized %d lines\n", lineNumber - 1);
 
-	if (!validateParentheses(tokens))
+	if (!validateParentheses(*tokens))
+	{
+		delete tokens;
 		return 1;
+	}
 
 	bool printTokenizerOutput = false;
 	if (printTokenizerOutput)
@@ -60,7 +72,7 @@ int main(int argc, char* argv[])
 
 		// No need to validate, we already know it's safe
 		int nestingDepth = 0;
-		for (const Token& token : tokens)
+		for (const Token& token : *tokens)
 		{
 			printIndentToDepth(nestingDepth);
 
@@ -94,10 +106,18 @@ int main(int argc, char* argv[])
 
 	printf("\nParsing and code generation:\n");
 
+	EvaluatorEnvironment environment;
+	EvaluatorContext moduleContext;
+	moduleContext.scope = EvaluatorScope_Module;
 	GeneratorOutput generatedOutput;
-	int numErrors = EvaluateGenerate_Recursive(tokens, /*startTokenIndex=*/0, generatedOutput);
+	int numErrors = EvaluateGenerate_Recursive(environment, moduleContext, *tokens,
+	                                           /*startTokenIndex=*/0, generatedOutput);
 	if (numErrors)
+	{
+		environmentDestroyMacroExpansionsInvalidateTokens(environment);
+		delete tokens;
 		return 1;
+	}
 
 	{
 		NameStyleSettings nameSettings;
@@ -107,5 +127,7 @@ int main(int argc, char* argv[])
 		printGeneratorOutput(generatedOutput, nameSettings);
 	}
 
+	environmentDestroyMacroExpansionsInvalidateTokens(environment);
+	delete tokens;
 	return 0;
 }

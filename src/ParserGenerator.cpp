@@ -3,81 +3,50 @@
 #include "Converters.hpp"
 #include "Utilities.hpp"
 
-// TODO: Replace with fast hash table
-#include <unordered_map>
-
 // TODO: safe version of strcat
 #include <stdio.h>
 #include <string.h>
-
-enum ParserGeneratorStateType
-{
-	ParserGeneratorStateType_None,
-	ParserGeneratorStateType_FunctionInvocation,
-	ParserGeneratorStateType_Error
-};
-
-struct ParserGeneratorState
-{
-	ParserGeneratorStateType type;
-	int startDepth;
-	const Token* startTrigger;
-	const Token* endTrigger;
-};
 
 //
 // Environment
 //
 
-typedef bool (*GeneratorFunc)(const std::vector<Token>& tokens, int startTokenIndex,
-                              GeneratorOutput& output);
-
-// TODO: Replace with fast hash table
-static std::unordered_map<std::string, GeneratorFunc> environmentGenerators;
-typedef std::unordered_map<std::string, GeneratorFunc>::iterator GeneratorIterator;
-
-bool CImportGenerator(const std::vector<Token>& tokens, int startTokenIndex,
+bool CImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
                       GeneratorOutput& output);
-bool DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output);
+bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                    const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output);
 
-// Unlike generators, macros output tokens only
-// Note that this is for the macro invocation; defining macros is actually done via a generator
-typedef bool (*MacroFunc)(const std::vector<Token>& tokens, int startTokenIndex,
-                          std::vector<Token>& output);
+bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                 const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output);
 
-// TODO: Replace with fast hash table
-static std::unordered_map<std::string, MacroFunc> environmentMacros;
-typedef std::unordered_map<std::string, MacroFunc>::iterator MacroIterator;
-
-bool SquareMacro(const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output);
-
-GeneratorFunc findGenerator(const char* functionName)
+GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
 	// For testing only: Lazy-initialize the bootstrapping/fundamental generators
-	if (environmentGenerators.empty())
+	if (environment.generators.empty())
 	{
-		environmentGenerators["c-import"] = CImportGenerator;
-		environmentGenerators["defun"] = DefunGenerator;
+		environment.generators["c-import"] = CImportGenerator;
+		environment.generators["defun"] = DefunGenerator;
 	}
 
-	GeneratorIterator findIt = environmentGenerators.find(std::string(functionName));
-	if (findIt != environmentGenerators.end())
+	GeneratorIterator findIt = environment.generators.find(std::string(functionName));
+	if (findIt != environment.generators.end())
 		return findIt->second;
 	return nullptr;
 }
 
-MacroFunc findMacro(const char* functionName)
+MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
 {
 	// For testing only: Lazy-initialize the bootstrapping/fundamental generators
-	if (environmentMacros.empty())
+	if (environment.macros.empty())
 	{
-		// environmentMacros["c-import"] = CImportGenerator;
+		// environment.macros["c-import"] = CImportGenerator;
 		// For testing
-		environmentMacros["square"] = SquareMacro;
+		environment.macros["square"] = SquareMacro;
 	}
 
-	MacroIterator findIt = environmentMacros.find(std::string(functionName));
-	if (findIt != environmentMacros.end())
+	MacroIterator findIt = environment.macros.find(std::string(functionName));
+	if (findIt != environment.macros.end())
 		return findIt->second;
 	return nullptr;
 }
@@ -119,6 +88,46 @@ int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenInd
 	}
 
 	return tokens.size();
+}
+
+const char* evaluatorScopeToString(EvaluatorScope expectedScope)
+{
+	switch (expectedScope)
+	{
+		case EvaluatorScope_Module:
+			return "module";
+		case EvaluatorScope_Body:
+			return "body";
+		case EvaluatorScope_ExpressionsOnly:
+			return "expressions-only";
+		default:
+			return "unknown";
+	}
+}
+
+bool ExpectEvaluatorScope(const char* generatorName, const Token& token,
+                          const EvaluatorContext& context, EvaluatorScope expectedScope)
+{
+	if (context.scope != expectedScope)
+	{
+		ErrorAtTokenf(token, "%s expected to be invoked in %s scope, but is in %s scope",
+		              generatorName, evaluatorScopeToString(expectedScope),
+		              evaluatorScopeToString(context.scope));
+		return false;
+	}
+	return true;
+}
+
+bool IsForbiddenEvaluatorScope(const char* generatorName, const Token& token,
+                               const EvaluatorContext& context, EvaluatorScope forbiddenScope)
+{
+	if (context.scope == forbiddenScope)
+	{
+		ErrorAtTokenf(token, "%s cannot be invoked in %s scope", generatorName,
+		              evaluatorScopeToString(forbiddenScope));
+		return true;
+	}
+	return false;
 }
 
 bool ExpectTokenType(const char* generatorName, const Token& token, TokenType expectedType)
@@ -205,9 +214,13 @@ void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlag
 // Generators
 //
 
-bool CImportGenerator(const std::vector<Token>& tokens, int startTokenIndex,
+bool CImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
                       GeneratorOutput& output)
 {
+	if (!ExpectEvaluatorScope("c-import", tokens[startTokenIndex], context, EvaluatorScope_Module))
+		return false;
+
 	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 	// Generators receive the entire invocation. We'll ignore it in this case
 	StripInvocation(startTokenIndex, endTokenIndex);
@@ -435,8 +448,12 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 	}
 }
 
-bool DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
+bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                    const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
 {
+	if (!ExpectEvaluatorScope("defun", tokens[startTokenIndex], context, EvaluatorScope_Module))
+		return false;
+
 	int endDefunTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 	int endTokenIndex = endDefunTokenIndex;
 	int startNameTokenIndex = startTokenIndex;
@@ -641,11 +658,17 @@ bool DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 	output.header.push_back(
 	    {");", StringOutMod_NewlineAfter, &tokens[endArgsIndex], &tokens[endArgsIndex]});
 
-	int startBodyIndex = endArgsIndex;
+	int startBodyIndex = endArgsIndex + 1;
 	output.source.push_back(
 	    {"{", StringOutMod_NewlineAfter, &tokens[startBodyIndex], &tokens[startBodyIndex]});
 
-	// TODO: Body
+	// Evaluate our body!
+	EvaluatorContext bodyContext = context;
+	bodyContext.scope = EvaluatorScope_Body;
+	int bodyErrors =
+	    EvaluateGenerate_Recursive(environment, bodyContext, tokens, startBodyIndex, output);
+	if (bodyErrors)
+		return false;
 
 	output.source.push_back(
 	    {"}", StringOutMod_NewlineAfter, &tokens[endTokenIndex], &tokens[endTokenIndex]});
@@ -669,8 +692,13 @@ bool DefunGenerator(const std::vector<Token>& tokens, int startTokenIndex, Gener
 // 	SafeSnprinf(buffer, bufferSize, "%s.macroexpand", invocationSource);
 // }
 
-bool SquareMacro(const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output)
+bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                 const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output)
 {
+	if (IsForbiddenEvaluatorScope("square", tokens[startTokenIndex], context,
+	                              EvaluatorScope_Module))
+		return false;
+
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
 	const Token& startToken = tokens[startTokenIndex];
@@ -679,7 +707,7 @@ bool SquareMacro(const std::vector<Token>& tokens, int startTokenIndex, std::vec
 	int nameTokenIndex = startTokenIndex + 1;
 
 	int startArgsIndex = nameTokenIndex + 1;
-	if (!ExpectInInvocation("expected expression to square", tokens, startArgsIndex,
+	if (!ExpectInInvocation("square expected expression", tokens, startArgsIndex,
 	                        endInvocationIndex))
 		return false;
 
@@ -716,7 +744,8 @@ bool SquareMacro(const std::vector<Token>& tokens, int startTokenIndex, std::vec
 //
 
 // Dispatch to a generator or expand a macro and evaluate its output recursively
-bool HandleInvocation_Recursive(const std::vector<Token>& tokens, int invocationStartIndex,
+bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                                const std::vector<Token>& tokens, int invocationStartIndex,
                                 GeneratorOutput& output)
 {
 	const Token& invocationStart = tokens[invocationStartIndex];
@@ -724,40 +753,71 @@ bool HandleInvocation_Recursive(const std::vector<Token>& tokens, int invocation
 	if (!ExpectTokenType("evaluator", invocationName, TokenType_Symbol))
 		return false;
 
-	MacroFunc invokedMacro = findMacro(invocationName.contents.c_str());
+	MacroFunc invokedMacro = findMacro(environment, invocationName.contents.c_str());
 	if (invokedMacro)
 	{
-		std::vector<Token> macroOutputTokens;
-		// Have the macro generate some code for us!
-		bool macroSucceeded = invokedMacro(tokens, invocationStartIndex, macroOutputTokens);
+		// We must use a separate vector for each macro because Token lists must be immutable. If
+		// they weren't, pointers to tokens would be invalidated
+		const std::vector<Token>* macroOutputTokens = nullptr;
+		bool macroSucceeded;
+		{
+			// Do NOT modify token lists after they are created. You can change the token contents
+			std::vector<Token>* macroOutputTokensNoConst_CREATIONONLY = new std::vector<Token>();
+
+			// Have the macro generate some code for us!
+			macroSucceeded = invokedMacro(environment, context, tokens, invocationStartIndex,
+			                              *macroOutputTokensNoConst_CREATIONONLY);
+
+			// Make it const to save any temptation of modifying the list and breaking everything
+			macroOutputTokens = macroOutputTokensNoConst_CREATIONONLY;
+		}
+
 		// Don't even try to validate the code if the macro wasn't satisfied
 		if (!macroSucceeded)
+		{
+			// Deleting these tokens is only safe at this point because we know we have not
+			// evaluated them. As soon as they are evaluated, they must be kept around
+			delete macroOutputTokens;
 			return false;
+		}
 
 		// TODO: Pretty print to macro expand file and change output token source to
 		// point there
 
 		// Macro must generate valid parentheses pairs!
-		bool validateResult = validateParentheses(macroOutputTokens);
+		bool validateResult = validateParentheses(*macroOutputTokens);
 		if (!validateResult)
 		{
 			NoteAtToken(invocationStart,
 			            "Code was generated from macro. See erroneous macro "
 			            "expansion below:");
-			printTokens(macroOutputTokens);
+			printTokens(*macroOutputTokens);
+			printf("\n");
+			// Deleting these tokens is only safe at this point because we know we have not
+			// evaluated them. As soon as they are evaluated, they must be kept around
+			delete macroOutputTokens;
 			return false;
 		}
 
-		GeneratorOutput macroOutput;
+		// Macro succeeded and output valid tokens. Keep its tokens for later referencing and
+		// destruction. Note that macroOutputTokens cannot be destroyed safely until all pointers to
+		// its Tokens are cleared. This means even if we fail while evaluating the tokens, we will
+		// keep the array around because the environment might still hold references to the tokens.
+		// It's also necessary for error reporting
+		environment.macroExpansions.push_back(macroOutputTokens);
+
 		// TODO: Have macro output to regular output. Only macro and generator
 		// definitions need to go to intermediate files
-		int result = EvaluateGenerate_Recursive(macroOutputTokens,
+		GeneratorOutput macroOutput;
+		// Note that macros always inherit the current context, whereas bodies change it
+		int result = EvaluateGenerate_Recursive(environment, context, *macroOutputTokens,
 		                                        /*startTokenIndex=*/0, macroOutput);
 		if (result != 0)
 		{
 			NoteAtToken(invocationStart,
 			            "Code was generated from macro. See macro expansion below:");
-			printTokens(macroOutputTokens);
+			printTokens(*macroOutputTokens);
+			printf("\n");
 			return false;
 		}
 
@@ -767,10 +827,14 @@ bool HandleInvocation_Recursive(const std::vector<Token>& tokens, int invocation
 	}
 	else
 	{
-		GeneratorFunc invokedGenerator = findGenerator(invocationName.contents.c_str());
-		if (!invokedGenerator)
+		GeneratorFunc invokedGenerator =
+		    findGenerator(environment, invocationName.contents.c_str());
+		if (invokedGenerator)
 		{
-			// TODO: Fallback to C, C++, and (generated) Cakelisp function invocation generator
+			return invokedGenerator(environment, context, tokens, invocationStartIndex, output);
+		}
+		else if (context.scope == EvaluatorScope_Module)
+		{
 			ErrorAtTokenf(invocationStart,
 			              "Unknown function %s. Only macros and generators may be "
 			              "invoked at top level",
@@ -779,14 +843,16 @@ bool HandleInvocation_Recursive(const std::vector<Token>& tokens, int invocation
 		}
 		else
 		{
-			return invokedGenerator(tokens, invocationStartIndex, output);
+			// TODO: Fallback to C, C++, and (generated) Cakelisp function invocation generator
+			return true;
 		}
 	}
 
 	return true;
 }
 
-int EvaluateGenerate_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
+int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                               const std::vector<Token>& tokens, int startTokenIndex,
                                GeneratorOutput& output)
 {
 	// Note that in most cases, we will continue evaluation in order to turn up more errors
@@ -801,7 +867,8 @@ int EvaluateGenerate_Recursive(const std::vector<Token>& tokens, int startTokenI
 		if (token.type == TokenType_OpenParen)
 		{
 			// Invocation of a macro, generator, or function (either foreign or Cakelisp function)
-			bool invocationSucceeded = HandleInvocation_Recursive(tokens, currentTokenIndex, output);
+			bool invocationSucceeded =
+			    HandleInvocation_Recursive(environment, context, tokens, currentTokenIndex, output);
 			if (!invocationSucceeded)
 				++numErrors;
 
@@ -820,26 +887,53 @@ int EvaluateGenerate_Recursive(const std::vector<Token>& tokens, int startTokenI
 		else
 		{
 			// The remaining token types evaluate to themselves. Output them directly.
-			switch (token.type)
+			if (ExpectEvaluatorScope("evaluated constant", token, context,
+			                         EvaluatorScope_ExpressionsOnly))
 			{
-				case TokenType_Symbol:
-					output.source.push_back({token.contents, StringOutMod_None, &token, &token});
-					break;
-				case TokenType_String:
-					output.source.push_back(
-					    {token.contents, StringOutMod_SurroundWithQuotes, &token, &token});
-					break;
-				default:
-					ErrorAtTokenf(token,
-					              "Unhandled token type %s; has a new token type been added, or "
-					              "evaluator has been changed?",
-					              tokenTypeToString(token.type));
-					return 1;
+				switch (token.type)
+				{
+					case TokenType_Symbol:
+						output.source.push_back(
+						    {token.contents, StringOutMod_None, &token, &token});
+						break;
+					case TokenType_String:
+						output.source.push_back(
+						    {token.contents, StringOutMod_SurroundWithQuotes, &token, &token});
+						break;
+					default:
+						ErrorAtTokenf(
+						    token,
+						    "Unhandled token type %s; has a new token type been added, or "
+						    "evaluator has been changed?",
+						    tokenTypeToString(token.type));
+						return 1;
+				}
 			}
+			else
+				numErrors++;
 		}
 	}
 
 	return numErrors;
+}
+
+// This serves only as a warning. I want to be very explicit with the lifetime of tokens
+EvaluatorEnvironment::~EvaluatorEnvironment()
+{
+	if (!macroExpansions.empty())
+	{
+		printf(
+		    "Warning: environmentDestroyMacroExpansionsInvalidateTokens() has not been called. "
+		    "This will leak memory.\n Call it once you are certain no tokens in any expansions "
+		    "will be referenced.\n");
+	}
+}
+
+void environmentDestroyMacroExpansionsInvalidateTokens(EvaluatorEnvironment& environment)
+{
+	for (const std::vector<Token>* macroExpansion : environment.macroExpansions)
+		delete macroExpansion;
+	environment.macroExpansions.clear();
 }
 
 const char* importLanguageToString(ImportLanguage type)

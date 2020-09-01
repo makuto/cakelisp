@@ -5,6 +5,8 @@
 
 #include <string>
 #include <vector>
+// TODO: Replace with fast hash table
+#include <unordered_map>
 
 enum StringOutputModifierFlags
 {
@@ -86,7 +88,67 @@ struct GeneratorOutput
 	std::vector<ImportMetadata> imports;
 };
 
-int EvaluateGenerate_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
+// This allows generators to react and perform validation in different scopes, because few
+// generators will work in any scope
+enum EvaluatorScope
+{
+	EvaluatorScope_Body,
+	// Top-level invocations in a file, for example
+	EvaluatorScope_Module,
+	// For example, a C function call cannot have an if statement in its arguments
+	EvaluatorScope_ExpressionsOnly
+};
+
+struct EvaluatorContext
+{
+	EvaluatorScope scope;
+};
+
+struct EvaluatorEnvironment;
+
+// Generators output C/C++ code
+typedef bool (*GeneratorFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                              const std::vector<Token>& tokens, int startTokenIndex,
+                              GeneratorOutput& output);
+
+// Macros output tokens only
+// Note that this is for the macro invocation/signature; defining macros is actually done via a
+// generator, because macros themselves are implemented in Cakelisp/C++
+typedef bool (*MacroFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          std::vector<Token>& output);
+
+// TODO: Replace with fast hash table implementation
+typedef std::unordered_map<std::string, MacroFunc> MacroTable;
+typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
+typedef MacroTable::iterator MacroIterator;
+typedef GeneratorTable::iterator GeneratorIterator;
+
+// Unlike context, which can't be changed, environment can be changed
+// Keep in mind that calling functions which can change the environment may invalidate your pointers
+// if things resize
+struct EvaluatorEnvironment
+{
+	MacroTable macros;
+	GeneratorTable generators;
+
+	// We need to keep the tokens macros create around so they can be referenced by StringOperations
+	// Token vectors must not be changed after they are created or pointers to Tokens will become
+	// invalid. The const here is to protect from that. You can change the token contents, however
+	std::vector<const std::vector<Token>*> macroExpansions;
+
+	// Will NOT clean up macroExpansions! Use environmentDestroyMacroExpansionsInvalidateTokens()
+	~EvaluatorEnvironment();
+};
+
+// Make sure you're ready to do this! (see macroExpansions comment)
+// Essentially, this means don't call this function unless you will NOT follow any Token pointers in
+// GeneratorOutput, StringOutput, etc., because any of them could be pointers to macro-created
+// tokens. Essentially, call this as late as possible
+void environmentDestroyMacroExpansionsInvalidateTokens(EvaluatorEnvironment& environment);
+
+int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                               const std::vector<Token>& tokens, int startTokenIndex,
                                GeneratorOutput& output);
 
 void debugPrintStringOutput(NameStyleSettings& settings, const StringOutput& outputOperation);

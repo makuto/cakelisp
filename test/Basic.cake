@@ -6,7 +6,9 @@
 ;;  isn't a generator or a function, it's a DSL symbol generate-args understands
 (defun main (int arg-count ([] (* char)) args &return int)
   (printf "This is a test. Here's a number: %d" 4)
-  ;; TODO: Do I want to make (return) a thing, or go with lisp-style last eval returns?
+  ;; This should error as soon as function calls start evaluating their arguments (the square inside
+  ;; is missing its argument)
+  (square (square))
   (return 0))
 
 (defun helper (&return std::string)
@@ -41,4 +43,4 @@
 ;; (defun ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff (int a int b &return int)
   ;; (return 0))
 
-(square (defun oh-no (&return std::string)(return "Hello macros!")))
+;; (square (defun oh-no (&return std::string)(return "Hello macros!")))
