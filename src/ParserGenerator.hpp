@@ -151,6 +151,12 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
                                const std::vector<Token>& tokens, int startTokenIndex,
                                GeneratorOutput& output);
 
+// Delimiter template will be inserted between the outputs
+int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, const StringOutput& delimiterTemplate,
+                                  GeneratorOutput& output);
+
 void debugPrintStringOutput(NameStyleSettings& settings, const StringOutput& outputOperation);
 void printGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const NameStyleSettings& nameSettings);

@@ -110,8 +110,10 @@ int main(int argc, char* argv[])
 	EvaluatorContext moduleContext;
 	moduleContext.scope = EvaluatorScope_Module;
 	GeneratorOutput generatedOutput;
-	int numErrors = EvaluateGenerate_Recursive(environment, moduleContext, *tokens,
-	                                           /*startTokenIndex=*/0, generatedOutput);
+	StringOutput bodyDelimiterTemplate = {"", StringOutMod_NewlineAfter, nullptr, nullptr};
+	int numErrors = EvaluateGenerateAll_Recursive(environment, moduleContext, *tokens,
+	                                              /*startTokenIndex=*/0, bodyDelimiterTemplate,
+	                                              generatedOutput);
 	if (numErrors)
 	{
 		environmentDestroyMacroExpansionsInvalidateTokens(environment);

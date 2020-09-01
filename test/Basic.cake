@@ -5,10 +5,11 @@
 ;; The defun generator will implicitly invoke a (generate-args) generator on the args list. "int"
 ;;  isn't a generator or a function, it's a DSL symbol generate-args understands
 (defun main (int arg-count ([] (* char)) args &return int)
+  ;; (printf 1 2)
   (printf "This is a test. Here's a number: %d" 4)
   ;; This should error as soon as function calls start evaluating their arguments (the square inside
   ;; is missing its argument)
-  (square (square))
+  (square (square 2))
   (return 0))
 
 (defun helper (&return std::string)

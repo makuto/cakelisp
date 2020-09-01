@@ -465,7 +465,7 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		return false;
 
 	int argsIndex = nameIndex + 1;
-	if (!ExpectInInvocation("defun expected name", tokens, argsIndex, endDefunTokenIndex))
+	if (!ExpectInInvocation("defun expected arguments", tokens, argsIndex, endDefunTokenIndex))
 		return false;
 	const Token& argsStart = tokens[argsIndex];
 	if (!ExpectTokenType("defun", argsStart, TokenType_OpenParen))
@@ -665,11 +665,15 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	// Evaluate our body!
 	EvaluatorContext bodyContext = context;
 	bodyContext.scope = EvaluatorScope_Body;
-	int bodyErrors =
-	    EvaluateGenerate_Recursive(environment, bodyContext, tokens, startBodyIndex, output);
-	if (bodyErrors)
+	// The statements will need to handle their ;
+	StringOutput bodyDelimiterTemplate = {"", StringOutMod_NewlineAfter, nullptr, nullptr};
+	int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
+	                                              bodyDelimiterTemplate, output);
+	if (numErrors)
 		return false;
 
+	output.source.push_back(
+	    {"", StringOutMod_NewlineAfter, &tokens[endTokenIndex], &tokens[endTokenIndex]});
 	output.source.push_back(
 	    {"}", StringOutMod_NewlineAfter, &tokens[endTokenIndex], &tokens[endTokenIndex]});
 
@@ -677,6 +681,43 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	std::vector<FunctionArgumentMetadata> argumentsMetadata;
 	output.functions.push_back({nameToken.contents, &tokens[startTokenIndex],
 	                            &tokens[endTokenIndex], std::move(argumentsMetadata)});
+
+	return true;
+}
+
+// Surprisingly simple: slap in the name, open parens, then eval arguments one by one and
+// comma-delimit them. This is for non-hot-reloadable functions (static invocation)
+bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                                 const std::vector<Token>& tokens, int startTokenIndex,
+                                 GeneratorOutput& output)
+{
+	// Skip opening paren
+	int nameTokenIndex = startTokenIndex + 1;
+	const Token& funcNameToken = tokens[nameTokenIndex];
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	output.source.push_back(
+	    {funcNameToken.contents, StringOutMod_ConvertFunctionName, &funcNameToken, &funcNameToken});
+	output.source.push_back({"(", StringOutMod_None, &funcNameToken, &funcNameToken});
+
+	// Arguments
+	int startArgsIndex = nameTokenIndex + 1;
+
+	// Function invocations evaluate their arguments
+	EvaluatorContext functionInvokeContext = context;
+	functionInvokeContext.scope = EvaluatorScope_ExpressionsOnly;
+	StringOutput argumentDelimiterTemplate = {",", StringOutMod_SpaceAfter, nullptr, nullptr};
+	int numErrors =
+	    EvaluateGenerateAll_Recursive(environment, functionInvokeContext, tokens, startArgsIndex,
+	                                  argumentDelimiterTemplate, output);
+	if (numErrors)
+		return false;
+
+	output.source.push_back(
+	    {")", StringOutMod_None, &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
+	if (context.scope != EvaluatorScope_ExpressionsOnly)
+		output.source.push_back(
+		    {";", StringOutMod_None, &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
 
 	return true;
 }
@@ -806,12 +847,9 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// It's also necessary for error reporting
 		environment.macroExpansions.push_back(macroOutputTokens);
 
-		// TODO: Have macro output to regular output. Only macro and generator
-		// definitions need to go to intermediate files
-		GeneratorOutput macroOutput;
 		// Note that macros always inherit the current context, whereas bodies change it
 		int result = EvaluateGenerate_Recursive(environment, context, *macroOutputTokens,
-		                                        /*startTokenIndex=*/0, macroOutput);
+		                                        /*startTokenIndex=*/0, output);
 		if (result != 0)
 		{
 			NoteAtToken(invocationStart,
@@ -820,10 +858,6 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			printf("\n");
 			return false;
 		}
-
-		// TODO Remove, debug only
-		NameStyleSettings nameSettings;
-		printGeneratorOutput(macroOutput, nameSettings);
 	}
 	else
 	{
@@ -843,8 +877,11 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		}
 		else
 		{
-			// TODO: Fallback to C, C++, and (generated) Cakelisp function invocation generator
-			return true;
+			// The only hard-coded generator: basic function invocations. We must hard-code this
+			// because we don't interpret any C/C++ in order to determine which functions are valid
+			// to call (we just let the C/C++ compiler determine that for us)
+			return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
+			                                   output);
 		}
 	}
 
@@ -858,59 +895,91 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 	// Note that in most cases, we will continue evaluation in order to turn up more errors
 	int numErrors = 0;
 
+	const Token& token = tokens[startTokenIndex];
+
+	if (token.type == TokenType_OpenParen)
+	{
+		// Invocation of a macro, generator, or function (either foreign or Cakelisp function)
+		bool invocationSucceeded =
+		    HandleInvocation_Recursive(environment, context, tokens, startTokenIndex, output);
+		if (!invocationSucceeded)
+			++numErrors;
+	}
+	else if (token.type == TokenType_CloseParen)
+	{
+		// This is totally normal. We've reached the end of the body or file. If that isn't the
+		// case, the code isn't being validated with validateParentheses(); code which hasn't
+		// been validated should NOT be run - this function trusts its inputs blindly!
+		// This will also be hit if eval itself has been broken: it is expected to skip tokens
+		// within invocations, including the final close paren
+		return numErrors;
+	}
+	else
+	{
+		// The remaining token types evaluate to themselves. Output them directly.
+		if (ExpectEvaluatorScope("evaluated constant", token, context,
+		                         EvaluatorScope_ExpressionsOnly))
+		{
+			switch (token.type)
+			{
+				case TokenType_Symbol:
+					output.source.push_back({token.contents, StringOutMod_None, &token, &token});
+					break;
+				case TokenType_String:
+					output.source.push_back(
+					    {token.contents, StringOutMod_SurroundWithQuotes, &token, &token});
+					break;
+				default:
+					ErrorAtTokenf(token,
+					              "Unhandled token type %s; has a new token type been added, or "
+					              "evaluator has been changed?",
+					              tokenTypeToString(token.type));
+					return 1;
+			}
+		}
+		else
+			numErrors++;
+	}
+
+	return numErrors;
+}
+
+// Delimiter template will be inserted between the outputs
+int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, const StringOutput& delimiterTemplate,
+                                  GeneratorOutput& output)
+{
+	// Note that in most cases, we will continue evaluation in order to turn up more errors
+	int numErrors = 0;
+
 	int numTokens = tokens.size();
 	for (int currentTokenIndex = startTokenIndex; currentTokenIndex < numTokens;
 	     ++currentTokenIndex)
 	{
-		const Token& token = tokens[currentTokenIndex];
-
-		if (token.type == TokenType_OpenParen)
+		if (tokens[currentTokenIndex].type == TokenType_CloseParen)
 		{
-			// Invocation of a macro, generator, or function (either foreign or Cakelisp function)
-			bool invocationSucceeded =
-			    HandleInvocation_Recursive(environment, context, tokens, currentTokenIndex, output);
-			if (!invocationSucceeded)
-				++numErrors;
+			// Reached the end of an argument list or body. Only modules will hit numTokens
+			break;
+		}
 
+		// Starting a new argument to evaluate
+		if (currentTokenIndex != startTokenIndex)
+		{
+			StringOutput delimiter = delimiterTemplate;
+			delimiter.startToken = &tokens[currentTokenIndex];
+			delimiter.endToken = &tokens[currentTokenIndex];
+			// TODO: Controlling source vs. header output?
+			output.source.push_back(std::move(delimiter));
+		}
+
+		numErrors +=
+		    EvaluateGenerate_Recursive(environment, context, tokens, currentTokenIndex, output);
+
+		if (tokens[currentTokenIndex].type == TokenType_OpenParen)
+		{
 			// Skip invocation body. for()'s increment will skip us past the final ')'
 			currentTokenIndex = FindCloseParenTokenIndex(tokens, currentTokenIndex);
-		}
-		else if (token.type == TokenType_CloseParen)
-		{
-			// This is totally normal. We've reached the end of the body or file. If that isn't the
-			// case, the code isn't being validated with validateParentheses(); code which hasn't
-			// been validated should NOT be run - this function trusts its inputs blindly!
-			// This will also be hit if eval itself has been broken: it is expected to skip tokens
-			// within invocations, including the final close paren
-			return numErrors;
-		}
-		else
-		{
-			// The remaining token types evaluate to themselves. Output them directly.
-			if (ExpectEvaluatorScope("evaluated constant", token, context,
-			                         EvaluatorScope_ExpressionsOnly))
-			{
-				switch (token.type)
-				{
-					case TokenType_Symbol:
-						output.source.push_back(
-						    {token.contents, StringOutMod_None, &token, &token});
-						break;
-					case TokenType_String:
-						output.source.push_back(
-						    {token.contents, StringOutMod_SurroundWithQuotes, &token, &token});
-						break;
-					default:
-						ErrorAtTokenf(
-						    token,
-						    "Unhandled token type %s; has a new token type been added, or "
-						    "evaluator has been changed?",
-						    tokenTypeToString(token.type));
-						return 1;
-				}
-			}
-			else
-				numErrors++;
 		}
 	}
 
