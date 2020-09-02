@@ -22,8 +22,19 @@ enum StringOutputModifierFlags
 
 	StringOutMod_SurroundWithQuotes = 1 << 7,
 
-	// StringOutMod_NameConverters_START = StringOutMod_ConvertTypeName,
-	// StringOutMod_NameConverters_END = StringOutMod_ConvertGlobalVariableName,
+	// Curly braces ({}) will be added for open and close, respectively
+	// These are also clues to the output formatter to indent all within, etc.
+	StringOutMod_OpenBlock = 1 << 8,
+	StringOutMod_CloseBlock = 1 << 9,
+
+	StringOutMod_OpenParen = 1 << 10,
+	StringOutMod_CloseParen = 1 << 11,
+
+	// In C, ';' with a new line
+	StringOutMod_EndStatement = 1 << 12,
+
+	// ',', for lists of arguments, expressions (e.g. initializer lists), etc.
+	StringOutMod_ListSeparator = 1 << 13,
 };
 
 // Rather than needing to allocate and edit a buffer eventually equal to the size of the final
@@ -38,27 +49,24 @@ struct StringOutput
 	const Token* endToken;
 };
 
-// Types can contain macro invocations. This should be used whenever programmatically dealing with
-// types, otherwise you'll need to handle the macro expansion yourself
-struct ExpandedType
-{
-	std::vector<Token> type;
-	const Token* preExpansionStart;
-	const Token* preExpansionEnd;
-};
-
 struct FunctionArgumentMetadata
 {
-	ExpandedType type;
-	const Token* name;
+	std::string name;
+
+	const Token* typeStartToken;
+	// Unnecessary because we can just keep track of our parens, but included for convenience
+	const Token* typeEndToken;
 };
 
 struct FunctionMetadata
 {
 	// The Cakelisp name, NOT the converted C name
 	std::string name;
-	const Token* startToken;
-	const Token* endToken;
+
+	// From the opening paren of e.g. "(defun" to the final ")" closing the body
+	const Token* startDefinitionToken;
+	// Unnecessary because we can just keep track of our parens, but included for convenience
+	const Token* endDefinitionToken;
 
 	std::vector<FunctionArgumentMetadata> arguments;
 };
@@ -124,9 +132,10 @@ typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
 typedef MacroTable::iterator MacroIterator;
 typedef GeneratorTable::iterator GeneratorIterator;
 
-// Unlike context, which can't be changed, environment can be changed
+// Unlike context, which can't be changed, environment can be changed.
+// Use care when modifying the environment. Only add things once you know things have succeeded.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
-// if things resize
+// if things resize.
 struct EvaluatorEnvironment
 {
 	MacroTable macros;

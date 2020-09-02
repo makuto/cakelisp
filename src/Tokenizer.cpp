@@ -59,14 +59,14 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 					return A_OK;
 				else if (*currentChar == '(')
 				{
-					Token openParen = {TokenType_OpenParen, "", source, lineNumber, currentColumn,
-					                   currentColumn + 1};
+					Token openParen = {TokenType_OpenParen, EmptyString,   source,
+					                   lineNumber,          currentColumn, currentColumn + 1};
 					tokensOut.push_back(openParen);
 				}
 				else if (*currentChar == ')')
 				{
-					Token closeParen = {TokenType_CloseParen, "", source, lineNumber, currentColumn,
-					                    currentColumn + 1};
+					Token closeParen = {TokenType_CloseParen, EmptyString,   source,
+					                    lineNumber,           currentColumn, currentColumn + 1};
 					tokensOut.push_back(closeParen);
 				}
 				else if (*currentChar == '"')
@@ -95,23 +95,21 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				{
 					if (verbose)
 						printf("%s\n", contentsBuffer);
-					Token symbol = {TokenType_Symbol, "",          source,
+					Token symbol = {TokenType_Symbol, EmptyString, source,
 					                lineNumber,       columnStart, currentColumn};
 					CopyContentsAndReset(symbol.contents);
 					tokensOut.push_back(symbol);
 
 					if (*currentChar == '(')
 					{
-						Token openParen = {
-						    TokenType_OpenParen, "", source, lineNumber, currentColumn,
-						    currentColumn + 1};
+						Token openParen = {TokenType_OpenParen, EmptyString,   source,
+						                   lineNumber,          currentColumn, currentColumn + 1};
 						tokensOut.push_back(openParen);
 					}
 					else if (*currentChar == ')')
 					{
-						Token closeParen = {
-						    TokenType_CloseParen, "", source, lineNumber, currentColumn,
-						    currentColumn + 1};
+						Token closeParen = {TokenType_CloseParen, EmptyString,   source,
+						                    lineNumber,           currentColumn, currentColumn + 1};
 						tokensOut.push_back(closeParen);
 					}
 
@@ -126,7 +124,7 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 			case TokenizeState_InString:
 				if (*currentChar == '"' && previousChar != '\\')
 				{
-					Token string = {TokenType_String, "",          source,
+					Token string = {TokenType_String, EmptyString, source,
 					                lineNumber,       columnStart, currentColumn + 1};
 					CopyContentsAndReset(string.contents);
 					tokensOut.push_back(string);

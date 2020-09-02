@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>  //  sprintf
+#include <string>
 
 #define MAX_NAME_LENGTH 64
 #define MAX_PATH_LENGTH 128
@@ -38,3 +39,6 @@ void printIndentToDepth(int depth);
 	       message)
 
 #define PushBackAll(dest, src) (dest).insert((dest).end(), (src).begin(), (src).end())
+
+// Let this serve as more of a TODO to get rid of std::string
+extern std::string EmptyString;

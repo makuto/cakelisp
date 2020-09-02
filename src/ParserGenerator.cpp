@@ -382,7 +382,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 					return false;
 
 				if (!isLastArgument(tokens, startTemplateParameter, endTokenIndex))
-					typeOutput.push_back({",", StringOutMod_SpaceAfter,
+					typeOutput.push_back({EmptyString, StringOutMod_ListSeparator,
 					                      &tokens[startTemplateParameter],
 					                      &tokens[startTemplateParameter]});
 
@@ -607,8 +607,10 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	output.header.push_back(
 	    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
 
-	output.source.push_back({"(", StringOutMod_None, &argsStart, &argsStart});
-	output.header.push_back({"(", StringOutMod_None, &argsStart, &argsStart});
+	output.source.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
+	output.header.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
+
+	std::vector<FunctionArgumentMetadata> argumentsMetadata;
 
 	// Output arguments
 	int numFunctionArguments = arguments.size();
@@ -645,40 +647,50 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 			// both the name and the type of the next arg are responsible, because there wouldn't be
 			// a comma if there wasn't a next arg
 			DefunArgument& nextArg = arguments[i + 1];
-			output.source.push_back({",", StringOutMod_SpaceAfter, &tokens[arg.nameIndex],
-			                         &tokens[nextArg.startTypeIndex]});
-			output.header.push_back({",", StringOutMod_SpaceAfter, &tokens[arg.nameIndex],
-			                         &tokens[nextArg.startTypeIndex]});
+			output.source.push_back({EmptyString, StringOutMod_ListSeparator,
+			                         &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
+			output.header.push_back({EmptyString, StringOutMod_ListSeparator,
+			                         &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
+		}
+
+		// Argument metadata
+		{
+			const Token* startTypeToken = &tokens[arg.startTypeIndex];
+			const Token* endTypeToken = startTypeToken;
+			if (startTypeToken->type == TokenType_OpenParen)
+				endTypeToken = &tokens[FindCloseParenTokenIndex(tokens, arg.startTypeIndex)];
+
+			argumentsMetadata.push_back(
+			    {tokens[arg.nameIndex].contents, startTypeToken, endTypeToken});
 		}
 	}
 
 	output.source.push_back(
-	    {")", StringOutMod_NewlineAfter, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+	    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+	output.header.push_back(
+	    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
 	// Forward declarations end with ;
 	output.header.push_back(
-	    {");", StringOutMod_NewlineAfter, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+	    {EmptyString, StringOutMod_EndStatement, &tokens[endArgsIndex], &tokens[endArgsIndex]});
 
 	int startBodyIndex = endArgsIndex + 1;
 	output.source.push_back(
-	    {"{", StringOutMod_NewlineAfter, &tokens[startBodyIndex], &tokens[startBodyIndex]});
+	    {EmptyString, StringOutMod_OpenBlock, &tokens[startBodyIndex], &tokens[startBodyIndex]});
 
 	// Evaluate our body!
 	EvaluatorContext bodyContext = context;
 	bodyContext.scope = EvaluatorScope_Body;
 	// The statements will need to handle their ;
-	StringOutput bodyDelimiterTemplate = {"", StringOutMod_NewlineAfter, nullptr, nullptr};
+	// TODO Remove this, we don't need it any more
+	StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr, nullptr};
 	int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
 	                                              bodyDelimiterTemplate, output);
 	if (numErrors)
 		return false;
 
 	output.source.push_back(
-	    {"", StringOutMod_NewlineAfter, &tokens[endTokenIndex], &tokens[endTokenIndex]});
-	output.source.push_back(
-	    {"}", StringOutMod_NewlineAfter, &tokens[endTokenIndex], &tokens[endTokenIndex]});
+	    {EmptyString, StringOutMod_CloseBlock, &tokens[endTokenIndex], &tokens[endTokenIndex]});
 
-	// TODO: Populate
-	std::vector<FunctionArgumentMetadata> argumentsMetadata;
 	output.functions.push_back({nameToken.contents, &tokens[startTokenIndex],
 	                            &tokens[endTokenIndex], std::move(argumentsMetadata)});
 
@@ -698,7 +710,7 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 
 	output.source.push_back(
 	    {funcNameToken.contents, StringOutMod_ConvertFunctionName, &funcNameToken, &funcNameToken});
-	output.source.push_back({"(", StringOutMod_None, &funcNameToken, &funcNameToken});
+	output.source.push_back({EmptyString, StringOutMod_OpenParen, &funcNameToken, &funcNameToken});
 
 	// Arguments
 	int startArgsIndex = nameTokenIndex + 1;
@@ -706,18 +718,19 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 	// Function invocations evaluate their arguments
 	EvaluatorContext functionInvokeContext = context;
 	functionInvokeContext.scope = EvaluatorScope_ExpressionsOnly;
-	StringOutput argumentDelimiterTemplate = {",", StringOutMod_SpaceAfter, nullptr, nullptr};
+	StringOutput argumentDelimiterTemplate = {EmptyString, StringOutMod_ListSeparator, nullptr,
+	                                          nullptr};
 	int numErrors =
 	    EvaluateGenerateAll_Recursive(environment, functionInvokeContext, tokens, startArgsIndex,
 	                                  argumentDelimiterTemplate, output);
 	if (numErrors)
 		return false;
 
-	output.source.push_back(
-	    {")", StringOutMod_None, &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
+	output.source.push_back({EmptyString, StringOutMod_CloseParen, &tokens[endInvocationIndex],
+	                         &tokens[endInvocationIndex]});
 	if (context.scope != EvaluatorScope_ExpressionsOnly)
-		output.source.push_back(
-		    {";", StringOutMod_None, &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
+		output.source.push_back({EmptyString, StringOutMod_EndStatement,
+		                         &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
 
 	return true;
 }
@@ -756,7 +769,7 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 	int endArgsIndex = endInvocationIndex;
 
 	// TODO: Source line numbers?
-	output.push_back({TokenType_OpenParen, "", startToken.source, startToken.lineNumber,
+	output.push_back({TokenType_OpenParen, EmptyString, startToken.source, startToken.lineNumber,
 	                  startToken.columnStart, startToken.columnEnd});
 	output.push_back({TokenType_Symbol, "*", startToken.source, startToken.lineNumber,
 	                  startToken.columnStart, startToken.columnEnd});
@@ -774,7 +787,7 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 
 	const Token& endToken = tokens[endInvocationIndex];
 
-	output.push_back({TokenType_CloseParen, "", endToken.source, endToken.lineNumber,
+	output.push_back({TokenType_CloseParen, EmptyString, endToken.source, endToken.lineNumber,
 	                  endToken.columnStart, endToken.columnEnd});
 
 	return true;
@@ -1069,8 +1082,10 @@ NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
 	return mode;
 }
 
-void debugPrintStringOutput(const NameStyleSettings& settings, const StringOutput& outputOperation)
+// TODO Move to Writer
+static void debugPrintStringOutput(const NameStyleSettings& settings, const StringOutput& outputOperation)
 {
+	// TODO Validate flags for e.g. OpenParen | CloseParen, which shouldn't be allowed
 	NameStyleMode mode = getNameStyleModeForFlags(settings, outputOperation.modifiers);
 	if (mode)
 	{
@@ -1081,6 +1096,18 @@ void debugPrintStringOutput(const NameStyleSettings& settings, const StringOutpu
 	}
 	else if (outputOperation.modifiers & StringOutMod_SurroundWithQuotes)
 		printf("\"%s\"", outputOperation.output.c_str());
+	else if (outputOperation.modifiers & StringOutMod_OpenBlock)
+		printf("\n{\n");
+	else if (outputOperation.modifiers & StringOutMod_CloseBlock)
+		printf("}\n");
+	else if (outputOperation.modifiers & StringOutMod_OpenParen)
+		printf("(");
+	else if (outputOperation.modifiers & StringOutMod_CloseParen)
+		printf(")");
+	else if (outputOperation.modifiers & StringOutMod_EndStatement)
+		printf(";\n");
+	else if (outputOperation.modifiers & StringOutMod_ListSeparator)
+		printf(", ");
 	else
 		printf("%s", outputOperation.output.c_str());
 
@@ -1118,5 +1145,18 @@ void printGeneratorOutput(const GeneratorOutput& generatedOutput,
 	for (const FunctionMetadata& function : generatedOutput.functions)
 	{
 		printf("%s\n", function.name.c_str());
+		if (!function.arguments.empty())
+		{
+			printf("(\n");
+			for (const FunctionArgumentMetadata& argument : function.arguments)
+			{
+				printf("\t%s\n", argument.name.c_str());
+			}
+			printf(")\n");
+		}
+		else
+			printf("()\n");
+
+		printf("\n");
 	}
 }
