@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <vector>
 
+#include "Converters.hpp"
 #include "ParserGenerator.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
+#include "Writer.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -123,10 +125,11 @@ int main(int argc, char* argv[])
 
 	{
 		NameStyleSettings nameSettings;
+		WriterFormatSettings formatSettings;
 
 		printf("\nResult:\n");
 
-		printGeneratorOutput(generatedOutput, nameSettings);
+		printGeneratorOutput(generatedOutput, nameSettings, formatSettings);
 	}
 
 	environmentDestroyMacroExpansionsInvalidateTokens(environment);

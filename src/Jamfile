@@ -3,6 +3,7 @@ Tokenizer.cpp
 ParserGenerator.cpp
 Utilities.cpp
 Converters.cpp
+Writer.cpp
 ;
 
 Main dynamicLoadTest : DynamicLoader.cpp ;
