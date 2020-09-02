@@ -222,27 +222,58 @@ FILE* fileOpen(const char* filename)
 
 void printGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const NameStyleSettings& nameSettings,
-                          const WriterFormatSettings& formatSettings)
+                          const WriterFormatSettings& formatSettings,
+                          const WriterOutputSettings& outputSettings)
 {
 	printf("\tTo source file:\n");
 	{
 		StringOutputState sourceState = {};
-		sourceState.fileOut = fileOpen("Test.cpp");
+		if (outputSettings.sourceCakelispFilename)
+		{
+			char generatedSourceFilename[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(generatedSourceFilename, "%s.cpp", outputSettings.sourceCakelispFilename);
+			sourceState.fileOut = fileOpen(generatedSourceFilename);
+		}
+
 		for (const StringOutput& operation : generatedOutput.source)
 		{
+			// Debug print mapping
 			if (!operation.output.empty())
-				printf("%s %d\n", operation.output.c_str(), sourceState.numCharsOutput + 1);
+			{
+				printf("%s \t%d\tline %d\n", operation.output.c_str(),
+				       sourceState.numCharsOutput + 1, sourceState.currentLine + 1);
+			}
+
 			printStringOutput(nameSettings, formatSettings, operation, sourceState);
 		}
 		printf("Wrote %d characters\n", sourceState.numCharsOutput);
+
+		if (sourceState.fileOut)
+		{
+			fclose(sourceState.fileOut);
+			sourceState.fileOut = nullptr;
+		}
 	}
 
 	printf("\n\tTo header file:\n");
 	{
 		StringOutputState headerState = {};
+		if (outputSettings.sourceCakelispFilename)
+		{
+			char generatedSourceFilename[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(generatedSourceFilename, "%s.hpp", outputSettings.sourceCakelispFilename);
+			headerState.fileOut = fileOpen(generatedSourceFilename);
+		}
+
 		for (const StringOutput& operation : generatedOutput.header)
 		{
 			printStringOutput(nameSettings, formatSettings, operation, headerState);
+		}
+
+		if (headerState.fileOut)
+		{
+			fclose(headerState.fileOut);
+			headerState.fileOut = nullptr;
 		}
 	}
 

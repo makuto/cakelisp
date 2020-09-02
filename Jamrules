@@ -21,7 +21,9 @@ C++FLAGS = -std=c++11 -Wall -Wextra -Wno-unused-parameter
 # BT_USE_DOUBLE_PRECISION solves the Dantzig LCP missing definition
 # Disabled now that I'm compiling Bullet in single-precision
 # -DBT_USE_DOUBLE_PRECISION
--g ;
+-g
+-DUNIX
+;
 
 # HDRS = src
 # # Dependencies/base2.0

@@ -17,8 +17,14 @@ struct WriterFormatSettings
 	int indentTabWidth = 2;
 };
 
+struct WriterOutputSettings
+{
+	const char* sourceCakelispFilename;
+};
+
 const char* importLanguageToString(ImportLanguage type);
 
 void printGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const NameStyleSettings& nameSettings,
-                          const WriterFormatSettings& formatSettings);
+                          const WriterFormatSettings& formatSettings,
+                          const WriterOutputSettings& outputSettings);

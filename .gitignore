@@ -31,3 +31,8 @@ TAGS
 
 # Ignore executable
 cakelisp
+src/dynamicLoadTest
+src/runProcessTest
+
+*.cake.cpp
+*.cake.hpp

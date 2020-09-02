@@ -6,8 +6,11 @@ Converters.cpp
 Writer.cpp
 ;
 
+MakeLocate cakelisp : ../cakelisp ;
+
 Main dynamicLoadTest : DynamicLoader.cpp ;
 
-MakeLocate cakelisp : ../cakelisp ;
+Main runProcessTest : RunProcess.cpp ;
+# C++FLAGS on src/RunProcess.o = -DUNIX ;
 
 SubDir . src ;

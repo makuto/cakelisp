@@ -126,10 +126,12 @@ int main(int argc, char* argv[])
 	{
 		NameStyleSettings nameSettings;
 		WriterFormatSettings formatSettings;
+		WriterOutputSettings outputSettings;
+		outputSettings.sourceCakelispFilename = filename;
 
 		printf("\nResult:\n");
 
-		printGeneratorOutput(generatedOutput, nameSettings, formatSettings);
+		printGeneratorOutput(generatedOutput, nameSettings, formatSettings, outputSettings);
 	}
 
 	environmentDestroyMacroExpansionsInvalidateTokens(environment);
