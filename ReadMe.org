@@ -2,11 +2,9 @@
 
 [[file:images/CakeLisp_gradient_128.png]]
 
-This is my experiment of writing a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it (too)]].
+This is a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it (too)]]. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance.
 
-The end goal is a hot-reloadable, non-garbage-collected language ideal for high performance, iteratively-developed programs.
-
-This is the first language project I've embarked on, so it will be riddled with mistakes and naïveté. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance. It is more of a learning experience.
+The end goal is a metaprogrammable, hot-reloadable, non-garbage-collected language ideal for high performance, iteratively-developed programs.
 
 * Desired features
 - The metaprogramming capabilities of Lisp
@@ -14,14 +12,18 @@ This is the first language project I've embarked on, so it will be riddled with 
 - "Real" types: Types are identical to C types, e.g. ~int~ is 32 bits with no sign bit or anything like other Lisp implementations do
 - No garbage collection: I can handle my own memory
 - Hot reloading: It should be possible to make modifications to functions *and structures* at runtime to quickly iterate
-- Truly seamless C interoperability: No bindings, no wrappers: C types and functions are as easy to declare and call as they are in C. In order to support this, I've decided to ignore type deduction when possible and instead rely on the C compiler/linker to relay typing errors. Cakelisp will blindly generate what look like C function calls without knowing if that function actually exists, because the C compiler will tell us what the answer is
+- Truly seamless C and C++ interoperability: No bindings, no wrappers: C/C++ types and functions are as easy to declare and call as they are in C/C++. In order to support this, I've decided to ignore type deduction when possible and instead rely on the C compiler/linker to relay typing errors. Cakelisp will blindly generate what look like C/C++ function calls without knowing if that function actually exists, because the C/C++ compiler will tell us what the answer is
 - Output is human-readable C/C++ source and header files. This is so if I decide it was unsuccessful, or only useful in some scenarios (e.g. generating serialization wrappers), I can still use the output code from hand-written C/C++ code
 * Plan
-- Tokenize and parser written in C++
-- Export AST to C (C++?). Lisp-y constructs shouldn't stray too far from C style
-- Compile generated C
-- For metaprograms, feed AST into compiled C executables, as long as there are macros to parse
+- Tokenize and evaluator written in C++
+- Export evaluated output to C/C++
+- Compile generated C/C++
 
+Cakelisp itself is extended via "generators", which are functions which take Cakelisp tokens and output C/C++ source code. Because generators are written in C++, generators can also be written in Cakelisp! Cakelisp will compile the generators in a module into a dynamic library, then load that library before continuing parsing the module.
+
+Macros are similar to generators, only they output Cakelisp tokens instead of C/C++ code. Macro definitions also get compiled to C/C++, using the same generators which compile regular Cakelisp functions.
+
+This means the only thing the evaluator meaningfully does is call C/C++ functions based on the original or macro-generated Cakelisp tokens.
 ** Detailed function
 1. Tokenize ~.cake~ file into Token array
 2. Iterate through token array, looking for generator definitions
