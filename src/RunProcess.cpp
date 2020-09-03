@@ -22,12 +22,18 @@ void systemExecute()
 	// PrintBuffer(arg0, "--version");
 
 	// If not null terminated, the call will fail
-	char* arguments[] = {fileToExec, strdup("--version"), nullptr};
+	// char* arguments[] = {fileToExec, strdup("--version"), nullptr};
+	char* arguments[] = {fileToExec, strdup("-c"), strdup("test/Hello.cake.cpp"), nullptr};
 	printf("Running %s\n", fileToExec);
 	execvp(fileToExec, arguments);
 	perror("RunProcess execvp() error: ");
 	printf("Failed to execute %s\n", fileToExec);
 #endif
+}
+
+void subprocessReceiveStdOut(const char* processOutputBuffer)
+{
+	printf("From process: %s", processOutputBuffer);
 }
 
 int main()
@@ -51,6 +57,12 @@ int main()
 	// Child
 	else if (pid == 0)
 	{
+		if (dup2(pipeFileDescriptors[PipeWrite], STDOUT_FILENO) == -1 ||
+		    dup2(pipeFileDescriptors[PipeWrite], STDERR_FILENO) == -1)
+		{
+			perror("RunProcess: ");
+			return 1;
+		}
 		// Only write
 		close(pipeFileDescriptors[PipeRead]);
 		systemExecute();
@@ -60,9 +72,19 @@ int main()
 	// Parent
 	else
 	{
+		if (dup2(pipeFileDescriptors[PipeRead], STDIN_FILENO) == -1)
+		{
+			perror("RunProcess: ");
+			return 1;
+		}
 		// Only read
 		close(pipeFileDescriptors[PipeWrite]);
 		printf("Created child process %d\n", pid);
+		char processOutputBuffer[1024];
+		while (fgets(processOutputBuffer, sizeof(processOutputBuffer), stdin))
+		{
+			subprocessReceiveStdOut(processOutputBuffer);
+		}
 		int status;
 		waitpid(pid, &status, 0);
 		return status;

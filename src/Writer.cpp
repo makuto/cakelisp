@@ -82,6 +82,7 @@ struct StringOutputState
 	FILE* fileOut;
 };
 
+// TODO Have writer scan strings for \n?
 static void Writer_Writef(StringOutputState& state, const char* format, ...)
 {
 	va_list args;
