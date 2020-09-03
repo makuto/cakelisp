@@ -8,6 +8,8 @@ Writer.cpp
 
 MakeLocate cakelisp : ../cakelisp ;
 
+Main Square$(SUFSHR) : Square.cpp ;
+
 Main dynamicLoadTest : DynamicLoader.cpp ;
 
 Main runProcessTest : RunProcess.cpp ;

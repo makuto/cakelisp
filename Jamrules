@@ -14,6 +14,19 @@ LINK = clang++ ;
 
 ## Compiler arguments
 
+if $(UNIX)
+{
+  OS_DEPENDENT_C++FLAGS = -DUNIX ;
+  # For dynamic linking
+  OS_DEPENDENT_LINKFLAGS = -ldl ;
+}
+else if $(NT)
+{
+  OS_DEPENDENT_C++FLAGS = -DWINDOWS ;
+  # TODO: Windows support
+  OS_DEPENDENT_LINKFLAGS = ;
+}
+
 # Arguments used on all projects, regardless of any variables
 C++FLAGS = -std=c++11 -Wall -Wextra -Wno-unused-parameter
 # Only for profiling, i.e. not release builds
@@ -22,7 +35,10 @@ C++FLAGS = -std=c++11 -Wall -Wextra -Wno-unused-parameter
 # Disabled now that I'm compiling Bullet in single-precision
 # -DBT_USE_DOUBLE_PRECISION
 -g
--DUNIX
+# Needed for dynamic linking
+-fPIC
+
+$(OS_DEPENDENT_C++FLAGS)
 ;
 
 # HDRS = src
@@ -53,12 +69,18 @@ OPTIM = -O0 ;
 
 LINKLIBS =
 # Standard (e.g. for Tracy)
--lpthread -ldl
+-lpthread
+# Functions for dynamically loading libraries (UNIX)
+-ldl
 ;
 
 # LINKFLAGS = -Wl,-rpath,. ;
 
-LINKFLAGS = -g ;
+LINKFLAGS = -g
+# -Wl = pass to linker
+# --export-dynamic = 
+-Wl,--export-dynamic
+;
 # TODO: Copy libs to better directory, or static link?
 # -Wl,-rpath,.:Dependencies/curl/local_install/lib:Dependencies/mecab/build/local/lib ;
 
