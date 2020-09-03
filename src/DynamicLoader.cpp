@@ -8,9 +8,9 @@
 
 extern "C"
 {
-	int hostSquareFunc(int a)
+	float hostSquareFunc(float numToSquare)
 	{
-		return a * a;
+		return numToSquare * numToSquare;
 	}
 }
 
@@ -18,16 +18,18 @@ int main()
 {
 #ifdef UNIX
 	void* libHandle;
-	// libHandle = dlopen("./libSquare.so", RTLD_LAZY);
-	libHandle =
-	    dlopen("/home/macoy/Development/code/repositories/cakelisp/src/libSquare.so", RTLD_LAZY);
+
+	// RTLD_LAZY: Don't look up symbols the shared library needs until it encounters them
+	// Note that this requires linking with -Wl,-rpath,. in order to turn up relative path .so files
+	libHandle = dlopen("src/libSquare.so", RTLD_LAZY);
+
 	if (!libHandle)
 	{
 		fprintf(stderr, "DynamicLoader Error:\n%s\n", dlerror());
 		return 1;
 	}
 
-	// Clear any existing error
+	// Clear any existing error before running dlsym
 	char* error = dlerror();
 	if (error != nullptr)
 	{
@@ -47,7 +49,7 @@ int main()
 	}
 
 	printf("About to call\n");
-	printf("%f\n", (*square)(2.0));
+	printf("%f\n", (*square)(2.f));
 	printf("Done call\n");
 	dlclose(libHandle);
 

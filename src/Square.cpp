@@ -7,6 +7,6 @@ extern "C"
 	float square(float numToSquare)
 	{
 		// return numToSquare * numToSquare;
-		return hostSquareFunc((int)numToSquare);
+		return hostSquareFunc(numToSquare);
 	}
 }

@@ -79,7 +79,7 @@ LINKLIBS =
 LINKFLAGS = -g
 # -Wl = pass to linker
 # --export-dynamic = 
--Wl,--export-dynamic
+-Wl,-rpath,.,--export-dynamic
 ;
 # TODO: Copy libs to better directory, or static link?
 # -Wl,-rpath,.:Dependencies/curl/local_install/lib:Dependencies/mecab/build/local/lib ;

@@ -2,5 +2,5 @@
 
 extern "C"
 {
-	int hostSquareFunc(int a);
+	float hostSquareFunc(float numToSquare);
 }
