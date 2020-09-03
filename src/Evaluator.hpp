@@ -120,3 +120,5 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, const StringOutput& delimiterTemplate,
                                   GeneratorOutput& output);
+
+const char* evaluatorScopeToString(EvaluatorScope expectedScope);
