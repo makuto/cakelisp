@@ -583,3 +583,109 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 
 	return true;
 }
+
+enum CStatementOperationType
+{
+	Splice,
+	OpenParen,
+	CloseParen,
+	Keyword,
+	Expression
+};
+struct CStatementOperation
+{
+	CStatementOperationType type;
+	const char* keyword;
+	// 0 = operation name
+	// 1 = first argument to operation (etc.)
+	int argumentIndex;
+};
+
+bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      const CStatementOperation* operation, int numOperations,
+                      GeneratorOutput& output)
+{
+	// TODO: Add expects for scope
+	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int nameTokenIndex = startTokenIndex + 1;
+	// int startArgsIndex = nameTokenIndex + 1;
+	const Token& nameToken = tokens[nameTokenIndex];
+	for (int i = 0; i < numOperations; ++i)
+	{
+		switch (operation[i].type)
+		{
+			case Keyword:
+				output.source.push_back(
+				    {operation[i].keyword, StringOutMod_SpaceAfter, &nameToken, &nameToken});
+				break;
+			case Splice:
+				// output.source.push_back(
+				// {operation[i].keyword, StringOutMod_SpaceAfter, &nameToken, &nameToken});
+				break;
+			case OpenParen:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_OpenParen, &nameToken, &nameToken});
+				break;
+			case CloseParen:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_CloseParen, &nameToken, &nameToken});
+				break;
+			case Expression:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				int startExpressionIndex = getExpectedArgument(
+					"expected expression", tokens, startTokenIndex, operation[i].argumentIndex, endTokenIndex);
+				if (startExpressionIndex == -1)
+					return false;
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               startExpressionIndex, output) != 0)
+					return false;
+				break;
+			}
+			default:
+				printf("Output type not handled\n");
+				break;
+		}
+	}
+
+	return true;
+}
+
+// This generator handles several C/C++ constructs by specializing on the invocation name
+bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                         const std::vector<Token>& tokens, int startTokenIndex,
+                         GeneratorOutput& output)
+{
+	int nameTokenIndex = startTokenIndex + 1;
+	const Token& nameToken = tokens[nameTokenIndex];
+
+	CStatementOperation whileStatement[] = {
+		{Keyword, "while", -1}, {OpenParen, nullptr, -1}, {Expression, nullptr, 1}, {CloseParen, nullptr, -1}};
+
+	struct
+	{
+		const char* name;
+		CStatementOperation* operations;
+		int numOperations;
+	} statementOperators[] = {{"while", whileStatement, ArraySize(whileStatement)}};
+
+	for (unsigned int i = 0; i < ArraySize(statementOperators); ++i)
+	{
+		if (nameToken.contents.compare(statementOperators[i].name) == 0)
+		{
+			return cStatementOutput(environment, context, tokens, startTokenIndex,
+			                        statementOperators[i].operations,
+			                        statementOperators[i].numOperations, output);
+		}
+	}
+
+	ErrorAtToken(nameToken, "C statement generator received unrecognized keyword");
+	return false;
+}

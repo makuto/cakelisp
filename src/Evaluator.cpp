@@ -22,6 +22,7 @@ GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* funct
 	{
 		environment.generators["c-import"] = CImportGenerator;
 		environment.generators["defun"] = DefunGenerator;
+		environment.generators["while"] = CStatementGenerator;
 	}
 
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));

@@ -10,6 +10,7 @@
   ;; This should error as soon as function calls start evaluating their arguments (the square inside
   ;; is missing its argument)
   (square (square 2))
+  (while 0 (return 1))
   (return 0))
 
 (defun helper (&return std::string)

@@ -21,8 +21,10 @@ bool ExpectInInvocation(const char* message, const std::vector<Token>& tokens, i
                         int endInvocationIndex);
 // TODO: Come up with better name
 bool isSpecialSymbol(const Token& token);
-// This function would be simpler and faster if there was an actual syntax tree, because we wouldn't
-// be repeatedly traversing all the arguments
+// startTokenIndex should be the opening parenthesis of the array you want to retrieve arguments
+// from. For example, you should pass in the opening paren of a function invocation to get its name
+// as argument 0 and first arg as argument 1 This function would be simpler and faster if there was
+// an actual syntax tree, because we wouldn't be repeatedly traversing all the arguments
 int getExpectedArgument(const char* message, const std::vector<Token>& tokens, int startTokenIndex,
                         int desiredArgumentIndex, int endTokenIndex);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
