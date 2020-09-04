@@ -123,6 +123,7 @@ AR = ar cr ;
 # See
 # https://swarm.workshop.perforce.com/view/guest/perforce_software/jam/src/Jamfile.html
 # https://swarm.workshop.perforce.com/projects/perforce_software-jam/view/main/src/Jambase
+# http://david.freetype.org/jam/jam-language-3.html
 
 # This basically tells Jam "if you want a object file but you
 #  have a .cake file, run this rule to get an object file"
@@ -130,31 +131,35 @@ rule UserObject
 {
   switch $(>)
   {
-	case *.cake   : Cakelisp $(<) : $(>) ;
+	case *.cake   : ObjectFromCakelisp $(<) : $(>) ;
 	case *      : ECHO "unknown suffix on" $(>) ;
   }
 }
 
-rule Cakelisp
+rule ObjectFromCakelisp
 {
-  DEPENDS $(<) : $(>) ;
+  # $(1) = object
+  # $(2) = .cake
+  Depends $(1) : $(2).cpp ;
+  Cakelisp $(2).cpp : $(2) ;
+  # This essentially resumes the normal behavior after we've spliced in our generate
+  Object $(1) : $(2).cpp ;
 
   # Determine the C/C++ headers this Cakelisp file should depend on
   # Note that this rule will apply to the imports too, so it
   #  must support both C/C++ includes and Cakelisp imports
   # Regex based on the HDRSCAN provided in Jambase
-  HDRSCAN on $(>) =
-  "[ 	]*[#(][ 	]*include[ 	]*[<\"]*([^\">]*)[\">].*$" ;
+  # HDRSCAN on $(2) =
+  # "[ 	]*[#(][ 	]*include[ 	]*[<\"]*([^\">]*)[\">].*$" ;
 
-  HDRRULE on $(>) = CakelispHeaders ;
+  # HDRRULE on $(2) = CakelispHeaders ;
 
   # Get rid of the .o as well as the generated code
-  Clean clean : $(<) $(>).cpp $(>).hpp ;
+  Clean clean : $(1) $(2).cpp $(2).hpp ;
 }
 
 # A.cake (include "B.cake")
 # Before A.cake can build, B.cake.hpp must be generated
-# Befor 
 
 rule CakelispHeaders
 {
@@ -202,9 +207,13 @@ rule CakelispHeaders
   }
 }
 
+rule Cakelisp
+{
+  # The generated cpp file depends on the cake file; if the cake changes, it must be recreated
+  Depends $(1) : $(2) ;
+}
+
 actions Cakelisp
 {
-  $(CAKELISP) $(>)
-  # TODO: Make .cpp extension an option (vs .c)
-  $(C++) -c -o $(<) $(C++FLAGS) $(>).cpp
+  $(CAKELISP) $(2)
 }
