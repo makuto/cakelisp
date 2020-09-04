@@ -18,6 +18,9 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, GeneratorOutput& output);
+bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          GeneratorOutput& output);
 // This generator handles several C/C++ constructs by specializing on the invocation name
 bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                          const std::vector<Token>& tokens, int startTokenIndex,

@@ -20,8 +20,9 @@
 
 (global-var int unitialized)
 
-(defun helper ((rval-ref-to std::string) copy-string  &return std::string)
+(defun-local helper ((rval-ref-to std::string) copy-string  &return std::string)
   (var (& std::string) temp (std::move copy-string))
+  (set temp "crazy")
   (static-var ([] 5 int) numbers (array 0))
   (return (array 1 2 3 (bit-or 1 (bit-<< 1 2))))
   (printf "%p" (addr temp))

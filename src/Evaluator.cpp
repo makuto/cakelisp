@@ -21,10 +21,16 @@ GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* funct
 	if (environment.generators.empty())
 	{
 		environment.generators["c-import"] = CImportGenerator;
+
 		environment.generators["defun"] = DefunGenerator;
+		environment.generators["defun-local"] = DefunGenerator;
+
 		environment.generators["var"] = VariableDeclarationGenerator;
 		environment.generators["global-var"] = VariableDeclarationGenerator;
 		environment.generators["static-var"] = VariableDeclarationGenerator;
+
+		environment.generators["at"] = ArrayAccessGenerator;
+		environment.generators["nth"] = ArrayAccessGenerator;
 
 		// Dispatches based on invocation name
 		const char* cStatementKeywords[] = {
@@ -32,6 +38,7 @@ GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* funct
 		    "return",
 		    "when",
 		    "array",
+		    "set",
 		    // Pointers
 		    "deref",
 		    "addr",

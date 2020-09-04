@@ -161,8 +161,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			                                      afterNameOutput))
 				return false;
 
-			typeOutput.push_back({"&&", StringOutMod_None,
-			                      &typeInvocation, &typeInvocation});
+			typeOutput.push_back({"&&", StringOutMod_None, &typeInvocation, &typeInvocation});
 		}
 		else if (typeInvocation.contents.compare("<>") == 0)
 		{
@@ -277,6 +276,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!ExpectTokenType("defun", argsStart, TokenType_OpenParen))
 		return false;
 
+	bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defun-local") == 0;
+
 	enum DefunState
 	{
 		Type,
@@ -359,13 +360,19 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		}
 	}
 
+	// TODO: Hot-reloading functions shouldn't be declared static, right?
+	if (isModuleLocal)
+		output.source.push_back({"static", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
+		                         &tokens[startTokenIndex]});
+
 	if (returnTypeStart == -1)
 	{
 		// The type was implicit; blame the "defun"
 		output.source.push_back(
 		    {"void", StringOutMod_SpaceAfter, &tokens[startTokenIndex], &tokens[startTokenIndex]});
-		output.header.push_back(
-		    {"void", StringOutMod_SpaceAfter, &tokens[startTokenIndex], &tokens[startTokenIndex]});
+		if (!isModuleLocal)
+			output.header.push_back({"void", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
+			                         &tokens[startTokenIndex]});
 	}
 	else
 	{
@@ -405,16 +412,19 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
 
 		output.source.insert(output.source.end(), typeOutput.begin(), typeOutput.end());
-		output.header.insert(output.header.end(), typeOutput.begin(), typeOutput.end());
+		if (!isModuleLocal)
+			output.header.insert(output.header.end(), typeOutput.begin(), typeOutput.end());
 	}
 
 	output.source.push_back(
 	    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
-	output.header.push_back(
-	    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
+	if (!isModuleLocal)
+		output.header.push_back(
+		    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
 
 	output.source.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
-	output.header.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
+	if (!isModuleLocal)
+		output.header.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
 
 	std::vector<FunctionArgumentMetadata> argumentsMetadata;
 
@@ -435,17 +445,21 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 
 		// Type
 		PushBackAll(output.source, typeOutput);
-		PushBackAll(output.header, typeOutput);
+		if (!isModuleLocal)
+			PushBackAll(output.header, typeOutput);
 
 		// Name
 		output.source.push_back({tokens[arg.nameIndex].contents, StringOutMod_ConvertArgumentName,
 		                         &tokens[arg.nameIndex], &tokens[arg.nameIndex]});
-		output.header.push_back({tokens[arg.nameIndex].contents, StringOutMod_ConvertArgumentName,
-		                         &tokens[arg.nameIndex], &tokens[arg.nameIndex]});
+		if (!isModuleLocal)
+			output.header.push_back({tokens[arg.nameIndex].contents,
+			                         StringOutMod_ConvertArgumentName, &tokens[arg.nameIndex],
+			                         &tokens[arg.nameIndex]});
 
 		// Array
 		PushBackAll(output.source, afterNameOutput);
-		PushBackAll(output.header, afterNameOutput);
+		if (!isModuleLocal)
+			PushBackAll(output.header, afterNameOutput);
 
 		if (i + 1 < numFunctionArguments)
 		{
@@ -455,8 +469,9 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 			DefunArgument& nextArg = arguments[i + 1];
 			output.source.push_back({EmptyString, StringOutMod_ListSeparator,
 			                         &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
-			output.header.push_back({EmptyString, StringOutMod_ListSeparator,
-			                         &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
+			if (!isModuleLocal)
+				output.header.push_back({EmptyString, StringOutMod_ListSeparator,
+				                         &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
 		}
 
 		// Argument metadata
@@ -473,11 +488,14 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 
 	output.source.push_back(
 	    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
-	output.header.push_back(
-	    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
-	// Forward declarations end with ;
-	output.header.push_back(
-	    {EmptyString, StringOutMod_EndStatement, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+	if (!isModuleLocal)
+	{
+		output.header.push_back(
+		    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+		// Forward declarations end with ;
+		output.header.push_back(
+		    {EmptyString, StringOutMod_EndStatement, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+	}
 
 	int startBodyIndex = endArgsIndex + 1;
 	output.source.push_back(
@@ -562,6 +580,7 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	                                      context, EvaluatorScope_Module))
 		return false;
 
+	// Only necessary for static variables declared inside a function
 	bool isStatic = funcNameToken.contents.compare("static-var") == 0;
 	if (isStatic && !ExpectEvaluatorScope("static variable declaration", tokens[startTokenIndex],
 	                                      context, EvaluatorScope_Body))
@@ -641,6 +660,73 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	if (isGlobal)
 		output.header.push_back({EmptyString, StringOutMod_EndStatement,
 		                         &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
+
+	return true;
+}
+
+bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          GeneratorOutput& output)
+{
+	// This doesn't mean (at) can't be an lvalue
+	if (!ExpectEvaluatorScope("at", tokens[startTokenIndex], context,
+	                          EvaluatorScope_ExpressionsOnly))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int firstOffsetIndex =
+	    getExpectedArgument("expected offset", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (firstOffsetIndex == -1)
+		return false;
+
+	std::vector<int> offsetTokenIndices;
+	int arrayNameIndex = -1;
+	for (int i = firstOffsetIndex; i < endInvocationIndex; ++i)
+	{
+		const Token& token = tokens[i];
+
+		int endOfArgument = i;
+		if (token.type == TokenType_OpenParen)
+			endOfArgument = FindCloseParenTokenIndex(tokens, i);
+
+		// We hit the final argument, which should be the array to access
+		if (endOfArgument + 1 == endInvocationIndex)
+		{
+			arrayNameIndex = i;
+			break;
+		}
+
+		offsetTokenIndices.push_back(i);
+		if (token.type == TokenType_OpenParen)
+		{
+			// Skip any nesting
+			i = endOfArgument;
+		}
+	}
+
+	if (offsetTokenIndices.empty() || arrayNameIndex == -1)
+	{
+		ErrorAtToken(tokens[firstOffsetIndex],"expected at least one offset and an array to offset into");
+		return false;
+	}
+
+	// Evaluate array, which could be an arbitrarily complex expression
+	EvaluatorContext expressionContext = context;
+	expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+	if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, arrayNameIndex, output) != 0)
+		return false;
+
+	for (int offsetTokenIndex : offsetTokenIndices)
+	{
+		output.source.push_back(
+		    {"[", StringOutMod_None, &tokens[offsetTokenIndex], &tokens[offsetTokenIndex]});
+		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, offsetTokenIndex,
+		                               output) != 0)
+			return false;
+		output.source.push_back(
+		    {"]", StringOutMod_None, &tokens[offsetTokenIndex], &tokens[offsetTokenIndex]});
+	}
 
 	return true;
 }
@@ -845,14 +931,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation initializerList[] = {
 	    {OpenList, nullptr, -1}, {ExpressionList, nullptr, 1}, {CloseList, nullptr, -1}};
 
-	// This needs to be conditional based on the number of arguments
-	// const CStatementOperation assignmentStatement[] = {{Expression /*Type*/, nullptr, 1},
-	// {Keyword "=", -1},
-	// {Expression, nullptr, 1},
-	// {EndStatement, nullptr, -1}};
+	const CStatementOperation assignmentStatement[] = {{Expression /*Name*/, nullptr, 1},
+	                                                   {Keyword, "=", -1},
+	                                                   {Expression, nullptr, 2},
+	                                                   {EndStatement, nullptr, -1}};
 
-	const CStatementOperation dereference[] = {{Keyword, "*", -1},
-	                                                    {Expression, nullptr, 1}};
+	const CStatementOperation dereference[] = {{Keyword, "*", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation addressOf[] = {{Keyword, "&", -1}, {Expression, nullptr, 1}};
 
 	// https://www.tutorialspoint.com/cprogramming/c_operators.htm proved useful
@@ -898,6 +982,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"return", returnStatement, ArraySize(returnStatement)},
 	    {"when", whenStatement, ArraySize(whenStatement)},
 	    {"array", initializerList, ArraySize(initializerList)},
+	    {"set", assignmentStatement, ArraySize(assignmentStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
 	    {"addr", addressOf, ArraySize(addressOf)},
@@ -924,8 +1009,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"-", subtract, ArraySize(subtract)},
 	    {"*", multiply, ArraySize(multiply)},
 	    {"/", divide, ArraySize(divide)},
-		{"%", modulus, ArraySize(modulus)},
-		{"mod", modulus, ArraySize(modulus)},
+	    {"%", modulus, ArraySize(modulus)},
+	    {"mod", modulus, ArraySize(modulus)},
 	    {"++", increment, ArraySize(increment)},
 	    {"--", decrement, ArraySize(decrement)},
 	};
