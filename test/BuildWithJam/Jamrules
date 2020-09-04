@@ -7,6 +7,8 @@ LINK = clang++ ;
 # C++ = g++ ;
 # LINK = g++ ;
 
+CAKELISP = ../../cakelisp ;
+
 # If I was building a library, these would be useful
 # LINKFLAGS = -shared ;
 # if $(UNIX)      { SUFSHR = .so ; }
@@ -117,6 +119,13 @@ AR = ar cr ;
 #
 # Cake support
 #
+
+# See
+# https://swarm.workshop.perforce.com/view/guest/perforce_software/jam/src/Jamfile.html
+# https://swarm.workshop.perforce.com/projects/perforce_software-jam/view/main/src/Jambase
+
+# This basically tells Jam "if you want a object file but you
+#  have a .cake file, run this rule to get an object file"
 rule UserObject
 {
   switch $(>)
@@ -129,12 +138,22 @@ rule UserObject
 rule Cakelisp
 {
   DEPENDS $(<) : $(>) ;
-  Clean clean : $(<) ;
+
+  # Determine the C/C++ headers this Cakelisp file should depend on
+  # Note that this rule will apply to the imports too, so it
+  #  must support both C/C++ includes and Cakelisp imports
+  # Regex based on the HDRSCAN provided in Jambase
+  # HDRSCAN on $(>) = "^[ 	]*\\([ 	]*c-import[ 	]*\"[<]*([^\">]*)[>]*\".*$" ;
+  HDRSCAN on $(>) = 
+  "(?|^[ 	]*\\([ 	]*c-import[ 	]*\"[<]*([^\">]*)[>]*\".*$|[ 	]*#[ 	]*include[ 	]*[<\"]([^\">]*)[\">].*$)" ;
+
+  # Get rid of the .o as well as the generated code
+  Clean clean : $(<) $(>).cpp $(>).hpp ;
 }
 
 actions Cakelisp
 {
-  ../../cakelisp $(>)
+  $(CAKELISP) $(>)
   # TODO: Make .cpp extension an option (vs .c)
   $(C++) -c -o $(<) $(C++FLAGS) $(>).cpp
 }
