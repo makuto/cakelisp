@@ -41,12 +41,12 @@
                           ;; to write GenerateOperation here instead, because then ETAGS etc. can
                           ;; still find the C++ definition without running our conversion functions
                           (& (<> std::vector (* generate-operation) other-thing)) operations-out)
-  (return 0))
+  (return 2.f))
 
 (defun test-array-args (([] int) numbers ([] ([] 5 char)) five-letter-words
                         ;; ([] 4 ([] 4 float)) matrix ;; C doesn't like this, but the Cakelisp type system can handle it
                         &return (* char))
-  (return (nth 0 five-letter-words)))
+  (return (nth (test-complex-args) five-letter-words)))
 
 ;; Terminology notes: :thing is a keyword symbol. &thing is a symbol or marker symbol (maybe I call it a sentinel?)
 

@@ -16,7 +16,6 @@ struct NameStyleSettings
 	NameStyleMode functionNameMode = NameStyleMode_Underscores;
 	NameStyleMode argumentNameMode = NameStyleMode_CamelCase;
 	NameStyleMode variableNameMode = NameStyleMode_CamelCase;
-	NameStyleMode globalVariableNameMode = NameStyleMode_CamelCase;
 };
 
 // This only does anything to strings which have '-' as separators, or other symbols not allowed in

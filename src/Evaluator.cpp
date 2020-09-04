@@ -174,8 +174,23 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 			switch (token.type)
 			{
 				case TokenType_Symbol:
-					output.source.push_back({token.contents, StringOutMod_None, &token, &token});
+				{
+					// We need to convert what look like names in case they are lispy, but not
+					// integer, character, or floating point constants
+					char firstChar = token.contents[0];
+					char secondChar = token.contents.size() > 1 ? token.contents[1] : 0;
+					if (firstChar == '\'' || isdigit(firstChar) ||
+					    (firstChar == '-' && (secondChar == '.' || isdigit(secondChar))))
+						output.source.push_back(
+						    {token.contents, StringOutMod_None, &token, &token});
+					else
+					{
+						// Potential lisp name. Convert
+						output.source.push_back(
+						    {token.contents, StringOutMod_ConvertVariableName, &token, &token});
+					}
 					break;
+				}
 				case TokenType_String:
 					output.source.push_back(
 					    {token.contents, StringOutMod_SurroundWithQuotes, &token, &token});

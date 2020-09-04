@@ -14,10 +14,11 @@ enum CImportState
 // These need to be simple in order to make it easy for external build tools to parse them
 // This version supports multiple includes per invocation, different export destinations, etc.
 bool PowerfulCImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                      const std::vector<Token>& tokens, int startTokenIndex,
-                      GeneratorOutput& output)
+                              const std::vector<Token>& tokens, int startTokenIndex,
+                              GeneratorOutput& output)
 {
-	if (!ExpectEvaluatorScope("C/C++ include", tokens[startTokenIndex], context, EvaluatorScope_Module))
+	if (!ExpectEvaluatorScope("C/C++ include", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
 		return false;
 
 	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
@@ -122,8 +123,7 @@ bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 		}
 		else
 		{
-			ErrorAtToken(destinationToken,
-			             "unexpected symbol. Expected :with-defs or :with-decls");
+			ErrorAtToken(destinationToken, "unexpected symbol. Expected :with-defs or :with-decls");
 			return false;
 		}
 	}
@@ -546,11 +546,11 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 			PushBackAll(output.header, typeOutput);
 
 		// Name
-		output.source.push_back({tokens[arg.nameIndex].contents, StringOutMod_ConvertArgumentName,
+		output.source.push_back({tokens[arg.nameIndex].contents, StringOutMod_ConvertVariableName,
 		                         &tokens[arg.nameIndex], &tokens[arg.nameIndex]});
 		if (!isModuleLocal)
 			output.header.push_back({tokens[arg.nameIndex].contents,
-			                         StringOutMod_ConvertArgumentName, &tokens[arg.nameIndex],
+			                         StringOutMod_ConvertVariableName, &tokens[arg.nameIndex],
 			                         &tokens[arg.nameIndex]});
 
 		// Array
@@ -719,10 +719,10 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 		PushBackAll(output.header, typeOutput);
 
 	// Name
-	output.source.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertArgumentName,
+	output.source.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
 	                         &tokens[varNameIndex], &tokens[varNameIndex]});
 	if (isGlobal)
-		output.header.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertArgumentName,
+		output.header.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
 		                         &tokens[varNameIndex], &tokens[varNameIndex]});
 
 	// Array

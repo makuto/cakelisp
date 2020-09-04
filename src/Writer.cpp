@@ -51,20 +51,10 @@ static NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
 		++numMatchingFlags;
 		mode = settings.functionNameMode;
 	}
-	if (modifierFlags & StringOutMod_ConvertArgumentName)
-	{
-		++numMatchingFlags;
-		mode = settings.argumentNameMode;
-	}
 	if (modifierFlags & StringOutMod_ConvertVariableName)
 	{
 		++numMatchingFlags;
 		mode = settings.variableNameMode;
-	}
-	if (modifierFlags & StringOutMod_ConvertGlobalVariableName)
-	{
-		++numMatchingFlags;
-		mode = settings.globalVariableNameMode;
 	}
 
 	if (numMatchingFlags > 1)
@@ -225,7 +215,7 @@ FILE* fileOpen(const char* filename)
 	return file;
 }
 
-bool copyFile(const char* srcFilename, const char* destFilename)
+bool moveFile(const char* srcFilename, const char* destFilename)
 {
 	FILE* srcFile = fopen(srcFilename, "r");
 	FILE* destFile = fopen(destFilename, "w");
@@ -239,6 +229,12 @@ bool copyFile(const char* srcFilename, const char* destFilename)
 	fclose(srcFile);
 	fclose(destFile);
 
+	if (remove(srcFilename) != 0)
+	{
+		printf("Failed to remove %s\n", srcFilename);
+		return false;
+	}
+
 	return true;
 }
 
@@ -248,6 +244,7 @@ bool writeIfContentsNewer(const GeneratorOutput& generatedOutput,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings)
 {
+	// Write to a temporary file
 	StringOutputState headerState = {};
 	char generatedHeaderTempFilename[MAX_PATH_LENGTH] = {0};
 	PrintfBuffer(generatedHeaderTempFilename, "%s.hpp.temp", outputSettings.sourceCakelispFilename);
@@ -269,7 +266,7 @@ bool writeIfContentsNewer(const GeneratorOutput& generatedOutput,
 		headerState.fileOut = nullptr;
 	}
 
-	// Read both files and compare
+	// Read temporary file and destination file and compare
 	FILE* newFile = fopen(generatedHeaderTempFilename, "r");
 	if (!newFile)
 	{
@@ -283,7 +280,7 @@ bool writeIfContentsNewer(const GeneratorOutput& generatedOutput,
 	{
 		// Write new and remove temp
 		printf("Destination file didn't exist. Writing\n");
-		return copyFile(generatedHeaderTempFilename, generatedHeaderFilename);
+		return moveFile(generatedHeaderTempFilename, generatedHeaderFilename);
 	}
 	else
 	{
@@ -314,6 +311,11 @@ bool writeIfContentsNewer(const GeneratorOutput& generatedOutput,
 			printf("Files are identical. Skipping\n");
 			fclose(newFile);
 			fclose(oldFile);
+			if (remove(generatedHeaderTempFilename) != 0)
+			{
+				printf("Failed to remove %s\n", generatedHeaderTempFilename);
+				return false;
+			}
 			return true;
 		}
 
@@ -321,7 +323,7 @@ bool writeIfContentsNewer(const GeneratorOutput& generatedOutput,
 		fclose(newFile);
 		fclose(oldFile);
 
-		return copyFile(generatedHeaderTempFilename, generatedHeaderFilename);
+		return moveFile(generatedHeaderTempFilename, generatedHeaderFilename);
 	}
 }
 

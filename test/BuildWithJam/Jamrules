@@ -164,8 +164,14 @@ rule CakelispHeaders
 	if ".cake" = $(i:S)
 	{
 	  # If making A.cake, and A.cake includes B.cake, A.o cannot be compiled until B.o is compiled
-	  # This rule is suboptimal because recompilation should only happen if B.cake.hpp changes
+	  # TODO This rule is suboptimal because recompilation should only happen if B.cake.hpp changes
+	  # TODO This doesn't fail jam building if the specified cake file is not going to be built. OK?
 	  Depends $(<:S=$(SUFOBJ)) : $(i:S=$(SUFOBJ)) ;
+
+	  # Header variant (broken)
+	  # This will seem like it works, but touch DepOfDep.hpp and it'll break again
+	  # Depends $(<:S=$(SUFOBJ)) : $(i).hpp ;
+	  # Depends $(i).hpp : $(i:S=$(SUFOBJ)) ;
 
 	  # Other (unsuccessful) variations
 	  # Depends $(<) : $(i) ;
