@@ -71,3 +71,14 @@ The following I believe have little or no activity, implying they are no longer 
 - [[https://github.com/wolfgangj/bone-lisp][Bone Lisp]]: Lisp with no GC. Creator has abandoned it, but it still gets some attention
 - [[https://github.com/carp-lang/Carp][Carp]]: Performance-oriented. see [[https://github.com/carp-lang/Carp/blob/master/docs/LanguageGuide.md][Language guide]]
 - [[https://github.com/ska80/thinlisp][Thinlisp]]: No GC option available. Write your stuff in CL using the cushy SBCL environment, then compile down to C for good performance
+* Tooling support
+** Emacs
+Open ~.cake~ files in ~lisp-mode~:
+#+BEGIN_SRC lisp
+(add-to-list 'auto-mode-alist '("\\.cake?\\'" . lisp-mode))
+#+END_SRC
+** Build systems
+A build system will work fine with Cakelisp as long as it meets these criteria:
+- C/C++ includes from Cakelisp can be detected, to determine dependencies the ~.cake~ file has
+
+See ~test/BuildWithJam/Jamrules~ for an example using the [[https://www.perforce.com/documentation/jam-documentation][Jam]] build tool.

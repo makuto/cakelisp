@@ -225,7 +225,107 @@ FILE* fileOpen(const char* filename)
 	return file;
 }
 
-void printGeneratorOutput(const GeneratorOutput& generatedOutput,
+bool copyFile(const char* srcFilename, const char* destFilename)
+{
+	FILE* srcFile = fopen(srcFilename, "r");
+	FILE* destFile = fopen(destFilename, "w");
+	if (!srcFile || !destFile)
+		return false;
+
+	char buffer[1024];
+	while (fgets(buffer, sizeof(buffer), srcFile))
+		fputs(buffer, destFile);
+
+	fclose(srcFile);
+	fclose(destFile);
+
+	return true;
+}
+
+// TODO This sucks
+bool writeIfContentsNewer(const GeneratorOutput& generatedOutput,
+                          const NameStyleSettings& nameSettings,
+                          const WriterFormatSettings& formatSettings,
+                          const WriterOutputSettings& outputSettings)
+{
+	StringOutputState headerState = {};
+	char generatedHeaderTempFilename[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(generatedHeaderTempFilename, "%s.hpp.temp", outputSettings.sourceCakelispFilename);
+	headerState.fileOut = fileOpen(generatedHeaderTempFilename);
+	for (const StringOutput& operation : generatedOutput.header)
+	{
+		// Debug print mapping
+		if (!operation.output.empty())
+		{
+			printf("%s \t%d\tline %d\n", operation.output.c_str(), headerState.numCharsOutput + 1,
+			       headerState.currentLine + 1);
+		}
+
+		printStringOutput(nameSettings, formatSettings, operation, headerState);
+	}
+	if (headerState.fileOut)
+	{
+		fclose(headerState.fileOut);
+		headerState.fileOut = nullptr;
+	}
+
+	// Read both files and compare
+	FILE* newFile = fopen(generatedHeaderTempFilename, "r");
+	if (!newFile)
+	{
+		printf("Error: Could not open %s\n", generatedHeaderTempFilename);
+		return false;
+	}
+	char generatedHeaderFilename[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(generatedHeaderFilename, "%s.hpp", outputSettings.sourceCakelispFilename);
+	FILE* oldFile = fopen(generatedHeaderFilename, "r");
+	if (!oldFile)
+	{
+		// Write new and remove temp
+		printf("Destination file didn't exist. Writing\n");
+		return copyFile(generatedHeaderTempFilename, generatedHeaderFilename);
+	}
+	else
+	{
+		printf("Destination file exists. Comparing\n");
+		char newBuffer[1024] = {0};
+		char oldBuffer[1024] = {0};
+		bool identical = true;
+		while (1)
+		{
+			bool newBufferRead = fgets(newBuffer, sizeof(newBuffer), newFile) != nullptr;
+			bool oldBufferRead = fgets(oldBuffer, sizeof(oldBuffer), oldFile) != nullptr;
+			if (!newBufferRead || !oldBufferRead)
+			{
+				if (newBufferRead != oldBufferRead)
+					identical = false;
+				break;
+			}
+
+			if (memcmp(newBuffer, oldBuffer, sizeof(newBuffer)) != 0)
+			{
+				identical = false;
+				break;
+			}
+		}
+
+		if (identical)
+		{
+			printf("Files are identical. Skipping\n");
+			fclose(newFile);
+			fclose(oldFile);
+			return true;
+		}
+
+		printf("File changed. writing\n");
+		fclose(newFile);
+		fclose(oldFile);
+
+		return copyFile(generatedHeaderTempFilename, generatedHeaderFilename);
+	}
+}
+
+bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const NameStyleSettings& nameSettings,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings)
@@ -238,6 +338,8 @@ void printGeneratorOutput(const GeneratorOutput& generatedOutput,
 			char generatedSourceFilename[MAX_PATH_LENGTH] = {0};
 			PrintfBuffer(generatedSourceFilename, "%s.cpp", outputSettings.sourceCakelispFilename);
 			sourceState.fileOut = fileOpen(generatedSourceFilename);
+			if (!sourceState.fileOut)
+				return false;
 		}
 
 		for (const StringOutput& operation : generatedOutput.source)
@@ -262,24 +364,26 @@ void printGeneratorOutput(const GeneratorOutput& generatedOutput,
 
 	printf("\n\tTo header file:\n");
 	{
-		StringOutputState headerState = {};
-		if (outputSettings.sourceCakelispFilename)
-		{
-			char generatedSourceFilename[MAX_PATH_LENGTH] = {0};
-			PrintfBuffer(generatedSourceFilename, "%s.hpp", outputSettings.sourceCakelispFilename);
-			headerState.fileOut = fileOpen(generatedSourceFilename);
-		}
+		if (!writeIfContentsNewer(generatedOutput, nameSettings, formatSettings, outputSettings))
+			return false;
+		// StringOutputState headerState = {};
+		// if (outputSettings.sourceCakelispFilename)
+		// {
+		// 	char generatedHeaderFilename[MAX_PATH_LENGTH] = {0};
+		// 	PrintfBuffer(generatedHeaderFilename, "%s.hpp", outputSettings.sourceCakelispFilename);
+		// 	headerState.fileOut = fileOpen(generatedHeaderFilename);
+		// }
 
-		for (const StringOutput& operation : generatedOutput.header)
-		{
-			printStringOutput(nameSettings, formatSettings, operation, headerState);
-		}
+		// for (const StringOutput& operation : generatedOutput.header)
+		// {
+		// 	printStringOutput(nameSettings, formatSettings, operation, headerState);
+		// }
 
-		if (headerState.fileOut)
-		{
-			fclose(headerState.fileOut);
-			headerState.fileOut = nullptr;
-		}
+		// if (headerState.fileOut)
+		// {
+		// 	fclose(headerState.fileOut);
+		// 	headerState.fileOut = nullptr;
+		// }
 	}
 
 	// Metadata
@@ -307,4 +411,6 @@ void printGeneratorOutput(const GeneratorOutput& generatedOutput,
 
 		printf("\n");
 	}
+
+	return true;
 }

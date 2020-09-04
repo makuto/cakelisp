@@ -5,11 +5,19 @@
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
-bool CImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+enum CImportState
+{
+	WithDefinitions,
+	WithDeclarations
+};
+
+// These need to be simple in order to make it easy for external build tools to parse them
+// This version supports multiple includes per invocation, different export destinations, etc.
+bool PowerfulCImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                       const std::vector<Token>& tokens, int startTokenIndex,
                       GeneratorOutput& output)
 {
-	if (!ExpectEvaluatorScope("c-import", tokens[startTokenIndex], context, EvaluatorScope_Module))
+	if (!ExpectEvaluatorScope("C/C++ include", tokens[startTokenIndex], context, EvaluatorScope_Module))
 		return false;
 
 	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
@@ -19,13 +27,9 @@ bool CImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext&
 	                        endTokenIndex + 1))
 		return false;
 
-	enum CImportState
-	{
-		WithDefinitions,
-		WithDeclarations
-	};
 	CImportState state = WithDefinitions;
 
+	// No macros/tomfoolery allowed - these need to be easy to parse by external tools
 	for (int i = startTokenIndex; i <= endTokenIndex; ++i)
 	{
 		const Token& currentToken = tokens[i];
@@ -44,7 +48,7 @@ bool CImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext&
 
 			continue;
 		}
-		else if (!ExpectTokenType("c-import", currentToken, TokenType_String) ||
+		else if (!ExpectTokenType("C/C++ include", currentToken, TokenType_String) ||
 		         currentToken.contents.empty())
 			continue;
 
@@ -69,6 +73,99 @@ bool CImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext&
 
 		output.imports.push_back({currentToken.contents, ImportLanguage_C, &currentToken});
 	}
+
+	return true;
+}
+
+// The hampered version of PowerfulCImportGenerator, done so for easy external tool parsing
+// No macros/tomfoolery allowed - these need to be easy to parse by external tools
+bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                       const std::vector<Token>& tokens, int startTokenIndex,
+                       GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("C/C++ include", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	CImportState state = WithDefinitions;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int startArgsIndex = startTokenIndex;
+	int endArgsIndex = endInvocationIndex;
+	// Generators receive the entire invocation. We'll ignore it in this case
+	StripInvocation(startArgsIndex, endArgsIndex);
+	if (!ExpectInInvocation("expected path to include", tokens, startArgsIndex, endArgsIndex + 1))
+		return false;
+
+	const Token& pathToken = tokens[startArgsIndex];
+
+	if (!ExpectTokenType("C/C++ include", pathToken, TokenType_String) ||
+	    pathToken.contents.empty())
+		return false;
+
+	int destinationIndex = startArgsIndex + 1;
+	if (destinationIndex != endInvocationIndex)
+	{
+		const Token& destinationToken = tokens[destinationIndex];
+		if (destinationToken.type == TokenType_Symbol && isSpecialSymbol(destinationToken))
+		{
+			if (destinationToken.contents.compare(":with-defs") == 0)
+				state = WithDefinitions;
+			else if (destinationToken.contents.compare(":with-decls") == 0)
+				state = WithDeclarations;
+			else
+			{
+				ErrorAtToken(destinationToken,
+				             "unrecognized sentinel symbol. Expected :with-defs or :with-decls");
+				return false;
+			}
+		}
+		else
+		{
+			ErrorAtToken(destinationToken,
+			             "unexpected symbol. Expected :with-defs or :with-decls");
+			return false;
+		}
+	}
+
+	bool isCakeImport = false;
+	// TODO: Convert to StringOutputs?
+	char includeBuffer[MAX_PATH_LENGTH] = {0};
+	// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
+	if (pathToken.contents[0] == '<')
+	{
+		PrintfBuffer(includeBuffer, "#include %s", pathToken.contents.c_str());
+	}
+	else
+	{
+		// Anything ending with .cake is a Cakelisp include
+		// It is necessary to have both Cakelisp and C/C++ includes share the same keyword so some
+		// build systems can handle them (though those build systems need to check for .cake too)
+		int pathLength = pathToken.contents.size();
+		const std::string cakeSuffix = ".cake";
+		if (pathToken.contents.substr(pathLength - cakeSuffix.size(), pathLength)
+		        .compare(cakeSuffix) == 0)
+		{
+			isCakeImport = true;
+			// TODO Make .hpp optional for C-only support
+			PrintfBuffer(includeBuffer, "#include \"%s.hpp\"", pathToken.contents.c_str());
+		}
+		else
+		{
+			PrintfBuffer(includeBuffer, "#include \"%s\"", pathToken.contents.c_str());
+		}
+	}
+
+	if (state == WithDefinitions)
+		output.source.push_back(
+		    {std::string(includeBuffer), StringOutMod_NewlineAfter, &pathToken, &pathToken});
+	else if (state == WithDeclarations)
+		output.header.push_back(
+		    {std::string(includeBuffer), StringOutMod_NewlineAfter, &pathToken, &pathToken});
+
+	output.imports.push_back({pathToken.contents,
+	                          isCakeImport ? ImportLanguage_Cakelisp : ImportLanguage_C,
+	                          &pathToken});
 
 	return true;
 }
@@ -561,6 +658,7 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 }
 
 // Handles both uninitized and initilized variables as well as global and static
+// Module-local variables are automatically marked as static
 bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, GeneratorOutput& output)
@@ -1104,7 +1202,9 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 //
 void importFundamentalGenerators(EvaluatorEnvironment& environment)
 {
-	environment.generators["c-import"] = CImportGenerator;
+	// I wanted to use c-import, but I encountered problems writing a regex for Jam which can handle
+	// both include and c-import. Anyways, this way C programmers have one less change to remember
+	environment.generators["include"] = CIncludeGenerator;
 
 	environment.generators["defun"] = DefunGenerator;
 	environment.generators["defun-local"] = DefunGenerator;

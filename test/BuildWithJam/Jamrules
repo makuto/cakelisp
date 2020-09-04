@@ -143,12 +143,57 @@ rule Cakelisp
   # Note that this rule will apply to the imports too, so it
   #  must support both C/C++ includes and Cakelisp imports
   # Regex based on the HDRSCAN provided in Jambase
-  # HDRSCAN on $(>) = "^[ 	]*\\([ 	]*c-import[ 	]*\"[<]*([^\">]*)[>]*\".*$" ;
-  HDRSCAN on $(>) = 
-  "(?|^[ 	]*\\([ 	]*c-import[ 	]*\"[<]*([^\">]*)[>]*\".*$|[ 	]*#[ 	]*include[ 	]*[<\"]([^\">]*)[\">].*$)" ;
+  HDRSCAN on $(>) =
+  "[ 	]*[#(][ 	]*include[ 	]*[<\"]*([^\">]*)[\">].*$" ;
+
+  HDRRULE on $(>) = CakelispHeaders ;
 
   # Get rid of the .o as well as the generated code
   Clean clean : $(<) $(>).cpp $(>).hpp ;
+}
+
+# A.cake (include "B.cake")
+# Before A.cake can build, B.cake.hpp must be generated
+# Befor 
+
+rule CakelispHeaders
+{
+  # Depends $(>) : $(<) ;
+  for i in $(>)
+  {
+	if ".cake" = $(i:S)
+	{
+	  # If making A.cake, and A.cake includes B.cake, A.o cannot be compiled until B.o is compiled
+	  # This rule is suboptimal because recompilation should only happen if B.cake.hpp changes
+	  Depends $(<:S=$(SUFOBJ)) : $(i:S=$(SUFOBJ)) ;
+
+	  # Other (unsuccessful) variations
+	  # Depends $(<) : $(i) ;
+
+	  # Depends $(i:S=$(SUFOBJ)) : $(i) ;
+
+	  # Depends $(<) : $(i).hpp ;
+	  # Depends $(i).hpp : $(i) ;
+
+	  #unnecessary rebuilds, but looks good otherwise
+	  # Depends $(<) : $(i).hpp ;
+	  # Depends $(i).hpp : $(i:S=$(SUFOBJ)) ;
+
+	  # Depends $(<) : $(i) ;
+	  # Depends $(i) : $(i:S=$(SUFOBJ)) ;
+
+	  # Unnecessary rebuilds!
+	  # Depends $(<) : $(i:S=$(SUFOBJ)) ;
+	  # Will build the SUFOBJ!
+	  # Cakelisp $(<) : $(i:S=$(SUFOBJ)) ;
+	  # HdrRule $(<) : $(>) ;
+	}
+	else
+	{
+	  # TODO Uncomment for proper C/C++ header scanning
+	  HdrRule $(<) : $(>) ;
+	}
+  }
 }
 
 actions Cakelisp

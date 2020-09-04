@@ -1,4 +1,4 @@
-(c-import "<stdio.h>")
+(include "<stdio.h>")
 
 (defun main(&return int)
   (printf "Hello, world! From Cakelisp!\n")

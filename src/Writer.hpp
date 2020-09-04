@@ -24,7 +24,7 @@ struct WriterOutputSettings
 
 const char* importLanguageToString(ImportLanguage type);
 
-void printGeneratorOutput(const GeneratorOutput& generatedOutput,
+bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const NameStyleSettings& nameSettings,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings);

@@ -1,6 +1,9 @@
 ;; Quite possibly the simplest generator: slap "#include {arg}" into the source file
-;; One of these can output multiple includes
-(c-import "<stdio.h>" &with-decls "<vector>")
+;; These need to be simple in order to make it easy for external build tools to parse them
+;; Otherwise, they'd support multiple includes per invocation, etc.
+(include "<stdio.h>")
+(include "<vector>" :with-decls)
+(include "Test.cake")
 
 (var int my-module-var 5)
 

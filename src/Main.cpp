@@ -136,7 +136,12 @@ int main(int argc, char* argv[])
 
 		printf("\nResult:\n");
 
-		printGeneratorOutput(generatedOutput, nameSettings, formatSettings, outputSettings);
+		if (!writeGeneratorOutput(generatedOutput, nameSettings, formatSettings, outputSettings))
+		{
+			environmentDestroyMacroExpansionsInvalidateTokens(environment);
+			delete tokens;
+			return 1;
+		}
 	}
 
 	environmentDestroyMacroExpansionsInvalidateTokens(environment);

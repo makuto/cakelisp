@@ -2,4 +2,4 @@
 
 #include "TestHeaderDependency.hpp"
 
-#define MY_MESSAGE "If you change me, I will rebuild." MY_MESSAGE_END
+#define MY_MESSAGE "If you change me, I will rebuild!" MY_MESSAGE_END
