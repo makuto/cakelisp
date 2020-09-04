@@ -1,8 +1,10 @@
 #include <stdio.h>
+
 #include <vector>
 
 #include "Converters.hpp"
 #include "Evaluator.hpp"
+#include "Generators.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 #include "Writer.hpp"
@@ -109,6 +111,9 @@ int main(int argc, char* argv[])
 	printf("\nParsing and code generation:\n");
 
 	EvaluatorEnvironment environment;
+	importFundamentalGenerators(environment);
+	// TODO Remove test macro
+	environment.macros["square"] = SquareMacro;
 	EvaluatorContext moduleContext;
 	moduleContext.scope = EvaluatorScope_Module;
 	GeneratorOutput generatedOutput;

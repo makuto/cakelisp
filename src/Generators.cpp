@@ -707,14 +707,16 @@ bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 
 	if (offsetTokenIndices.empty() || arrayNameIndex == -1)
 	{
-		ErrorAtToken(tokens[firstOffsetIndex],"expected at least one offset and an array to offset into");
+		ErrorAtToken(tokens[firstOffsetIndex],
+		             "expected at least one offset and an array to offset into");
 		return false;
 	}
 
 	// Evaluate array, which could be an arbitrarily complex expression
 	EvaluatorContext expressionContext = context;
 	expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-	if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, arrayNameIndex, output) != 0)
+	if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, arrayNameIndex,
+	                               output) != 0)
 		return false;
 
 	for (int offsetTokenIndex : offsetTokenIndices)
@@ -925,6 +927,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
 	    {CloseBlock, nullptr, -1}};
 
+	// Misc.
 	const CStatementOperation returnStatement[] = {
 	    {Keyword, "return", -1}, {Expression, nullptr, 1}, {EndStatement, nullptr, -1}};
 
@@ -938,6 +941,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 
 	const CStatementOperation dereference[] = {{Keyword, "*", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation addressOf[] = {{Keyword, "&", -1}, {Expression, nullptr, 1}};
+
+	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add barriers
+	// or anything). It's useful both for making arbitrary scopes and for making if blocks with
+	// multiple statements
+	const CStatementOperation blockStatement[] = {
+	    {OpenBlock, nullptr, -1}, {Body, nullptr, 1}, {CloseBlock, nullptr, -1}};
 
 	// https://www.tutorialspoint.com/cprogramming/c_operators.htm proved useful
 	const CStatementOperation booleanOr[] = {{Splice, "||", 1}};
@@ -983,6 +992,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"when", whenStatement, ArraySize(whenStatement)},
 	    {"array", initializerList, ArraySize(initializerList)},
 	    {"set", assignmentStatement, ArraySize(assignmentStatement)},
+	    // Calling it scope so Emacs will auto-format correctly
+	    // TODO: I like "block" better. How do I change the formatter to not be confusing?
+	    {"scope", blockStatement, ArraySize(blockStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
 	    {"addr", addressOf, ArraySize(addressOf)},
@@ -1085,4 +1097,68 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 	                  endToken.columnStart, endToken.columnEnd});
 
 	return true;
+}
+
+//
+// Environment interaction
+//
+void importFundamentalGenerators(EvaluatorEnvironment& environment)
+{
+	environment.generators["c-import"] = CImportGenerator;
+
+	environment.generators["defun"] = DefunGenerator;
+	environment.generators["defun-local"] = DefunGenerator;
+
+	environment.generators["var"] = VariableDeclarationGenerator;
+	environment.generators["global-var"] = VariableDeclarationGenerator;
+	environment.generators["static-var"] = VariableDeclarationGenerator;
+
+	environment.generators["at"] = ArrayAccessGenerator;
+	environment.generators["nth"] = ArrayAccessGenerator;
+
+	// Dispatches based on invocation name
+	const char* cStatementKeywords[] = {
+	    "while",
+	    "return",
+	    "when",
+	    "array",
+	    "set",
+	    "scope",
+	    // Pointers
+	    "deref",
+	    "addr",
+	    // Boolean
+	    "or",
+	    "and",
+	    "not",
+	    // Bitwise
+	    "bit-or",
+	    "bit-and",
+	    "bit-xor",
+	    "bit-ones-complement",
+	    "bit-<<",
+	    "bit->>",
+	    // Relational
+	    "=",
+	    "!=",
+	    "eq",
+	    "neq",
+	    "<=",
+	    ">=",
+	    "<",
+	    ">",
+	    // Arithmetic
+	    "+",
+	    "-",
+	    "*",
+	    "/",
+	    "%",
+	    "mod",
+	    "++",
+	    "--",
+	};
+	for (size_t i = 0; i < ArraySize(cStatementKeywords); ++i)
+	{
+		environment.generators[cStatementKeywords[i]] = CStatementGenerator;
+	}
 }
