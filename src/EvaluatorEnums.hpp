@@ -27,6 +27,10 @@ enum StringOutputModifierFlags
 
 	// ',', for lists of arguments, expressions (e.g. initializer lists), etc.
 	StringOutMod_ListSeparator = 1 << 13,
+
+	// Uses {} for initializer lists etc.
+	StringOutMod_OpenList = 1 << 14,
+	StringOutMod_CloseList = 1 << 15,
 };
 
 enum ImportLanguage
@@ -40,6 +44,7 @@ enum ImportLanguage
 // generators will work in any scope
 enum EvaluatorScope
 {
+	// Anything that takes plain-old declarations
 	EvaluatorScope_Body,
 	// Top-level invocations in a file, for example
 	EvaluatorScope_Module,

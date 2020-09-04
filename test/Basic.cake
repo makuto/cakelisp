@@ -2,18 +2,29 @@
 ;; One of these can output multiple includes
 (c-import "<stdio.h>" &with-decls "<vector>")
 
+(var int my-module-var 5)
+
 ;; The defun generator will implicitly invoke a (generate-args) generator on the args list. "int"
 ;;  isn't a generator or a function, it's a DSL symbol generate-args understands
 (defun main (int arg-count ([] (* char)) args &return int)
   ;; (printf 1 2)
   (printf "This is a test. Here's a number: %d" 4)
-  ;; This should error as soon as function calls start evaluating their arguments (the square inside
-  ;; is missing its argument)
-  (square (square 2))
-  (while 0 (return 1))
+  (when (= (square (square 2)) 16)
+    (printf "Woo hoo"))
+  (while (not true)
+    (when (and (= true false) (= 0 1))
+        (printf "Bad things"))
+    (printf "Test")
+    (return 1))
   (return 0))
 
-(defun helper (&return std::string)
+(global-var int unitialized)
+
+(defun helper ((rval-ref-to std::string) copy-string  &return std::string)
+  (var (& std::string) temp (std::move copy-string))
+  (static-var ([] 5 int) numbers (array 0))
+  (return (array 1 2 3 (bit-or 1 (bit-<< 1 2))))
+  (printf "%p" (addr temp))
   (return "test"))
 
 (defun test-complex-args ((* (const char)) filename
@@ -46,3 +57,14 @@
   ;; (return 0))
 
 ;; (square (defun oh-no (&return std::string)(return "Hello macros!")))
+
+(defun variable-declaration-generator ((& EvaluatorEnvironment) environment
+                                       (& (const EvaluatorContext)) context
+                                       (& (const (<> std::vector Token))) tokens
+                                       int start-token-index
+                                       (& GeneratorOutput) output)
+  (when (IsForbiddenEvaluatorScope "variable declaration" (nth start-token-index tokens)
+                                   context EvaluatorScope_ExpressionsOnly)
+    (return false))
+  (var int name-token-index (+ start-token-index 1))
+  (return true))

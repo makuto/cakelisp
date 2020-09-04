@@ -27,5 +27,8 @@ bool isSpecialSymbol(const Token& token);
 // an actual syntax tree, because we wouldn't be repeatedly traversing all the arguments
 int getExpectedArgument(const char* message, const std::vector<Token>& tokens, int startTokenIndex,
                         int desiredArgumentIndex, int endTokenIndex);
+// Expects startTokenIndex to be the invocation. The name of the invocation is included in the count
+// Note: Body arguments will not work properly with this
+int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);

@@ -149,6 +149,21 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			typeOutput.push_back({typeInvocation.contents.c_str(), StringOutMod_None,
 			                      &typeInvocation, &typeInvocation});
 		}
+		else if (typeInvocation.contents.compare("&&") == 0 ||
+		         typeInvocation.contents.compare("rval-ref-to") == 0)
+		{
+			int typeIndex =
+			    getExpectedArgument("expected type", tokens, startTokenIndex, 1, endTokenIndex);
+			if (typeIndex == -1)
+				return false;
+
+			if (!tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
+			                                      afterNameOutput))
+				return false;
+
+			typeOutput.push_back({"&&", StringOutMod_None,
+			                      &typeInvocation, &typeInvocation});
+		}
 		else if (typeInvocation.contents.compare("<>") == 0)
 		{
 			int typeIndex = getExpectedArgument("expected template name", tokens, startTokenIndex,
@@ -494,6 +509,7 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
                                  const std::vector<Token>& tokens, int startTokenIndex,
                                  GeneratorOutput& output)
 {
+	// We can't expect any scope because C preprocessor macros can be called in any scope
 	// Skip opening paren
 	int nameTokenIndex = startTokenIndex + 1;
 	const Token& funcNameToken = tokens[nameTokenIndex];
@@ -524,6 +540,408 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 		                         &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
 
 	return true;
+}
+
+// Handles both uninitized and initilized variables as well as global and static
+bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, GeneratorOutput& output)
+{
+	if (IsForbiddenEvaluatorScope("variable declaration", tokens[startTokenIndex], context,
+	                              EvaluatorScope_ExpressionsOnly))
+		return false;
+
+	int nameTokenIndex = startTokenIndex + 1;
+	const Token& funcNameToken = tokens[nameTokenIndex];
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	// Global variables will get extern'd in the header
+	bool isGlobal = funcNameToken.contents.compare("global-var") == 0;
+	if (isGlobal && !ExpectEvaluatorScope("global variable declaration", tokens[startTokenIndex],
+	                                      context, EvaluatorScope_Module))
+		return false;
+
+	bool isStatic = funcNameToken.contents.compare("static-var") == 0;
+	if (isStatic && !ExpectEvaluatorScope("static variable declaration", tokens[startTokenIndex],
+	                                      context, EvaluatorScope_Body))
+		return false;
+
+	int typeIndex = getExpectedArgument("expected variable type", tokens, startTokenIndex, 1,
+	                                    endInvocationIndex);
+	if (typeIndex == -1)
+		return false;
+
+	int varNameIndex = getExpectedArgument("expected variable name", tokens, startTokenIndex, 2,
+	                                       endInvocationIndex);
+	if (varNameIndex == -1)
+		return false;
+
+	std::vector<StringOutput> typeOutput;
+	std::vector<StringOutput> typeAfterNameOutput;
+	// Arrays cannot be return types, they must be * instead
+	if (!tokenizedCTypeToString_Recursive(tokens, typeIndex,
+	                                      /*allowArray=*/true, typeOutput, typeAfterNameOutput))
+		return false;
+
+	// At this point, we probably have a valid variable. Start outputting
+	addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
+
+	if (isGlobal)
+		output.header.push_back({"extern", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
+		                         &tokens[startTokenIndex]});
+	// else because no variable may be declared extern while also being static
+	// Automatically make module-declared variables static, reserving "static-var" for functions
+	else if (isStatic || context.scope == EvaluatorScope_Module)
+		output.source.push_back({"static", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
+		                         &tokens[startTokenIndex]});
+
+	// Type
+	PushBackAll(output.source, typeOutput);
+	if (isGlobal)
+		PushBackAll(output.header, typeOutput);
+
+	// Name
+	output.source.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertArgumentName,
+	                         &tokens[varNameIndex], &tokens[varNameIndex]});
+	if (isGlobal)
+		output.header.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertArgumentName,
+		                         &tokens[varNameIndex], &tokens[varNameIndex]});
+
+	// Array
+	PushBackAll(output.source, typeAfterNameOutput);
+	if (isGlobal)
+		PushBackAll(output.header, typeAfterNameOutput);
+
+	// Possibly find whether it is initialized
+	int valueIndex = varNameIndex + 1;
+	if (tokens[varNameIndex].type == TokenType_OpenParen)
+	{
+		// Skip any nesting
+		valueIndex = FindCloseParenTokenIndex(tokens, varNameIndex);
+	}
+
+	// Initialized
+	if (valueIndex < endInvocationIndex)
+	{
+		output.source.push_back(
+		    {EmptyString, StringOutMod_SpaceAfter, &tokens[valueIndex], &tokens[valueIndex]});
+		output.source.push_back(
+		    {"=", StringOutMod_SpaceAfter, &tokens[valueIndex], &tokens[valueIndex]});
+
+		EvaluatorContext expressionContext = context;
+		expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, valueIndex,
+		                               output) != 0)
+			return false;
+	}
+
+	output.source.push_back({EmptyString, StringOutMod_EndStatement, &tokens[endInvocationIndex],
+	                         &tokens[endInvocationIndex]});
+	if (isGlobal)
+		output.header.push_back({EmptyString, StringOutMod_EndStatement,
+		                         &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
+
+	return true;
+}
+
+enum CStatementOperationType
+{
+	// Insert keywordOrSymbol between each thing
+	Splice,
+
+	OpenParen,
+	CloseParen,
+	OpenBlock,
+	CloseBlock,
+	OpenList,
+	CloseList,
+
+	Keyword,
+	EndStatement,
+
+	// Evaluate argument(s)
+	Expression,
+	ExpressionList,
+	// Body will read the remaining arguments; argumentIndex will tell it where to start
+	Body,
+};
+struct CStatementOperation
+{
+	CStatementOperationType type;
+	const char* keywordOrSymbol;
+	// 0 = operation name
+	// 1 = first argument to operation (etc.)
+	int argumentIndex;
+};
+
+bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      const CStatementOperation* operation, int numOperations,
+                      GeneratorOutput& output)
+{
+	// TODO: Add expects for scope
+	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int nameTokenIndex = startTokenIndex + 1;
+	// int startArgsIndex = nameTokenIndex + 1;
+	const Token& nameToken = tokens[nameTokenIndex];
+	for (int i = 0; i < numOperations; ++i)
+	{
+		switch (operation[i].type)
+		{
+			case Keyword:
+				output.source.push_back({operation[i].keywordOrSymbol, StringOutMod_SpaceAfter,
+				                         &nameToken, &nameToken});
+				break;
+			case Splice:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for start of splice list\n");
+					return false;
+				}
+				int startSpliceListIndex =
+				    getExpectedArgument("expected expressions", tokens, startTokenIndex,
+				                        operation[i].argumentIndex, endTokenIndex);
+				if (startSpliceListIndex == -1)
+					return false;
+				EvaluatorContext bodyContext = context;
+				bodyContext.scope = EvaluatorScope_ExpressionsOnly;
+				StringOutput spliceDelimiterTemplate = {operation[i].keywordOrSymbol,
+				                                        StringOutMod_SpaceAfter, nullptr, nullptr};
+				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
+				                                              startSpliceListIndex,
+				                                              spliceDelimiterTemplate, output);
+				if (numErrors)
+					return false;
+				break;
+			}
+			case OpenParen:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_OpenParen, &nameToken, &nameToken});
+				break;
+			case CloseParen:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_CloseParen, &nameToken, &nameToken});
+				break;
+			case OpenBlock:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_OpenBlock, &nameToken, &nameToken});
+				break;
+			case CloseBlock:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_CloseBlock, &nameToken, &nameToken});
+				break;
+			case OpenList:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_OpenList, &nameToken, &nameToken});
+				break;
+			case CloseList:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_CloseList, &nameToken, &nameToken});
+				break;
+			case EndStatement:
+				output.source.push_back(
+				    {EmptyString, StringOutMod_EndStatement, &nameToken, &nameToken});
+				break;
+			case Expression:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				int startExpressionIndex =
+				    getExpectedArgument("expected expression", tokens, startTokenIndex,
+				                        operation[i].argumentIndex, endTokenIndex);
+				if (startExpressionIndex == -1)
+					return false;
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               startExpressionIndex, output) != 0)
+					return false;
+				break;
+			}
+			case ExpressionList:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				int startExpressionIndex =
+				    getExpectedArgument("expected expression", tokens, startTokenIndex,
+				                        operation[i].argumentIndex, endTokenIndex);
+				if (startExpressionIndex == -1)
+					return false;
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				StringOutput listDelimiterTemplate = {EmptyString, StringOutMod_ListSeparator,
+				                                      nullptr, nullptr};
+				if (EvaluateGenerateAll_Recursive(environment, expressionContext, tokens,
+				                                  startExpressionIndex, listDelimiterTemplate,
+				                                  output) != 0)
+					return false;
+				break;
+			}
+			case Body:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for body\n");
+					return false;
+				}
+				int startBodyIndex = getExpectedArgument("expected body", tokens, startTokenIndex,
+				                                         operation[i].argumentIndex, endTokenIndex);
+				if (startBodyIndex == -1)
+					return false;
+				EvaluatorContext bodyContext = context;
+				bodyContext.scope = EvaluatorScope_Body;
+				// The statements will need to handle their ;
+				// TODO Remove delimiter, we don't need it
+				StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr,
+				                                      nullptr};
+				int numErrors =
+				    EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
+				                                  bodyDelimiterTemplate, output);
+				if (numErrors)
+					return false;
+				break;
+			}
+			default:
+				printf("Output type not handled\n");
+				return false;
+		}
+	}
+
+	return true;
+}
+
+// This generator handles several C/C++ constructs by specializing on the invocation name
+// We can handle most of them, but some (if-else chains, switch, for) require extra attention
+bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                         const std::vector<Token>& tokens, int startTokenIndex,
+                         GeneratorOutput& output)
+{
+	int nameTokenIndex = startTokenIndex + 1;
+	const Token& nameToken = tokens[nameTokenIndex];
+
+	// Loops
+	const CStatementOperation whileStatement[] = {
+	    {Keyword, "while", -1},    {OpenParen, nullptr, -1}, {Expression, nullptr, 1},
+	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
+	    {CloseBlock, nullptr, -1}};
+
+	// Conditionals
+	const CStatementOperation whenStatement[] = {
+	    {Keyword, "if", -1},       {OpenParen, nullptr, -1}, {Expression, nullptr, 1},
+	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
+	    {CloseBlock, nullptr, -1}};
+
+	const CStatementOperation returnStatement[] = {
+	    {Keyword, "return", -1}, {Expression, nullptr, 1}, {EndStatement, nullptr, -1}};
+
+	const CStatementOperation initializerList[] = {
+	    {OpenList, nullptr, -1}, {ExpressionList, nullptr, 1}, {CloseList, nullptr, -1}};
+
+	// This needs to be conditional based on the number of arguments
+	// const CStatementOperation assignmentStatement[] = {{Expression /*Type*/, nullptr, 1},
+	// {Keyword "=", -1},
+	// {Expression, nullptr, 1},
+	// {EndStatement, nullptr, -1}};
+
+	const CStatementOperation dereference[] = {{Keyword, "*", -1},
+	                                                    {Expression, nullptr, 1}};
+	const CStatementOperation addressOf[] = {{Keyword, "&", -1}, {Expression, nullptr, 1}};
+
+	// https://www.tutorialspoint.com/cprogramming/c_operators.htm proved useful
+	const CStatementOperation booleanOr[] = {{Splice, "||", 1}};
+	const CStatementOperation booleanAnd[] = {{Splice, "&&", 1}};
+	const CStatementOperation booleanNot[] = {{Keyword, "!", -1}, {Expression, nullptr, 1}};
+
+	const CStatementOperation bitwiseOr[] = {{Splice, "|", 1}};
+	const CStatementOperation bitwiseAnd[] = {{Splice, "&", 1}};
+	const CStatementOperation bitwiseXOr[] = {{Splice, "&", 1}};
+	const CStatementOperation bitwiseOnesComplement[] = {{Keyword, "~", -1},
+	                                                     {Expression, nullptr, 1}};
+	const CStatementOperation bitwiseLeftShift[] = {{Splice, "<<", 1}};
+	const CStatementOperation bitwiseRightShift[] = {{Splice, ">>", 1}};
+
+	const CStatementOperation relationalEquality[] = {{Splice, "==", 1}};
+	const CStatementOperation relationalNotEqual[] = {{Splice, "!=", 1}};
+	const CStatementOperation relationalLessThanEqual[] = {{Splice, "<=", 1}};
+	const CStatementOperation relationalGreaterThanEqual[] = {{Splice, ">=", 1}};
+	const CStatementOperation relationalLessThan[] = {{Splice, "<", 1}};
+	const CStatementOperation relationalGreaterThan[] = {{Splice, ">", 1}};
+
+	const CStatementOperation add[] = {{Splice, "+", 1}};
+	const CStatementOperation subtract[] = {{Splice, "-", 1}};
+	const CStatementOperation multiply[] = {{Splice, "*", 1}};
+	const CStatementOperation divide[] = {{Splice, "/", 1}};
+	const CStatementOperation modulus[] = {{Splice, "%", 1}};
+	// Always pre-increment, which matches what you'd expect given the invocation comes before the
+	// expression. It's also slightly faster, yadda yadda
+	const CStatementOperation increment[] = {{Keyword, "++", -1}, {Expression, nullptr, 1}};
+	const CStatementOperation decrement[] = {{Keyword, "--", -1}, {Expression, nullptr, 1}};
+
+	// Useful for marking e.g. the increment statement in a for loop blank
+	// const CStatementOperation noOpStatement[] = {};
+
+	const struct
+	{
+		const char* name;
+		const CStatementOperation* operations;
+		int numOperations;
+	} statementOperators[] = {
+	    {"while", whileStatement, ArraySize(whileStatement)},
+	    {"return", returnStatement, ArraySize(returnStatement)},
+	    {"when", whenStatement, ArraySize(whenStatement)},
+	    {"array", initializerList, ArraySize(initializerList)},
+	    // Pointers
+	    {"deref", dereference, ArraySize(dereference)},
+	    {"addr", addressOf, ArraySize(addressOf)},
+	    // Expressions
+	    {"or", booleanOr, ArraySize(booleanOr)},
+	    {"and", booleanAnd, ArraySize(booleanAnd)},
+	    {"not", booleanNot, ArraySize(booleanNot)},
+	    {"bit-or", bitwiseOr, ArraySize(bitwiseOr)},
+	    {"bit-and", bitwiseAnd, ArraySize(bitwiseAnd)},
+	    {"bit-xor", bitwiseXOr, ArraySize(bitwiseXOr)},
+	    {"bit-ones-complement", bitwiseOnesComplement, ArraySize(bitwiseOnesComplement)},
+	    {"bit-<<", bitwiseLeftShift, ArraySize(bitwiseLeftShift)},
+	    {"bit->>", bitwiseRightShift, ArraySize(bitwiseRightShift)},
+	    {"=", relationalEquality, ArraySize(relationalEquality)},
+	    {"!=", relationalNotEqual, ArraySize(relationalNotEqual)},
+	    {"eq", relationalEquality, ArraySize(relationalEquality)},
+	    {"neq", relationalNotEqual, ArraySize(relationalNotEqual)},
+	    {"<=", relationalLessThanEqual, ArraySize(relationalLessThanEqual)},
+	    {">=", relationalGreaterThanEqual, ArraySize(relationalGreaterThanEqual)},
+	    {"<", relationalLessThan, ArraySize(relationalLessThan)},
+	    {">", relationalGreaterThan, ArraySize(relationalGreaterThan)},
+	    // Arithmetic
+	    {"+", add, ArraySize(add)},
+	    {"-", subtract, ArraySize(subtract)},
+	    {"*", multiply, ArraySize(multiply)},
+	    {"/", divide, ArraySize(divide)},
+		{"%", modulus, ArraySize(modulus)},
+		{"mod", modulus, ArraySize(modulus)},
+	    {"++", increment, ArraySize(increment)},
+	    {"--", decrement, ArraySize(decrement)},
+	};
+
+	for (unsigned int i = 0; i < ArraySize(statementOperators); ++i)
+	{
+		if (nameToken.contents.compare(statementOperators[i].name) == 0)
+		{
+			return cStatementOutput(environment, context, tokens, startTokenIndex,
+			                        statementOperators[i].operations,
+			                        statementOperators[i].numOperations, output);
+		}
+	}
+
+	ErrorAtToken(nameToken, "C statement generator received unrecognized keyword");
+	return false;
 }
 
 //
@@ -582,110 +1000,4 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 	                  endToken.columnStart, endToken.columnEnd});
 
 	return true;
-}
-
-enum CStatementOperationType
-{
-	Splice,
-	OpenParen,
-	CloseParen,
-	Keyword,
-	Expression
-};
-struct CStatementOperation
-{
-	CStatementOperationType type;
-	const char* keyword;
-	// 0 = operation name
-	// 1 = first argument to operation (etc.)
-	int argumentIndex;
-};
-
-bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                      const std::vector<Token>& tokens, int startTokenIndex,
-                      const CStatementOperation* operation, int numOperations,
-                      GeneratorOutput& output)
-{
-	// TODO: Add expects for scope
-	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
-	int nameTokenIndex = startTokenIndex + 1;
-	// int startArgsIndex = nameTokenIndex + 1;
-	const Token& nameToken = tokens[nameTokenIndex];
-	for (int i = 0; i < numOperations; ++i)
-	{
-		switch (operation[i].type)
-		{
-			case Keyword:
-				output.source.push_back(
-				    {operation[i].keyword, StringOutMod_SpaceAfter, &nameToken, &nameToken});
-				break;
-			case Splice:
-				// output.source.push_back(
-				// {operation[i].keyword, StringOutMod_SpaceAfter, &nameToken, &nameToken});
-				break;
-			case OpenParen:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_OpenParen, &nameToken, &nameToken});
-				break;
-			case CloseParen:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_CloseParen, &nameToken, &nameToken});
-				break;
-			case Expression:
-			{
-				if (operation[i].argumentIndex < 0)
-				{
-					printf("Error: Expected valid argument index for expression\n");
-					return false;
-				}
-				int startExpressionIndex = getExpectedArgument(
-					"expected expression", tokens, startTokenIndex, operation[i].argumentIndex, endTokenIndex);
-				if (startExpressionIndex == -1)
-					return false;
-				EvaluatorContext expressionContext = context;
-				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
-				                               startExpressionIndex, output) != 0)
-					return false;
-				break;
-			}
-			default:
-				printf("Output type not handled\n");
-				break;
-		}
-	}
-
-	return true;
-}
-
-// This generator handles several C/C++ constructs by specializing on the invocation name
-bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                         const std::vector<Token>& tokens, int startTokenIndex,
-                         GeneratorOutput& output)
-{
-	int nameTokenIndex = startTokenIndex + 1;
-	const Token& nameToken = tokens[nameTokenIndex];
-
-	CStatementOperation whileStatement[] = {
-		{Keyword, "while", -1}, {OpenParen, nullptr, -1}, {Expression, nullptr, 1}, {CloseParen, nullptr, -1}};
-
-	struct
-	{
-		const char* name;
-		CStatementOperation* operations;
-		int numOperations;
-	} statementOperators[] = {{"while", whileStatement, ArraySize(whileStatement)}};
-
-	for (unsigned int i = 0; i < ArraySize(statementOperators); ++i)
-	{
-		if (nameToken.contents.compare(statementOperators[i].name) == 0)
-		{
-			return cStatementOutput(environment, context, tokens, startTokenIndex,
-			                        statementOperators[i].operations,
-			                        statementOperators[i].numOperations, output);
-		}
-	}
-
-	ErrorAtToken(nameToken, "C statement generator received unrecognized keyword");
-	return false;
 }

@@ -128,6 +128,23 @@ int getExpectedArgument(const char* message, const std::vector<Token>& tokens, i
 	return -1;
 }
 
+int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex)
+{
+	int currentArgumentIndex = 0;
+	for (int i = startTokenIndex + 1; i < endTokenIndex; ++i)
+	{
+		const Token& token = tokens[i];
+		if (token.type == TokenType_OpenParen)
+		{
+			// Skip any nesting
+			i = FindCloseParenTokenIndex(tokens, i);
+		}
+
+		++currentArgumentIndex;
+	}
+	return currentArgumentIndex;
+}
+
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex)
 {
 	if (tokens[startTokenIndex].type == TokenType_OpenParen &&

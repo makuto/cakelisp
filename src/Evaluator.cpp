@@ -22,7 +22,53 @@ GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* funct
 	{
 		environment.generators["c-import"] = CImportGenerator;
 		environment.generators["defun"] = DefunGenerator;
-		environment.generators["while"] = CStatementGenerator;
+		environment.generators["var"] = VariableDeclarationGenerator;
+		environment.generators["global-var"] = VariableDeclarationGenerator;
+		environment.generators["static-var"] = VariableDeclarationGenerator;
+
+		// Dispatches based on invocation name
+		const char* cStatementKeywords[] = {
+		    "while",
+		    "return",
+		    "when",
+		    "array",
+		    // Pointers
+		    "deref",
+		    "addr",
+		    // Boolean
+		    "or",
+		    "and",
+		    "not",
+		    // Bitwise
+		    "bit-or",
+		    "bit-and",
+		    "bit-xor",
+		    "bit-ones-complement",
+		    "bit-<<",
+		    "bit->>",
+		    // Relational
+		    "=",
+		    "!=",
+		    "eq",
+		    "neq",
+		    "<=",
+		    ">=",
+		    "<",
+		    ">",
+		    // Arithmetic
+		    "+",
+		    "-",
+		    "*",
+		    "/",
+			"%",
+			"mod",
+		    "++",
+		    "--",
+		};
+		for (size_t i = 0; i < ArraySize(cStatementKeywords); ++i)
+		{
+			environment.generators[cStatementKeywords[i]] = CStatementGenerator;
+		}
 	}
 
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));

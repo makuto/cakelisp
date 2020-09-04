@@ -178,6 +178,10 @@ static void printStringOutput(const NameStyleSettings& nameSettings,
 		Writer_Writef(state, "(");
 	else if (outputOperation.modifiers & StringOutMod_CloseParen)
 		Writer_Writef(state, ")");
+	else if (outputOperation.modifiers & StringOutMod_OpenList)
+		Writer_Writef(state, "{");
+	else if (outputOperation.modifiers & StringOutMod_CloseList)
+		Writer_Writef(state, "}");
 	else if (outputOperation.modifiers & StringOutMod_EndStatement)
 	{
 		if (formatSettings.uglyPrint)
