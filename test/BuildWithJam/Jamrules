@@ -149,10 +149,10 @@ rule ObjectFromCakelisp
   # Note that this rule will apply to the imports too, so it
   #  must support both C/C++ includes and Cakelisp imports
   # Regex based on the HDRSCAN provided in Jambase
-  # HDRSCAN on $(2) =
-  # "[ 	]*[#(][ 	]*include[ 	]*[<\"]*([^\">]*)[\">].*$" ;
+  HDRSCAN on $(2) =
+  "[ 	]*[#(][ 	]*include[ 	]*[<\"]*([^\">]*)[\">].*$" ;
 
-  # HDRRULE on $(2) = CakelispHeaders ;
+  HDRRULE on $(2) = CakelispHeaders ;
 
   # Get rid of the .o as well as the generated code
   Clean clean : $(1) $(2).cpp $(2).hpp ;
@@ -171,11 +171,30 @@ rule CakelispHeaders
 	  # If making A.cake, and A.cake includes B.cake, A.o cannot be compiled until B.o is compiled
 	  # TODO This rule is suboptimal because recompilation should only happen if B.cake.hpp changes
 	  # TODO This doesn't fail jam building if the specified cake file is not going to be built. OK?
-	  Depends $(<:S=$(SUFOBJ)) : $(i:S=$(SUFOBJ)) ;
+	  # Depends $(<:S=$(SUFOBJ)) : $(i:S=$(SUFOBJ)) ;
 
 	  # Header variant (broken)
 	  # This will seem like it works, but touch DepOfDep.hpp and it'll break again
-	  # Depends $(<:S=$(SUFOBJ)) : $(i).hpp ;
+	  Includes $(<) : $(i).hpp ;
+	  # The header will be generated with the cpp, which is the sign generation has occurred
+	  # It would be possible to run cakelisp for the hpp, but it ends up running generation twice
+	  # These rules cause generation cycles once touching DepOfDeps.hpp
+	  # One vs. the other changes when things are allowed to build (e.g. depending on SUFOBJ
+	  # means clang must run first, which isn't actually necessary for header files)
+	  Depends $(i).hpp : $(i).cpp ;
+	  # Depends $(i).hpp : $(i:S=$(SUFOBJ)) ;
+
+	  # LEFT OFF: Cpp file is rebuilt if DepOfDeps.hpp changes
+	  # Is there any way I can make the system aware of the hpp, but not inherit its internal includes?
+	  # Full repro:
+	  # jam clean
+	  # (compile "jam -dd -dc -dx")
+	  # touch DepOfDeps.hpp
+	  # (compile "jam -dd -dc -dx")
+	  # It'll now regenerate every single time (and recompile! ;_; )
+
+	  # How do you make the header file? You need to generate it
+	  # Cakelisp $(i).cpp : $(i) ;
 	  # Depends $(i).hpp : $(i:S=$(SUFOBJ)) ;
 
 	  # Other (unsuccessful) variations
@@ -201,8 +220,8 @@ rule CakelispHeaders
 	}
 	else
 	{
-	  # TODO Uncomment for proper C/C++ header scanning
-	  HdrRule $(<) : $(>) ;
+	  # Handle C/C++ scanning by delegating to the regular HdrRule
+	  HdrRule $(<) : $(i) ;
 	}
   }
 }
@@ -211,9 +230,11 @@ rule Cakelisp
 {
   # The generated cpp file depends on the cake file; if the cake changes, it must be recreated
   Depends $(1) : $(2) ;
+  # Echo Making target $(1) ;
 }
 
 actions Cakelisp
 {
+  # echo For $(1)
   $(CAKELISP) $(2)
 }

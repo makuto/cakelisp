@@ -1,3 +1,3 @@
 #pragma once
 
-#define THE_ANSWER 42
+#define THE_ANSWER 43
