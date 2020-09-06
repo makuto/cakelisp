@@ -15,6 +15,10 @@ Main Square$(SUFSHR) : Square.cpp ;
 
 Main dynamicLoadTest : DynamicLoader.cpp ;
 
+Main dependencyTest : TestRefResolver.cpp
+Utilities.cpp ;
+# C++ on src/TestRefResolver.o = g++ ;
+
 # Main runProcessTest : RunProcess.cpp ;
 # C++FLAGS on src/RunProcess.o = -DUNIX ;
 

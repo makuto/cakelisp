@@ -111,6 +111,7 @@ int main(int argc, char* argv[])
 	fclose(file);
 
 	// TODO Move
+	if (false)
 	{
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(sourceOutputName, "%s.cpp", filename);
