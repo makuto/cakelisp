@@ -1,3 +1,5 @@
+#include "RunProcess.hpp"
+
 #include <stdio.h>
 
 #ifdef UNIX
@@ -10,35 +12,37 @@
 #include "Utilities.hpp"
 
 // Never returns, if success
-void systemExecute()
+void systemExecuteCompile(const CompilationArguments& arguments)
 {
 #ifdef UNIX
 	// pid_t pid;
-	char fileToExec[MAX_PATH_LENGTH] = {0};
-	PrintBuffer(fileToExec, "/usr/bin/clang++");
-	// PrintBuffer(fileToExec, "/usr/bin/ls");
-
-	// char arg0[64] = {0};
-	// PrintBuffer(arg0, "--version");
-
-	// If not null terminated, the call will fail
-	// char* arguments[] = {fileToExec, strdup("--version"), nullptr};
-	char* arguments[] = {fileToExec, strdup("-c"), strdup("test/Hello.cake.cpp"), nullptr};
-	printf("Running %s\n", fileToExec);
-	execvp(fileToExec, arguments);
+	execvp(arguments.fileToExecute, arguments.arguments);
 	perror("RunProcess execvp() error: ");
-	printf("Failed to execute %s\n", fileToExec);
+	printf("Failed to execute %s\n", arguments.fileToExecute);
 #endif
 }
 
 void subprocessReceiveStdOut(const char* processOutputBuffer)
 {
-	printf("From process: %s", processOutputBuffer);
+	printf("%s", processOutputBuffer);
 }
 
-int main()
+// TODO: Make separate pipe for std err?
+// void subprocessReceiveStdErr(const char* processOutputBuffer)
+// {
+// 	printf("%s", processOutputBuffer);
+// }
+
+int compileFile(const CompilationArguments& arguments)
 {
 #ifdef UNIX
+	printf("Compiling file with command:\n");
+	for (char** arg = arguments.arguments; *arg != nullptr; ++arg)
+	{
+		printf("%s ", *arg);
+	}
+	printf("\n");
+
 	int pipeFileDescriptors[2] = {0};
 	const int PipeRead = 0;
 	const int PipeWrite = 1;
@@ -65,7 +69,7 @@ int main()
 		}
 		// Only write
 		close(pipeFileDescriptors[PipeRead]);
-		systemExecute();
+		systemExecuteCompile(arguments);
 		// A failed child should not flush parent files
 		_exit(EXIT_FAILURE); /*  */
 	}

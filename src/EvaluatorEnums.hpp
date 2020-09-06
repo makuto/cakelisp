@@ -31,6 +31,9 @@ enum StringOutputModifierFlags
 	// Uses {} for initializer lists etc.
 	StringOutMod_OpenList = 1 << 12,
 	StringOutMod_CloseList = 1 << 13,
+
+	// Signals the Writer that it needs to splice in another output list
+	StringOutMod_Splice = 1 << 14,
 };
 
 enum ImportLanguage
@@ -50,4 +53,10 @@ enum EvaluatorScope
 	EvaluatorScope_Module,
 	// For example, a C function call cannot have an if statement in its arguments
 	EvaluatorScope_ExpressionsOnly
+};
+
+enum UnknownReferenceType
+{
+	UnknownReferenceType_Symbol,
+	UnknownReferenceType_Invocation
 };

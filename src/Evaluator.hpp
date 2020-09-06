@@ -62,9 +62,31 @@ struct GeneratorOutput
 	std::vector<ImportMetadata> imports;
 };
 
+// This is frequently copied, so keep it small
 struct EvaluatorContext
 {
 	EvaluatorScope scope;
+	// Macro and generator definitions need to be resolved first
+	bool isMacroOrGeneratorDefinition;
+};
+
+struct UnknownReference
+{
+	// In this list of tokens
+	const std::vector<Token>* tokens;
+	// ...at this token
+	int startIndex;
+	// (shortcut to symbol with name reference)
+	const Token* symbolReference;
+	// ...and in this context
+	EvaluatorContext context;
+	// ...there is an unknown reference of type
+	UnknownReferenceType type;
+
+	// Once resolved, output to this list
+	std::vector<StringOutput>* output;
+	// ...at this splice
+	int spliceOutputIndex;
 };
 
 struct EvaluatorEnvironment;
@@ -87,6 +109,16 @@ typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
 typedef MacroTable::iterator MacroIterator;
 typedef GeneratorTable::iterator GeneratorIterator;
 
+struct CompileTimeFunctionDefiniton
+{
+	const Token* startInvocation;
+	const Token* name;
+	// Note that these don't need headers or metadata because they are found via dynamic linking.
+	// GeneratorOutput is (somewhat wastefully) used in order to make the API consistent for
+	// compile-time vs. runtime code generation
+	GeneratorOutput* output;
+};
+
 // Unlike context, which can't be changed, environment can be changed.
 // Use care when modifying the environment. Only add things once you know things have succeeded.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -96,12 +128,21 @@ struct EvaluatorEnvironment
 	MacroTable macros;
 	GeneratorTable generators;
 
+	// Once compiled, these will move into macros and generators lists
+	std::vector<CompileTimeFunctionDefiniton> compileTimeFunctions;
+
 	// We need to keep the tokens macros create around so they can be referenced by StringOperations
 	// Token vectors must not be changed after they are created or pointers to Tokens will become
 	// invalid. The const here is to protect from that. You can change the token contents, however
 	std::vector<const std::vector<Token>*> macroExpansions;
 
-	// Will NOT clean up macroExpansions! Use environmentDestroyMacroExpansionsInvalidateTokens()
+	std::vector<UnknownReference> unknownReferences;
+	// Macros and generators need their references resolved before any other references can be
+	// inferred to be C/C++ function calls. This is because macros and generators aren't added to
+	// the environment until they have been completely resolved, built, and dynamically loaded
+	std::vector<UnknownReference> unknownReferencesForCompileTime;
+
+	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();
 };
 
@@ -109,7 +150,7 @@ struct EvaluatorEnvironment
 // Essentially, this means don't call this function unless you will NOT follow any Token pointers in
 // GeneratorOutput, StringOutput, etc., because any of them could be pointers to macro-created
 // tokens. Essentially, call this as late as possible
-void environmentDestroyMacroExpansionsInvalidateTokens(EvaluatorEnvironment& environment);
+void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment);
 
 int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                                const std::vector<Token>& tokens, int startTokenIndex,
@@ -120,5 +161,8 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, const StringOutput& delimiterTemplate,
                                   GeneratorOutput& output);
+
+// Returns whether all references were resolved successfully
+bool EvaluateResolveReferences(EvaluatorEnvironment& environment);
 
 const char* evaluatorScopeToString(EvaluatorScope expectedScope);

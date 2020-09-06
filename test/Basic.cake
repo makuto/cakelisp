@@ -73,3 +73,9 @@
     (return false))
   (var int name-token-index (+ start-token-index 1))
   (return true))
+
+(defun test-macro-magic (&return int)
+  (return (the-answer)))
+
+(defmacro the-answer ()
+  (return 42))

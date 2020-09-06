@@ -831,6 +831,94 @@ bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 	return true;
 }
 
+bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                       const std::vector<Token>& tokens, int startTokenIndex,
+                       GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("defmacro", tokens[startTokenIndex], context, EvaluatorScope_Module))
+		return false;
+
+	int endDefunTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int endTokenIndex = endDefunTokenIndex;
+	int startNameTokenIndex = startTokenIndex;
+	StripInvocation(startNameTokenIndex, endTokenIndex);
+
+	int nameIndex = startNameTokenIndex;
+	const Token& nameToken = tokens[nameIndex];
+	if (!ExpectTokenType("defmacro", nameToken, TokenType_Symbol))
+		return false;
+
+	int argsIndex = nameIndex + 1;
+	if (!ExpectInInvocation("defmacro expected arguments", tokens, argsIndex, endDefunTokenIndex))
+		return false;
+	const Token& argsStart = tokens[argsIndex];
+	if (!ExpectTokenType("defmacro", argsStart, TokenType_OpenParen))
+		return false;
+
+	CompileTimeFunctionDefiniton newFunction = {};
+	// Will be cleaned up when the environment is destroyed
+	GeneratorOutput* compTimeOutput = new GeneratorOutput;
+	newFunction.output = compTimeOutput;
+	newFunction.startInvocation = &tokens[startTokenIndex];
+	newFunction.name = &nameToken;
+
+	// TODO: It would be nice to support global vs. local macros
+	// This only really needs to be an environment distinction, not a code output distinction
+	// Macros will be found without headers thanks to dynamic linking
+	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defmacro-local") == 0;
+
+	// Macros must return success or failure
+	compTimeOutput->source.push_back(
+	    {"bool", StringOutMod_SpaceAfter, &tokens[startTokenIndex], &tokens[startTokenIndex]});
+
+	compTimeOutput->source.push_back(
+	    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
+
+	compTimeOutput->source.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
+
+	// Macros always receive the same arguments
+	// TODO: Output macro arguments with proper output calls
+	compTimeOutput->source.push_back(
+	    {"EvaluatorEnvironment& environment, const EvaluatorContext& context, const "
+	     "std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output",
+	     StringOutMod_None, &argsStart, &argsStart});
+
+	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
+	compTimeOutput->source.push_back(
+	    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+
+	int startBodyIndex = endArgsIndex + 1;
+	compTimeOutput->source.push_back(
+	    {EmptyString, StringOutMod_OpenBlock, &tokens[startBodyIndex], &tokens[startBodyIndex]});
+
+	// Evaluate our body!
+	EvaluatorContext macroBodyContext = context;
+	macroBodyContext.scope = EvaluatorScope_Body;
+	macroBodyContext.isMacroOrGeneratorDefinition = true;
+	// TODO Remove this, we don't need it any more
+	StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr, nullptr};
+	int numErrors =
+	    EvaluateGenerateAll_Recursive(environment, macroBodyContext, tokens, startBodyIndex,
+	                                  bodyDelimiterTemplate, *compTimeOutput);
+	if (numErrors)
+	{
+		delete compTimeOutput;
+		return false;
+	}
+
+	compTimeOutput->source.push_back(
+	    {EmptyString, StringOutMod_CloseBlock, &tokens[endTokenIndex], &tokens[endTokenIndex]});
+
+	// Takes ownership of output
+	environment.compileTimeFunctions.push_back(newFunction);
+
+	return true;
+}
+
+//
+// C Statement generation
+//
+
 enum CStatementOperationType
 {
 	// Insert keywordOrSymbol between each thing
@@ -1208,6 +1296,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["defun"] = DefunGenerator;
 	environment.generators["defun-local"] = DefunGenerator;
+
+	environment.generators["defmacro"] = DefMacroGenerator;
 
 	environment.generators["var"] = VariableDeclarationGenerator;
 	environment.generators["global-var"] = VariableDeclarationGenerator;

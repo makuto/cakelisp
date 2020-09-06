@@ -1,10 +1,12 @@
 #include <stdio.h>
+#include <string.h>
 
 #include <vector>
 
 #include "Converters.hpp"
 #include "Evaluator.hpp"
 #include "Generators.hpp"
+#include "RunProcess.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 #include "Writer.hpp"
@@ -108,6 +110,30 @@ int main(int argc, char* argv[])
 
 	fclose(file);
 
+	// TODO Move
+	{
+		char sourceOutputName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(sourceOutputName, "%s.cpp", filename);
+		char fileToExec[MAX_PATH_LENGTH] = {0};
+		PrintBuffer(fileToExec, "/usr/bin/clang++");
+		// PrintBuffer(arguments.fileToExecute, "/usr/bin/ls");
+
+		// char arg0[64] = {0};
+		// PrintBuffer(arg0, "--version");
+
+		// If not null terminated, the call will fail
+		// char* arguments[] = {arguments.fileToExecute, strdup("--version"), nullptr};
+		char* arguments[] = {fileToExec, strdup("-c"), sourceOutputName, nullptr};
+		CompilationArguments compilationArguments = {};
+		compilationArguments.fileToExecute = fileToExec;
+		compilationArguments.arguments = arguments;
+		if (compileFile(compilationArguments) != 0)
+		{
+			delete tokens;
+			return 1;
+		}
+	}
+
 	printf("\nParsing and code generation:\n");
 
 	EvaluatorEnvironment environment;
@@ -123,9 +149,33 @@ int main(int argc, char* argv[])
 	                                              generatedOutput);
 	if (numErrors)
 	{
-		environmentDestroyMacroExpansionsInvalidateTokens(environment);
+		environmentDestroyInvalidateTokens(environment);
 		delete tokens;
 		return 1;
+	}
+
+	if (!EvaluateResolveReferences(environment))
+	{
+		// TODO Add compile time too
+		if (!environment.unknownReferences.empty() ||
+		    !environment.unknownReferencesForCompileTime.empty())
+		{
+			for (const UnknownReference& reference : environment.unknownReferences)
+			{
+				ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
+				              reference.symbolReference->contents.c_str());
+			}
+
+			for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
+			{
+				ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
+				              reference.symbolReference->contents.c_str());
+			}
+
+			environmentDestroyInvalidateTokens(environment);
+			delete tokens;
+			return 1;
+		}
 	}
 
 	{
@@ -138,13 +188,13 @@ int main(int argc, char* argv[])
 
 		if (!writeGeneratorOutput(generatedOutput, nameSettings, formatSettings, outputSettings))
 		{
-			environmentDestroyMacroExpansionsInvalidateTokens(environment);
+			environmentDestroyInvalidateTokens(environment);
 			delete tokens;
 			return 1;
 		}
 	}
 
-	environmentDestroyMacroExpansionsInvalidateTokens(environment);
+	environmentDestroyInvalidateTokens(environment);
 	delete tokens;
 	return 0;
 }

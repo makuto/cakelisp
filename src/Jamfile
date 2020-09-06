@@ -6,6 +6,7 @@ Converters.cpp
 Writer.cpp
 Generators.cpp
 GeneratorHelpers.cpp
+RunProcess.cpp
 ;
 
 MakeLocate cakelisp : ../cakelisp ;
@@ -14,7 +15,7 @@ Main Square$(SUFSHR) : Square.cpp ;
 
 Main dynamicLoadTest : DynamicLoader.cpp ;
 
-Main runProcessTest : RunProcess.cpp ;
+# Main runProcessTest : RunProcess.cpp ;
 # C++FLAGS on src/RunProcess.o = -DUNIX ;
 
 SubDir . src ;

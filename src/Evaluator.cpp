@@ -118,22 +118,56 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		{
 			return invokedGenerator(environment, context, tokens, invocationStartIndex, output);
 		}
-		else if (context.scope == EvaluatorScope_Module)
-		{
-			ErrorAtTokenf(invocationStart,
-			              "Unknown function %s. Only macros and generators may be "
-			              "invoked at top level",
-			              invocationName.contents.c_str());
-			return false;
-		}
 		else
 		{
-			// The only hard-coded generator: basic function invocations. We must hard-code this
-			// because we don't interpret any C/C++ in order to determine which functions are valid
-			// to call (we just let the C/C++ compiler determine that for us)
-			return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
-			                                   output);
+			// We don't know what this is. We cannot guess it is a C/C++ function yet, because it
+			// could be a generator or macro invocation that hasn't been defined yet. Leave a note
+			// for the evaluator to come back to this token once a satisfying answer is found
+			UnknownReference unknownInvocation = {};
+			unknownInvocation.tokens = &tokens;
+			unknownInvocation.startIndex = invocationStartIndex;
+			unknownInvocation.symbolReference = &invocationName;
+			unknownInvocation.context = context;
+			unknownInvocation.type = UnknownReferenceType_Invocation;
+
+			// Prepare our output splice, which is where output should go once the symbol is
+			// resolved. Rather than actually inserting and causing potentially massive shifts in
+			// the output list, the splice will redirect to an external output list. It is the
+			// responsibility of the Writer to watch for splices
+			unknownInvocation.output = &output.source;
+			// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
+			// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
+			// so that multiple splices take up space and will then maintain sequential order
+			output.source.push_back(
+			    {EmptyString, StringOutMod_Splice, &invocationStart, &invocationStart});
+			unknownInvocation.spliceOutputIndex = output.source.size() - 1;
+
+			if (context.isMacroOrGeneratorDefinition)
+				environment.unknownReferencesForCompileTime.push_back(unknownInvocation);
+			else
+				environment.unknownReferences.push_back(unknownInvocation);
+
+			// We're going to return true even though evaluation isn't yet done. The topmost
+			// evaluate call should handle resolving all unknown references
 		}
+
+		// TODO Relocate to symbol resolver
+		// else if (context.scope == EvaluatorScope_Module)
+		// {
+		// 	ErrorAtTokenf(invocationStart,
+		// 	              "Unknown function %s. Only macros and generators may be "
+		// 	              "invoked at top level",
+		// 	              invocationName.contents.c_str());
+		// 	return false;
+		// }
+		// else
+		// {
+		// 	// The only hard-coded generator: basic function invocations. We must hard-code this
+		// 	// because we don't interpret any C/C++ in order to determine which functions are valid
+		// 	// to call (we just let the C/C++ compiler determine that for us)
+		// 	return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
+		// 	                                   output);
+		// }
 	}
 
 	return true;
@@ -252,20 +286,67 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 	return numErrors;
 }
 
+bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
+{
+	// Stop as soon as we do a loop which made no progress
+	int numReferencesResolved = 0;
+	do
+	{
+		for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
+		{
+			const std::string& referenceName = reference.symbolReference->contents;
+			MacroFunc macro = findMacro(environment, referenceName.c_str());
+			if (macro)
+			{
+				++numReferencesResolved;
+			}
+			GeneratorFunc generator = findGenerator(environment, referenceName.c_str());
+			if (generator)
+			{
+				++numReferencesResolved;
+				// TODO Evaluate
+			}
+		}
+	} while (numReferencesResolved);
+
+	// No more macros/generators are resolvable. Guess that the remaining references are C/C++
+	// function calls
+	// TODO: backtrack if it turns out they aren't? e.g. in the case of a macro which writes another
+	// macro, which a generator uses
+	for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
+	{
+		// The only hard-coded generator: basic function invocations. We must hard-code this
+		// because we don't interpret any C/C++ in order to determine which functions are valid
+		// to call (we just let the C/C++ compiler determine that for us)
+		// if (FunctionInvocationGenerator(environment, reference.context, *reference.tokens,
+		                                // reference.startIndex, output))
+		{
+		}
+	}
+
+	return false;
+}
+
 // This serves only as a warning. I want to be very explicit with the lifetime of tokens
 EvaluatorEnvironment::~EvaluatorEnvironment()
 {
 	if (!macroExpansions.empty())
 	{
 		printf(
-		    "Warning: environmentDestroyMacroExpansionsInvalidateTokens() has not been called. "
-		    "This will leak memory.\n Call it once you are certain no tokens in any expansions "
-		    "will be referenced.\n");
+		    "Warning: environmentDestroyInvalidateTokens() has not been called. This will leak "
+		    "memory.\n Call it once you are certain no tokens in any expansions will be "
+		    "referenced.\n");
 	}
 }
 
-void environmentDestroyMacroExpansionsInvalidateTokens(EvaluatorEnvironment& environment)
+void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 {
+	for (CompileTimeFunctionDefiniton& function : environment.compileTimeFunctions)
+	{
+		delete function.output;
+	}
+	environment.compileTimeFunctions.clear();
+
 	for (const std::vector<Token>* macroExpansion : environment.macroExpansions)
 		delete macroExpansion;
 	environment.macroExpansions.clear();
