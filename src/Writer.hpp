@@ -13,8 +13,8 @@ struct WriterFormatSettings
 	// Don't use newlines or spaces/tabs. Overrides other options
 	bool uglyPrint = false;
 	WriterFormatBraceStyle braceStyle = WriterFormatBraceStyle_Allman;
-	WriterFormatIndentType indentStyle = WriterFormatIndentType_Spaces;
-	int indentTabWidth = 2;
+	WriterFormatIndentType indentStyle = WriterFormatIndentType_Tabs;
+	int indentTabWidth = 4;
 };
 
 struct WriterOutputSettings

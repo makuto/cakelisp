@@ -34,6 +34,14 @@ MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
 	return nullptr;
 }
 
+bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
+{
+	if (definition.type == ObjectType_CompileTimeMacro)
+		return findMacro(environment, definition.name->contents.c_str()) != nullptr;
+	else
+		return findGenerator(environment, definition.name->contents.c_str()) != nullptr;
+}
+
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition)
 {
 	ObjectDefinitionMap::iterator findIt = environment.definitions.find(definition.name->contents);
@@ -52,7 +60,7 @@ bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& de
 }
 
 void addObjectReference(EvaluatorEnvironment& environment, EvaluatorContext context,
-                        ObjectReference& reference)
+                        const Token& referenceNameToken, ObjectReference& reference)
 {
 	// Default to the module requiring the reference, for top-level references
 	const char* moduleDefinitionName = "<module>";
@@ -62,17 +70,7 @@ void addObjectReference(EvaluatorEnvironment& environment, EvaluatorContext cont
 		definitionName = context.definitionName->contents;
 	}
 
-	// TODO This will become necessary once references store referents (append not overwrite)
-	// ObjectReferenceMap::iterator findIt = environment.references.find(definitionName);
-	// if (findIt == environment.references.end())
-	// {
-	environment.references[definitionName] = reference;
-	// }
-	// else
-	// {
-	// }
-
-	// Add the reference requirement to the definition we're working on
+	// Add the reference requirement to the definition it occurred in
 	ObjectDefinitionMap::iterator findDefinition = environment.definitions.find(definitionName);
 	if (findDefinition == environment.definitions.end())
 	{
@@ -89,7 +87,25 @@ void addObjectReference(EvaluatorEnvironment& environment, EvaluatorContext cont
 	}
 	else
 	{
-		findDefinition->second.references[reference.name->contents] = {reference.name};
+		ObjectReferenceStatusMap::iterator findRef =
+		    findDefinition->second.references.find(referenceNameToken.contents.c_str());
+		if (findRef == findDefinition->second.references.end())
+			findDefinition->second.references[referenceNameToken.contents.c_str()] = {
+			    &referenceNameToken};
+	}
+
+	// Add the reference to the reference pool. This makes it easier to find all places where it is
+	// referenced during resolve time
+	ObjectReferencePoolMap::iterator findIt = environment.referencePools.find(definitionName);
+	if (findIt == environment.referencePools.end())
+	{
+		ObjectReferencePool newPool = {};
+		newPool.references.push_back(reference);
+		environment.referencePools[referenceNameToken.contents] = std::move(newPool);
+	}
+	else
+	{
+		findIt->second.references.push_back(reference);
 	}
 }
 
@@ -98,11 +114,18 @@ int getNextFreeBuildId(EvaluatorEnvironment& environment)
 	return ++environment.nextFreeBuildId;
 }
 
+bool isCompileTimeObject(ObjectType type)
+{
+	return type == ObjectType_CompileTimeMacro || type == ObjectType_CompileTimeGenerator;
+}
+
 //
 // Evaluator
 //
 
-// Dispatch to a generator or expand a macro and evaluate its output recursively
+// Dispatch to a generator or expand a macro and evaluate its output recursively. If the reference
+// is unknown, add it to a list so EvaluateResolveReferences() can come back and decide what to do
+// with it. Only EvaluateResolveReferences() decides whether to create a C/C++ invocation
 bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                                 const std::vector<Token>& tokens, int invocationStartIndex,
                                 GeneratorOutput& output)
@@ -129,6 +152,13 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 
 			// Make it const to save any temptation of modifying the list and breaking everything
 			macroOutputTokens = macroOutputTokensNoConst_CREATIONONLY;
+		}
+
+		// The macro had no output, but we won't let that bother us
+		if (macroOutputTokens->empty())
+		{
+			delete macroOutputTokens;
+			return true;
 		}
 
 		// Don't even try to validate the code if the macro wasn't satisfied
@@ -188,12 +218,17 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		else
 		{
 			// Reference resolver v2
-			ObjectReference newReference;
+			ObjectReference newReference = {};
 			newReference.tokens = &tokens;
 			newReference.startIndex = invocationStartIndex;
-			newReference.name = &invocationName;
-			newReference.isRequired = context.isRequired;
-			addObjectReference(environment, context, newReference);
+			// Make room for whatever gets output once this reference is resolved
+			newReference.spliceOutput = new GeneratorOutput;
+			addObjectReference(environment, context, invocationName, newReference);
+
+			// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
+			// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
+			// so that multiple splices take up space and will then maintain sequential order
+			addSpliceOutput(output.source, newReference.spliceOutput, &invocationStart);
 
 			// We don't know what this is. We cannot guess it is a C/C++ function yet, because it
 			// could be a generator or macro invocation that hasn't been defined yet. Leave a note
@@ -210,11 +245,6 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			// the output list, the splice will redirect to an external output list. It is the
 			// responsibility of the Writer to watch for splices
 			unknownInvocation.output = &output.source;
-			// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
-			// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
-			// so that multiple splices take up space and will then maintain sequential order
-			output.source.push_back(
-			    {EmptyString, StringOutMod_Splice, &invocationStart, &invocationStart});
 			unknownInvocation.spliceOutputIndex = output.source.size() - 1;
 
 			if (context.isMacroOrGeneratorDefinition)
@@ -290,19 +320,18 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 					char secondChar = token.contents.size() > 1 ? token.contents[1] : 0;
 					if (firstChar == '\'' || isdigit(firstChar) ||
 					    (firstChar == '-' && (secondChar == '.' || isdigit(secondChar))))
-						output.source.push_back(
-						    {token.contents, StringOutMod_None, &token, &token});
+						addStringOutput(output.source, token.contents, StringOutMod_None, &token);
 					else
 					{
 						// Potential lisp name. Convert
-						output.source.push_back(
-						    {token.contents, StringOutMod_ConvertVariableName, &token, &token});
+						addStringOutput(output.source, token.contents,
+						                StringOutMod_ConvertVariableName, &token);
 					}
 					break;
 				}
 				case TokenType_String:
-					output.source.push_back(
-					    {token.contents, StringOutMod_SurroundWithQuotes, &token, &token});
+					addStringOutput(output.source, token.contents, StringOutMod_SurroundWithQuotes,
+					                &token);
 					break;
 				default:
 					ErrorAtTokenf(token,
@@ -404,6 +433,7 @@ bool EvaluateResolveReferencesV1(EvaluatorEnvironment& environment)
 
 const char* objectTypeToString(ObjectType type);
 
+// Determine what needs to be built, iteratively
 // TODO This can be made faster. I did the most naive version first, for now
 void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 {
@@ -444,16 +474,20 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 
 void OnCompileProcessOutput(const char* output)
 {
+	// TODO C/C++ error to Cakelisp token mapper
 }
 
-int BuildEvaluateReferences(EvaluatorEnvironment& environment)
+int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
 {
+	int numReferencesResolved = 0;
+
 	enum BuildStage
 	{
 		BuildStage_None,
 		BuildStage_Compiling,
 		BuildStage_Linking,
 		BuildStage_Loading,
+		BuildStage_ResolvingReferences,
 		BuildStage_Finished
 	};
 
@@ -474,8 +508,17 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 	{
 		ObjectDefinition& definition = definitionPair.second;
 		// Does it need to be built?
-		if (definition.isRequired && definition.type == ObjectType_CompileTimeFunction)
+		if (definition.isRequired && isCompileTimeObject(definition.type))
 		{
+			// Is it already in the environment?
+			// TODO: Shortcut?
+			bool compileTimeCodeLoaded =
+			    definition.type == ObjectType_CompileTimeMacro ?
+			        findMacro(environment, definition.name->contents.c_str()) != nullptr :
+			        findGenerator(environment, definition.name->contents.c_str()) != nullptr;
+			if (compileTimeCodeLoaded)
+				continue;
+
 			// Can it be built in the current environment?
 			bool canBuild = true;
 			for (ObjectReferenceStatusPair& reference : definition.references)
@@ -487,10 +530,16 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 				    environment.definitions.find(referenceStatus.name->contents);
 				if (findIt != environment.definitions.end())
 				{
-					if (findIt->second.type == ObjectType_CompileTimeFunction)
+					if (isCompileTimeObject(findIt->second.type))
 					{
-						// TODO: Check for code loaded
-						if (true)
+						bool refCompileTimeCodeLoaded =
+						    isCompileTimeCodeLoaded(environment, findIt->second);
+						if (refCompileTimeCodeLoaded)
+						{
+							// No need to build. It has already been handled. Built objects
+							// immediately resolve references
+						}
+						else
 						{
 							// If we know we are missing a compile time function, we won't try to
 							// guess
@@ -498,17 +547,13 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 							       referenceStatus.name->contents.c_str());
 							canBuild = false;
 						}
-						else
-						{
-							// Invoke, or mark this reference as resolved, or something
-						}
 					}
 
 					// TODO: Building references to non-comptime functions at comptime
 				}
 				else
 				{
-					// Guess it's a C invocation
+					// TODO Guess it's a C invocation
 				}
 			}
 
@@ -523,12 +568,13 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 	}
 
 	// Spin up as many compile processes as necessary
-	// TODO: Limit number spawned at once?
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
 	// TODO: Instead of creating files, pipe straight to compiler?
 	// TODO: Make pipeline able to start e.g. linker while other objects are still compiling
 	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
 	// waitForAllProcessesClosed(), else the status pointer could be invalidated
+	const int maxProcessesSpawned = 8;
+	int currentNumProcessesSpawned = 0;
 	for (BuildObject& buildObject : definitionsToBuild)
 	{
 		ObjectDefinition* definition = buildObject.definition;
@@ -543,7 +589,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 		// TODO: Make these come from the top
 		NameStyleSettings nameSettings;
 		WriterFormatSettings formatSettings;
-		WriterOutputSettings outputSettings;
+		WriterOutputSettings outputSettings = {};
 		outputSettings.sourceHeading = macroSourceHeading;
 		outputSettings.sourceFooter = macroSourceFooter;
 		outputSettings.sourceCakelispFilename = sourceOutputName;
@@ -565,7 +611,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 
 		// TODO: Get arguments all the way from the top
 		// If not null terminated, the call will fail
-		char* arguments[] = {fileToExec, strdup("-c"), sourceOutputName, strdup("-Isrc/"), nullptr};
+		char* arguments[] = {fileToExec,       strdup("-c"),    sourceOutputName,
+		                     strdup("-Isrc/"), strdup("-fPIC"), nullptr};
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = fileToExec;
 		compileArguments.arguments = arguments;
@@ -573,6 +620,15 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 		{
 			// TODO: Abort building if cannot invoke compiler
 			// return 0;
+		}
+
+		// TODO This could be made smarter by allowing more spawning right when a process closes,
+		// instead of starting in waves
+		++currentNumProcessesSpawned;
+		if (currentNumProcessesSpawned >= maxProcessesSpawned)
+		{
+			waitForAllProcessesClosed(OnCompileProcessOutput);
+			currentNumProcessesSpawned = 0;
 		}
 	}
 
@@ -656,13 +712,59 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 			continue;
 		}
 
+		// Add to environment
+		if (buildObject.definition->type == ObjectType_CompileTimeMacro)
+		{
+			environment.macros[buildObject.definition->name->contents] =
+			    (MacroFunc)compileTimeFunction;
+		}
+		else if (buildObject.definition->type == ObjectType_CompileTimeGenerator)
+		{
+			environment.generators[buildObject.definition->name->contents] =
+			    (GeneratorFunc)compileTimeFunction;
+		}
+
+		buildObject.stage = BuildStage_ResolvingReferences;
+
+		// Resolve references
+		ObjectReferencePoolMap::iterator referencePoolIt =
+		    environment.referencePools.find(buildObject.definition->name->contents);
+		if (referencePoolIt == environment.referencePools.end())
+		{
+			printf(
+			    "Error: built an object which had no references. It should not have been "
+			    "required. There must be a problem with Cakelisp internally\n");
+			continue;
+		}
+
+		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found
+		for (ObjectReference& reference : referencePoolIt->second.references)
+		{
+			if (reference.isResolved)
+				continue;
+
+			// Evaluate from that reference
+			int result =
+			    EvaluateGenerate_Recursive(environment, reference.context, *reference.tokens,
+			                               reference.startIndex, *reference.spliceOutput);
+			// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
+			// again isn't going to change the number of errors
+			reference.isResolved = true;
+			numErrorsOut += result;
+			++numReferencesResolved;
+		}
+
+		printf("Resolved %d references\n", numReferencesResolved);
+
+		// Remove need to build
+
 		buildObject.stage = BuildStage_Finished;
 
 		printf("Successfully built and loaded %s\n",
 		       buildObject.definition->name->contents.c_str());
 	}
 
-	return 0;
+	return numReferencesResolved;
 }
 
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
@@ -682,30 +784,66 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	// This must be done in passes in case evaluation created more definitions. There's probably a
 	// smarter way, but I'll do it in this brute-force style first
 	int numReferencesResolved = 0;
+	int numBuildResolveErrors = 0;
 	do
 	{
 		PropagateRequiredToReferences(environment);
-		numReferencesResolved = BuildEvaluateReferences(environment);
+		numReferencesResolved = BuildEvaluateReferences(environment, numBuildResolveErrors);
+		if (numBuildResolveErrors)
+			break;
 	} while (numReferencesResolved);
 
-	// Check everything is resolved
+	// Check whether everything is resolved
 	int errors = 0;
 	for (const ObjectDefinitionPair& definitionPair : environment.definitions)
 	{
 		const ObjectDefinition& definition = definitionPair.second;
-		printf("%s:\n", definition.name->contents.c_str());
 		if (definition.isRequired)
 		{
-			// TODO: Add ready-build runtime function check
-			if (!findMacro(environment, definition.name->contents.c_str()) &&
-			    !findGenerator(environment, definition.name->contents.c_str()))
+			if (isCompileTimeObject(definition.type))
 			{
-				// TODO: Add note for who required the object
-				ErrorAtToken(*definition.name, "Failed to build required object");
-				++errors;
+				// TODO: Add ready-build runtime function check
+				if (!findMacro(environment, definition.name->contents.c_str()) &&
+				    !findGenerator(environment, definition.name->contents.c_str()))
+				{
+					// TODO: Add note for who required the object
+					ErrorAtToken(*definition.name, "Failed to build required object");
+					++errors;
+				}
+				else
+					NoteAtToken(*definition.name, "built successfully");
 			}
 			else
-				NoteAtToken(*definition.name, "Built successfully");
+			{
+				// Check all references have been resolved for regular generated code
+				std::vector<const Token*> missingDefinitionNames;
+				for (const ObjectReferenceStatusPair& reference : definition.references)
+				{
+					const ObjectReferenceStatus& referenceStatus = reference.second;
+
+					// TODO: (Performance) Add shortcut in reference
+					ObjectDefinitionMap::iterator findIt =
+					    environment.definitions.find(referenceStatus.name->contents);
+					if (findIt != environment.definitions.end())
+					{
+						if (isCompileTimeObject(findIt->second.type) &&
+						    !isCompileTimeCodeLoaded(environment, findIt->second))
+						{
+							missingDefinitionNames.push_back(findIt->second.name);
+							++errors;
+						}
+					}
+				}
+
+				if (!missingDefinitionNames.empty())
+				{
+					ErrorAtTokenf(*definition.name, "failed to generate %s",
+					              definition.name->contents.c_str());
+					for (const Token* missingDefinitionName : missingDefinitionNames)
+						NoteAtToken(*missingDefinitionName,
+						            "missing compile-time function defined here");
+				}
+			}
 		}
 		else
 		{
@@ -713,7 +851,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 	}
 
-	return errors == 0;
+	return errors == 0 && numBuildResolveErrors == 0;
 }
 
 // This serves only as a warning. I want to be very explicit with the lifetime of tokens
@@ -735,6 +873,16 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 		delete function.output;
 	}
 	environment.compileTimeFunctions.clear();
+
+	for (ObjectReferencePoolPair& referencePoolPair : environment.referencePools)
+	{
+		for (ObjectReference& reference : referencePoolPair.second.references)
+		{
+			delete reference.spliceOutput;
+		}
+		referencePoolPair.second.references.clear();
+	}
+	environment.referencePools.clear();
 
 	for (const std::vector<Token>* macroExpansion : environment.macroExpansions)
 		delete macroExpansion;
@@ -762,8 +910,10 @@ const char* objectTypeToString(ObjectType type)
 	{
 		case ObjectType_Function:
 			return "Function";
-		case ObjectType_CompileTimeFunction:
-			return "CompileTimeFunction";
+		case ObjectType_CompileTimeMacro:
+			return "Macro";
+		case ObjectType_CompileTimeGenerator:
+			return "Generator";
 		default:
 			return "Unknown";
 	}

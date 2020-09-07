@@ -238,6 +238,38 @@ bool moveFile(const char* srcFilename, const char* destFilename)
 	return true;
 }
 
+void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
+                                        const WriterFormatSettings& formatSettings,
+                                        StringOutputState& outputState,
+                                        const std::vector<StringOutput>& outputOperations)
+{
+	for (const StringOutput& operation : outputOperations)
+	{
+		// Debug print mapping
+		if (!operation.output.empty() && false)
+		{
+			printf("%s \t%d\tline %d\n", operation.output.c_str(), outputState.numCharsOutput + 1,
+			       outputState.currentLine + 1);
+		}
+
+		if (operation.modifiers == StringOutMod_Splice)
+		{
+			if (operation.spliceOutput)
+			{
+				writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
+				                                   operation.spliceOutput->source);
+				if (!operation.spliceOutput->header.empty())
+					ErrorAtToken(*operation.startToken,
+					             "splice output contained header output, which is not supported");
+			}
+			else
+				ErrorAtToken(*operation.startToken, "expected splice output");
+		}
+		else
+			writeStringOutput(nameSettings, formatSettings, operation, outputState);
+	}
+}
+
 // TODO This sucks
 // TODO Lots of params
 bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
@@ -264,17 +296,7 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
 		}
 	}
 
-	for (const StringOutput& operation : outputOperations)
-	{
-		// Debug print mapping
-		if (!operation.output.empty() && false)
-		{
-			printf("%s \t%d\tline %d\n", operation.output.c_str(), outputState.numCharsOutput + 1,
-			       outputState.currentLine + 1);
-		}
-
-		writeStringOutput(nameSettings, formatSettings, operation, outputState);
-	}
+	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState, outputOperations);
 
 	if (footer)
 	{
@@ -357,50 +379,61 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings)
 {
-	printf("\tTo source file:\n");
+	if (!generatedOutput.source.empty())
 	{
-		char sourceOutputName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
-		if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
-		                          outputSettings.sourceHeading, outputSettings.sourceFooter,
-		                          generatedOutput.source, sourceOutputName))
-			return false;
-	}
-
-	printf("\n\tTo header file:\n");
-	{
-		char headerOutputName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
-		if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
-		                          outputSettings.headerHeading, outputSettings.headerFooter,
-		                          generatedOutput.header, headerOutputName))
-			return false;
-	}
-
-	// Metadata
-	printf("\n\tImports:\n");
-	for (const ImportMetadata& import : generatedOutput.imports)
-	{
-		printf("%s\t(%s)\n", import.importName.c_str(), importLanguageToString(import.language));
-	}
-
-	printf("\n\tFunctions:\n");
-	for (const FunctionMetadata& function : generatedOutput.functions)
-	{
-		printf("%s\n", function.name.c_str());
-		if (!function.arguments.empty())
+		printf("\tTo source file:\n");
 		{
-			printf("(\n");
-			for (const FunctionArgumentMetadata& argument : function.arguments)
-			{
-				printf("\t%s\n", argument.name.c_str());
-			}
-			printf(")\n");
+			char sourceOutputName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
+			if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
+			                          outputSettings.sourceHeading, outputSettings.sourceFooter,
+			                          generatedOutput.source, sourceOutputName))
+				return false;
 		}
-		else
-			printf("()\n");
+	}
 
-		printf("\n");
+	if (!generatedOutput.header.empty())
+	{
+		printf("\n\tTo header file:\n");
+		{
+			char headerOutputName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
+			if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
+			                          outputSettings.headerHeading, outputSettings.headerFooter,
+			                          generatedOutput.header, headerOutputName))
+				return false;
+		}
+	}
+
+	// TODO: Write mapping and metadata
+	if (false)
+	{
+		// Metadata
+		printf("\n\tImports:\n");
+		for (const ImportMetadata& import : generatedOutput.imports)
+		{
+			printf("%s\t(%s)\n", import.importName.c_str(),
+			       importLanguageToString(import.language));
+		}
+
+		printf("\n\tFunctions:\n");
+		for (const FunctionMetadata& function : generatedOutput.functions)
+		{
+			printf("%s\n", function.name.c_str());
+			if (!function.arguments.empty())
+			{
+				printf("(\n");
+				for (const FunctionArgumentMetadata& argument : function.arguments)
+				{
+					printf("\t%s\n", argument.name.c_str());
+				}
+				printf(")\n");
+			}
+			else
+				printf("()\n");
+
+			printf("\n");
+		}
 	}
 
 	return true;

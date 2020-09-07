@@ -9,12 +9,19 @@
 
 struct NameStyleSettings;
 struct Token;
+struct GeneratorOutput;
 
 // Rather than needing to allocate and edit a buffer eventually equal to the size of the final
 // output, store output operations instead. This also facilitates source <-> generated mapping data
 struct StringOutput
 {
+	// TODO: Putting this in a union means we need to write a destructor which can detect when to
+	// destroy output
+	//union {
 	std::string output;
+	GeneratorOutput* spliceOutput;
+	// };
+
 	StringOutputModifierFlags modifiers;
 
 	// Used to correlate Cakelisp code with generated output code
@@ -69,7 +76,7 @@ struct EvaluatorContext
 	// Macro and generator definitions need to be resolved first
 	bool isMacroOrGeneratorDefinition;
 
-	// TODO Explain
+	// Whether or not the code in this context is required to be generated, i.e. isn't "dead" code
 	bool isRequired;
 	// Associate all unknown references with this definition
 	const Token* definitionName;
@@ -141,6 +148,7 @@ struct ObjectDefinition
 	// Objects can be referenced by other objects, but something in the chain must be required in
 	// order for the objects to be built. Required-ness spreads from the top level module scope
 	bool isRequired;
+	// Unique references, for dependency checking
 	ObjectReferenceStatusMap references;
 
 	// Used only for compile-time functions
@@ -152,20 +160,26 @@ struct ObjectDefinition
 
 struct ObjectReference
 {
-	const Token* name;
 	const std::vector<Token>* tokens;
 	int startIndex;
+	EvaluatorContext context;
 
-	bool isRequired;
+	// This needs to be a pointer in case the references array gets moved while we are iterating it
+	GeneratorOutput* spliceOutput;
+	bool isResolved;
+};
 
-	// ObjectReferentMap referents;
+struct ObjectReferencePool
+{
+	std::vector<ObjectReference> references;
 };
 
 // NOTE: See comment in BuildEvaluateReferences() before changing this data structure. The current
 // implementation assumes references to values will not be invalidated if the hash map changes
 typedef std::unordered_map<std::string, ObjectDefinition> ObjectDefinitionMap;
 typedef std::pair<const std::string, ObjectDefinition> ObjectDefinitionPair;
-typedef std::unordered_map<std::string, ObjectReference> ObjectReferenceMap;
+typedef std::unordered_map<std::string, ObjectReferencePool> ObjectReferencePoolMap;
+typedef std::pair<const std::string, ObjectReferencePool> ObjectReferencePoolPair;
 
 // Unlike context, which can't be changed, environment can be changed.
 // Use care when modifying the environment. Only add things once you know things have succeeded.
@@ -191,7 +205,7 @@ struct EvaluatorEnvironment
 	std::vector<UnknownReference> unknownReferencesForCompileTime;
 
 	ObjectDefinitionMap definitions;
-	ObjectReferenceMap references;
+	ObjectReferencePoolMap referencePools;
 
 	// Used to ensure unique filenames for compile-time artifacts
 	int nextFreeBuildId;

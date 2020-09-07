@@ -64,5 +64,6 @@ enum UnknownReferenceType
 enum ObjectType
 {
 	ObjectType_Function,
-	ObjectType_CompileTimeFunction,
+	ObjectType_CompileTimeMacro,
+	ObjectType_CompileTimeGenerator,
 };

@@ -160,3 +160,41 @@ void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlag
 {
 	operation.modifiers = (StringOutputModifierFlags)((int)operation.modifiers | (int)flag);
 }
+
+void addStringOutput(std::vector<StringOutput>& output, const std::string& symbol,
+                     StringOutputModifierFlags modifiers, const Token* startToken)
+{
+	StringOutput newStringOutput = {};
+	newStringOutput.modifiers = modifiers;
+	newStringOutput.startToken = startToken;
+	newStringOutput.endToken = startToken;
+
+	newStringOutput.output = symbol;
+
+	output.push_back(std::move(newStringOutput));
+}
+
+void addLangTokenOutput(std::vector<StringOutput>& output, StringOutputModifierFlags modifiers,
+                        const Token* startToken)
+{
+	StringOutput newStringOutput = {};
+	newStringOutput.modifiers = modifiers;
+	newStringOutput.startToken = startToken;
+	newStringOutput.endToken = startToken;
+
+	output.push_back(std::move(newStringOutput));
+}
+
+void addSpliceOutput(std::vector<StringOutput>& output, GeneratorOutput* spliceOutput,
+                     const Token* startToken)
+{
+	StringOutput newStringOutput = {};
+	// No other modifiers are valid because splice is handled outside the normal writer
+	newStringOutput.modifiers = StringOutMod_Splice;
+	newStringOutput.startToken = startToken;
+	newStringOutput.endToken = startToken;
+
+	newStringOutput.spliceOutput = spliceOutput;
+
+	output.push_back(std::move(newStringOutput));
+}

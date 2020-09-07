@@ -1,12 +1,14 @@
 #pragma once
 
 #include <vector>
+#include <string>
 
 #include "EvaluatorEnums.hpp"
 #include "TokenEnums.hpp"
 
 struct Token;
 struct EvaluatorContext;
+struct GeneratorOutput;
 struct StringOutput;
 
 void StripInvocation(int& startTokenIndex, int& endTokenIndex);
@@ -32,3 +34,10 @@ int getExpectedArgument(const char* message, const std::vector<Token>& tokens, i
 int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
+
+void addStringOutput(std::vector<StringOutput>& output, const std::string& symbol,
+                     StringOutputModifierFlags modifiers, const Token* startToken);
+void addLangTokenOutput(std::vector<StringOutput>& output, StringOutputModifierFlags modifiers,
+                        const Token* startToken);
+void addSpliceOutput(std::vector<StringOutput>& output, GeneratorOutput* spliceOutput,
+                     const Token* startToken);

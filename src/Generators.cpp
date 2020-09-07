@@ -66,11 +66,11 @@ bool PowerfulCImportGenerator(EvaluatorEnvironment& environment, const Evaluator
 		}
 
 		if (state == WithDefinitions)
-			output.source.push_back({std::string(includeBuffer), StringOutMod_NewlineAfter,
-			                         &currentToken, &currentToken});
+			addStringOutput(output.source, std::string(includeBuffer), StringOutMod_NewlineAfter,
+			                &currentToken);
 		else if (state == WithDeclarations)
-			output.header.push_back({std::string(includeBuffer), StringOutMod_NewlineAfter,
-			                         &currentToken, &currentToken});
+			addStringOutput(output.header, std::string(includeBuffer), StringOutMod_NewlineAfter,
+			                &currentToken);
 
 		output.imports.push_back({currentToken.contents, ImportLanguage_C, &currentToken});
 	}
@@ -157,11 +157,11 @@ bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	}
 
 	if (state == WithDefinitions)
-		output.source.push_back(
-		    {std::string(includeBuffer), StringOutMod_NewlineAfter, &pathToken, &pathToken});
+		addStringOutput(output.source, std::string(includeBuffer), StringOutMod_NewlineAfter,
+		                &pathToken);
 	else if (state == WithDeclarations)
-		output.header.push_back(
-		    {std::string(includeBuffer), StringOutMod_NewlineAfter, &pathToken, &pathToken});
+		addStringOutput(output.header, std::string(includeBuffer), StringOutMod_NewlineAfter,
+		                &pathToken);
 
 	output.imports.push_back({pathToken.contents,
 	                          isCakeImport ? ImportLanguage_Cakelisp : ImportLanguage_C,
@@ -195,9 +195,8 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			return false;
 		}
 
-		typeOutput.push_back({tokens[startTokenIndex].contents.c_str(),
-		                      StringOutMod_ConvertTypeName, &tokens[startTokenIndex],
-		                      &tokens[startTokenIndex]});
+		addStringOutput(typeOutput, tokens[startTokenIndex].contents, StringOutMod_ConvertTypeName,
+		                &tokens[startTokenIndex]);
 
 		return true;
 	}
@@ -219,8 +218,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 		if (typeInvocation.contents.compare("const") == 0)
 		{
 			// Prepend const-ness
-			typeOutput.push_back(
-			    {"const", StringOutMod_SpaceAfter, &typeInvocation, &typeInvocation});
+			addStringOutput(typeOutput, "const", StringOutMod_SpaceAfter, &typeInvocation);
 
 			int typeIndex = getExpectedArgument("const requires type", tokens, startTokenIndex, 1,
 			                                    endTokenIndex);
@@ -243,8 +241,8 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			                                      afterNameOutput))
 				return false;
 
-			typeOutput.push_back({typeInvocation.contents.c_str(), StringOutMod_None,
-			                      &typeInvocation, &typeInvocation});
+			addStringOutput(typeOutput, typeInvocation.contents.c_str(), StringOutMod_None,
+			                &typeInvocation);
 		}
 		else if (typeInvocation.contents.compare("&&") == 0 ||
 		         typeInvocation.contents.compare("rval-ref-to") == 0)
@@ -258,7 +256,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			                                      afterNameOutput))
 				return false;
 
-			typeOutput.push_back({"&&", StringOutMod_None, &typeInvocation, &typeInvocation});
+			addStringOutput(typeOutput, "&&", StringOutMod_None, &typeInvocation);
 		}
 		else if (typeInvocation.contents.compare("<>") == 0)
 		{
@@ -271,7 +269,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			                                      afterNameOutput))
 				return false;
 
-			typeOutput.push_back({"<", StringOutMod_None, &typeInvocation, &typeInvocation});
+			addStringOutput(typeOutput, "<", StringOutMod_None, &typeInvocation);
 			for (int startTemplateParameter = typeIndex + 1; startTemplateParameter < endTokenIndex;
 			     ++startTemplateParameter)
 			{
@@ -284,9 +282,8 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 					return false;
 
 				if (!isLastArgument(tokens, startTemplateParameter, endTokenIndex))
-					typeOutput.push_back({EmptyString, StringOutMod_ListSeparator,
-					                      &tokens[startTemplateParameter],
-					                      &tokens[startTemplateParameter]});
+					addLangTokenOutput(typeOutput, StringOutMod_ListSeparator,
+					                   &tokens[startTemplateParameter]);
 
 				// Skip over tokens of the type we just parsed (the for loop increment will move us
 				// off the end paren)
@@ -294,7 +291,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 					startTemplateParameter =
 					    FindCloseParenTokenIndex(tokens, startTemplateParameter);
 			}
-			typeOutput.push_back({">", StringOutMod_None, &typeInvocation, &typeInvocation});
+			addStringOutput(typeOutput, ">", StringOutMod_None, &typeInvocation);
 		}
 		else if (typeInvocation.contents.compare("[]") == 0)
 		{
@@ -323,17 +320,13 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 					return false;
 
 				// Array size specified as first argument
-				afterNameOutput.push_back(
-				    {"[", StringOutMod_None, &typeInvocation, &typeInvocation});
-				afterNameOutput.push_back({tokens[firstArgIndex].contents.c_str(),
-				                           StringOutMod_None, &tokens[firstArgIndex],
-				                           &tokens[firstArgIndex]});
-				afterNameOutput.push_back(
-				    {"]", StringOutMod_None, &typeInvocation, &typeInvocation});
+				addStringOutput(afterNameOutput, "[", StringOutMod_None, &typeInvocation);
+				addStringOutput(afterNameOutput, tokens[firstArgIndex].contents.c_str(),
+				                StringOutMod_None, &tokens[firstArgIndex]);
+				addStringOutput(afterNameOutput, "]", StringOutMod_None, &typeInvocation);
 			}
 			else
-				afterNameOutput.push_back(
-				    {"[]", StringOutMod_None, &typeInvocation, &typeInvocation});
+				addStringOutput(afterNameOutput, "[]", StringOutMod_None, &typeInvocation);
 
 			// Type parsing happens after the [] have already been appended because the array's type
 			// may include another array dimension, which must be specified after the current array
@@ -466,17 +459,15 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 
 	// TODO: Hot-reloading functions shouldn't be declared static, right?
 	if (isModuleLocal)
-		output.source.push_back({"static", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
-		                         &tokens[startTokenIndex]});
+		addStringOutput(output.source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	if (returnTypeStart == -1)
 	{
 		// The type was implicit; blame the "defun"
-		output.source.push_back(
-		    {"void", StringOutMod_SpaceAfter, &tokens[startTokenIndex], &tokens[startTokenIndex]});
+		addStringOutput(output.source, "void", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 		if (!isModuleLocal)
-			output.header.push_back({"void", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
-			                         &tokens[startTokenIndex]});
+			addStringOutput(output.header, "void", StringOutMod_SpaceAfter,
+			                &tokens[startTokenIndex]);
 	}
 	else
 	{
@@ -520,15 +511,15 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 			output.header.insert(output.header.end(), typeOutput.begin(), typeOutput.end());
 	}
 
-	output.source.push_back(
-	    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
+	addStringOutput(output.source, nameToken.contents, StringOutMod_ConvertFunctionName,
+	                &nameToken);
 	if (!isModuleLocal)
-		output.header.push_back(
-		    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
+		addStringOutput(output.header, nameToken.contents, StringOutMod_ConvertFunctionName,
+		                &nameToken);
 
-	output.source.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
+	addLangTokenOutput(output.source, StringOutMod_OpenParen, &argsStart);
 	if (!isModuleLocal)
-		output.header.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
+		addLangTokenOutput(output.header, StringOutMod_OpenParen, &argsStart);
 
 	std::vector<FunctionArgumentMetadata> argumentsMetadata;
 
@@ -553,12 +544,11 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 			PushBackAll(output.header, typeOutput);
 
 		// Name
-		output.source.push_back({tokens[arg.nameIndex].contents, StringOutMod_ConvertVariableName,
-		                         &tokens[arg.nameIndex], &tokens[arg.nameIndex]});
+		addStringOutput(output.source, tokens[arg.nameIndex].contents,
+		                StringOutMod_ConvertVariableName, &tokens[arg.nameIndex]);
 		if (!isModuleLocal)
-			output.header.push_back({tokens[arg.nameIndex].contents,
-			                         StringOutMod_ConvertVariableName, &tokens[arg.nameIndex],
-			                         &tokens[arg.nameIndex]});
+			addStringOutput(output.header, tokens[arg.nameIndex].contents,
+			                StringOutMod_ConvertVariableName, &tokens[arg.nameIndex]);
 
 		// Array
 		PushBackAll(output.source, afterNameOutput);
@@ -567,15 +557,10 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 
 		if (i + 1 < numFunctionArguments)
 		{
-			// It's a little weird to have to pick who is responsible for the comma. In this case
-			// both the name and the type of the next arg are responsible, because there wouldn't be
-			// a comma if there wasn't a next arg
-			DefunArgument& nextArg = arguments[i + 1];
-			output.source.push_back({EmptyString, StringOutMod_ListSeparator,
-			                         &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
+			addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[arg.nameIndex]);
 			if (!isModuleLocal)
-				output.header.push_back({EmptyString, StringOutMod_ListSeparator,
-				                         &tokens[arg.nameIndex], &tokens[nextArg.startTypeIndex]});
+				addLangTokenOutput(output.header, StringOutMod_ListSeparator,
+				                   &tokens[arg.nameIndex]);
 		}
 
 		// Argument metadata
@@ -590,20 +575,16 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		}
 	}
 
-	output.source.push_back(
-	    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 	if (!isModuleLocal)
 	{
-		output.header.push_back(
-		    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+		addLangTokenOutput(output.header, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 		// Forward declarations end with ;
-		output.header.push_back(
-		    {EmptyString, StringOutMod_EndStatement, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endArgsIndex]);
 	}
 
 	int startBodyIndex = endArgsIndex + 1;
-	output.source.push_back(
-	    {EmptyString, StringOutMod_OpenBlock, &tokens[startBodyIndex], &tokens[startBodyIndex]});
+	addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
 
 	// Evaluate our body!
 	EvaluatorContext bodyContext = context;
@@ -611,14 +592,13 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	bodyContext.definitionName = &nameToken;
 	// The statements will need to handle their ;
 	// TODO Remove this, we don't need it any more
-	StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr, nullptr};
+	StringOutput bodyDelimiterTemplate = {};
 	int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
 	                                              bodyDelimiterTemplate, output);
 	if (numErrors)
 		return false;
 
-	output.source.push_back(
-	    {EmptyString, StringOutMod_CloseBlock, &tokens[endTokenIndex], &tokens[endTokenIndex]});
+	addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
 
 	output.functions.push_back({nameToken.contents, &tokens[startTokenIndex],
 	                            &tokens[endTokenIndex], std::move(argumentsMetadata)});
@@ -638,9 +618,9 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 	const Token& funcNameToken = tokens[nameTokenIndex];
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
-	output.source.push_back(
-	    {funcNameToken.contents, StringOutMod_ConvertFunctionName, &funcNameToken, &funcNameToken});
-	output.source.push_back({EmptyString, StringOutMod_OpenParen, &funcNameToken, &funcNameToken});
+	addStringOutput(output.source, funcNameToken.contents, StringOutMod_ConvertFunctionName,
+	                &funcNameToken);
+	addLangTokenOutput(output.source, StringOutMod_OpenParen, &funcNameToken);
 
 	// Arguments
 	int startArgsIndex = nameTokenIndex + 1;
@@ -648,19 +628,17 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 	// Function invocations evaluate their arguments
 	EvaluatorContext functionInvokeContext = context;
 	functionInvokeContext.scope = EvaluatorScope_ExpressionsOnly;
-	StringOutput argumentDelimiterTemplate = {EmptyString, StringOutMod_ListSeparator, nullptr,
-	                                          nullptr};
+	StringOutput argumentDelimiterTemplate = {};
+	argumentDelimiterTemplate.modifiers = StringOutMod_ListSeparator;
 	int numErrors =
 	    EvaluateGenerateAll_Recursive(environment, functionInvokeContext, tokens, startArgsIndex,
 	                                  argumentDelimiterTemplate, output);
 	if (numErrors)
 		return false;
 
-	output.source.push_back({EmptyString, StringOutMod_CloseParen, &tokens[endInvocationIndex],
-	                         &tokens[endInvocationIndex]});
+	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[endInvocationIndex]);
 	if (context.scope != EvaluatorScope_ExpressionsOnly)
-		output.source.push_back({EmptyString, StringOutMod_EndStatement,
-		                         &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
+		addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 
 	return true;
 }
@@ -713,13 +691,11 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
 
 	if (isGlobal)
-		output.header.push_back({"extern", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
-		                         &tokens[startTokenIndex]});
+		addStringOutput(output.header, "extern", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 	// else because no variable may be declared extern while also being static
 	// Automatically make module-declared variables static, reserving "static-var" for functions
 	else if (isStatic || context.scope == EvaluatorScope_Module)
-		output.source.push_back({"static", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
-		                         &tokens[startTokenIndex]});
+		addStringOutput(output.source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	// Type
 	PushBackAll(output.source, typeOutput);
@@ -727,11 +703,11 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 		PushBackAll(output.header, typeOutput);
 
 	// Name
-	output.source.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
-	                         &tokens[varNameIndex], &tokens[varNameIndex]});
+	addStringOutput(output.source, tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
+	                &tokens[varNameIndex]);
 	if (isGlobal)
-		output.header.push_back({tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
-		                         &tokens[varNameIndex], &tokens[varNameIndex]});
+		addStringOutput(output.header, tokens[varNameIndex].contents,
+		                StringOutMod_ConvertVariableName, &tokens[varNameIndex]);
 
 	// Array
 	PushBackAll(output.source, typeAfterNameOutput);
@@ -749,10 +725,8 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	// Initialized
 	if (valueIndex < endInvocationIndex)
 	{
-		output.source.push_back(
-		    {EmptyString, StringOutMod_SpaceAfter, &tokens[valueIndex], &tokens[valueIndex]});
-		output.source.push_back(
-		    {"=", StringOutMod_SpaceAfter, &tokens[valueIndex], &tokens[valueIndex]});
+		addLangTokenOutput(output.source, StringOutMod_SpaceAfter, &tokens[valueIndex]);
+		addStringOutput(output.source, "=", StringOutMod_SpaceAfter, &tokens[valueIndex]);
 
 		EvaluatorContext expressionContext = context;
 		expressionContext.scope = EvaluatorScope_ExpressionsOnly;
@@ -761,11 +735,9 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 			return false;
 	}
 
-	output.source.push_back({EmptyString, StringOutMod_EndStatement, &tokens[endInvocationIndex],
-	                         &tokens[endInvocationIndex]});
+	addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 	if (isGlobal)
-		output.header.push_back({EmptyString, StringOutMod_EndStatement,
-		                         &tokens[endInvocationIndex], &tokens[endInvocationIndex]});
+		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 
 	return true;
 }
@@ -827,13 +799,11 @@ bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 
 	for (int offsetTokenIndex : offsetTokenIndices)
 	{
-		output.source.push_back(
-		    {"[", StringOutMod_None, &tokens[offsetTokenIndex], &tokens[offsetTokenIndex]});
+		addStringOutput(output.source, "[", StringOutMod_None, &tokens[offsetTokenIndex]);
 		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, offsetTokenIndex,
 		                               output) != 0)
 			return false;
-		output.source.push_back(
-		    {"]", StringOutMod_None, &tokens[offsetTokenIndex], &tokens[offsetTokenIndex]});
+		addStringOutput(output.source, "]", StringOutMod_None, &tokens[offsetTokenIndex]);
 	}
 
 	return true;
@@ -868,7 +838,7 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 
 	ObjectDefinition newMacroDef = {};
 	newMacroDef.name = &nameToken;
-	newMacroDef.type = ObjectType_CompileTimeFunction;
+	newMacroDef.type = ObjectType_CompileTimeMacro;
 	// Let the reference required propagation step handle this
 	// TODO: This can also just be a quick lookup to see whether the reference already exists
 	newMacroDef.isRequired = false;
@@ -887,28 +857,26 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defmacro-local") == 0;
 
 	// Macros must return success or failure
-	compTimeOutput->source.push_back(
-	    {"bool", StringOutMod_SpaceAfter, &tokens[startTokenIndex], &tokens[startTokenIndex]});
+	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,
+	                &tokens[startTokenIndex]);
 
-	compTimeOutput->source.push_back(
-	    {nameToken.contents, StringOutMod_ConvertFunctionName, &nameToken, &nameToken});
+	addStringOutput(compTimeOutput->source, nameToken.contents, StringOutMod_ConvertFunctionName,
+	                &nameToken);
 
-	compTimeOutput->source.push_back({EmptyString, StringOutMod_OpenParen, &argsStart, &argsStart});
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenParen, &argsStart);
 
 	// Macros always receive the same arguments
 	// TODO: Output macro arguments with proper output calls
-	compTimeOutput->source.push_back(
-	    {"EvaluatorEnvironment& environment, const EvaluatorContext& context, const "
-	     "std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output",
-	     StringOutMod_None, &argsStart, &argsStart});
+	addStringOutput(compTimeOutput->source,
+	                "EvaluatorEnvironment& environment, const EvaluatorContext& context, const "
+	                "std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output",
+	                StringOutMod_None, &argsStart);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
-	compTimeOutput->source.push_back(
-	    {EmptyString, StringOutMod_CloseParen, &tokens[endArgsIndex], &tokens[endArgsIndex]});
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 
 	int startBodyIndex = endArgsIndex + 1;
-	compTimeOutput->source.push_back(
-	    {EmptyString, StringOutMod_OpenBlock, &tokens[startBodyIndex], &tokens[startBodyIndex]});
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
 
 	// Evaluate our body!
 	EvaluatorContext macroBodyContext = context;
@@ -919,7 +887,7 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	macroBodyContext.isRequired = false;
 	macroBodyContext.definitionName = &nameToken;
 	// TODO Remove this, we don't need it any more
-	StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr, nullptr};
+	StringOutput bodyDelimiterTemplate = {};
 	int numErrors =
 	    EvaluateGenerateAll_Recursive(environment, macroBodyContext, tokens, startBodyIndex,
 	                                  bodyDelimiterTemplate, *compTimeOutput);
@@ -929,8 +897,7 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 		return false;
 	}
 
-	compTimeOutput->source.push_back(
-	    {EmptyString, StringOutMod_CloseBlock, &tokens[endTokenIndex], &tokens[endTokenIndex]});
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
 
 	// Takes ownership of output
 	environment.compileTimeFunctions.push_back(newFunction);
@@ -987,8 +954,8 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 		switch (operation[i].type)
 		{
 			case Keyword:
-				output.source.push_back({operation[i].keywordOrSymbol, StringOutMod_SpaceAfter,
-				                         &nameToken, &nameToken});
+				addStringOutput(output.source, operation[i].keywordOrSymbol,
+				                StringOutMod_SpaceAfter, &nameToken);
 				break;
 			case Splice:
 			{
@@ -1004,8 +971,9 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 					return false;
 				EvaluatorContext bodyContext = context;
 				bodyContext.scope = EvaluatorScope_ExpressionsOnly;
-				StringOutput spliceDelimiterTemplate = {operation[i].keywordOrSymbol,
-				                                        StringOutMod_SpaceAfter, nullptr, nullptr};
+				StringOutput spliceDelimiterTemplate = {};
+				spliceDelimiterTemplate.output = operation[i].keywordOrSymbol;
+				spliceDelimiterTemplate.modifiers = StringOutMod_SpaceAfter;
 				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
 				                                              startSpliceListIndex,
 				                                              spliceDelimiterTemplate, output);
@@ -1014,32 +982,25 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				break;
 			}
 			case OpenParen:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_OpenParen, &nameToken, &nameToken});
+				addLangTokenOutput(output.source, StringOutMod_OpenParen, &nameToken);
 				break;
 			case CloseParen:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_CloseParen, &nameToken, &nameToken});
+				addLangTokenOutput(output.source, StringOutMod_CloseParen, &nameToken);
 				break;
 			case OpenBlock:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_OpenBlock, &nameToken, &nameToken});
+				addLangTokenOutput(output.source, StringOutMod_OpenBlock, &nameToken);
 				break;
 			case CloseBlock:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_CloseBlock, &nameToken, &nameToken});
+				addLangTokenOutput(output.source, StringOutMod_CloseBlock, &nameToken);
 				break;
 			case OpenList:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_OpenList, &nameToken, &nameToken});
+				addLangTokenOutput(output.source, StringOutMod_OpenList, &nameToken);
 				break;
 			case CloseList:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_CloseList, &nameToken, &nameToken});
+				addLangTokenOutput(output.source, StringOutMod_CloseList, &nameToken);
 				break;
 			case EndStatement:
-				output.source.push_back(
-				    {EmptyString, StringOutMod_EndStatement, &nameToken, &nameToken});
+				addLangTokenOutput(output.source, StringOutMod_EndStatement, &nameToken);
 				break;
 			case Expression:
 			{
@@ -1074,8 +1035,9 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 					return false;
 				EvaluatorContext expressionContext = context;
 				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-				StringOutput listDelimiterTemplate = {EmptyString, StringOutMod_ListSeparator,
-				                                      nullptr, nullptr};
+				StringOutput listDelimiterTemplate = {};
+				listDelimiterTemplate.modifiers = StringOutMod_ListSeparator;
+
 				if (EvaluateGenerateAll_Recursive(environment, expressionContext, tokens,
 				                                  startExpressionIndex, listDelimiterTemplate,
 				                                  output) != 0)
@@ -1097,8 +1059,7 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				bodyContext.scope = EvaluatorScope_Body;
 				// The statements will need to handle their ;
 				// TODO Remove delimiter, we don't need it
-				StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr,
-				                                      nullptr};
+				StringOutput bodyDelimiterTemplate = {};
 				int numErrors =
 				    EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
 				                                  bodyDelimiterTemplate, output);
@@ -1151,9 +1112,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation dereference[] = {{Keyword, "*", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation addressOf[] = {{Keyword, "&", -1}, {Expression, nullptr, 1}};
 
-	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add barriers
-	// or anything). It's useful both for making arbitrary scopes and for making if blocks with
-	// multiple statements
+	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
+	// barriers or anything). It's useful both for making arbitrary scopes and for making if
+	// blocks with multiple statements
 	const CStatementOperation blockStatement[] = {
 	    {OpenBlock, nullptr, -1}, {Body, nullptr, 1}, {CloseBlock, nullptr, -1}};
 
@@ -1182,8 +1143,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation multiply[] = {{Splice, "*", 1}};
 	const CStatementOperation divide[] = {{Splice, "/", 1}};
 	const CStatementOperation modulus[] = {{Splice, "%", 1}};
-	// Always pre-increment, which matches what you'd expect given the invocation comes before the
-	// expression. It's also slightly faster, yadda yadda
+	// Always pre-increment, which matches what you'd expect given the invocation comes before
+	// the expression. It's also slightly faster, yadda yadda
 	const CStatementOperation increment[] = {{Keyword, "++", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation decrement[] = {{Keyword, "--", -1}, {Expression, nullptr, 1}};
 
@@ -1313,8 +1274,9 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 //
 void importFundamentalGenerators(EvaluatorEnvironment& environment)
 {
-	// I wanted to use c-import, but I encountered problems writing a regex for Jam which can handle
-	// both include and c-import. Anyways, this way C programmers have one less change to remember
+	// I wanted to use c-import, but I encountered problems writing a regex for Jam which can
+	// handle both include and c-import. Anyways, this way C programmers have one less change to
+	// remember
 	environment.generators["include"] = CIncludeGenerator;
 
 	environment.generators["defun"] = DefunGenerator;

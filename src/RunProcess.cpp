@@ -100,7 +100,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		}
 		// Only read
 		close(pipeFileDescriptors[PipeWrite]);
-		printf("Created child process %d\n", pid);
+		// printf("Created child process %d\n", pid);
 		s_subprocesses.push_back({statusOut, pid});
 	}
 
@@ -112,10 +112,8 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 {
 	if (s_subprocesses.empty())
-	{
-		printf("No subprocesses to wait for\n");
 		return;
-	}
+
 	// TODO: Don't merge all subprocesses to stdin, keep them separate to prevent multi-line errors
 	// from being split
 	char processOutputBuffer[1024];

@@ -13,8 +13,8 @@ DynamicLoader.cpp
 
 MakeLocate cakelisp : ../cakelisp ;
 
-Main dependencyTest : TestRefResolver.cpp
-Utilities.cpp ;
+# Main dependencyTest : TestRefResolver.cpp
+# Utilities.cpp ;
 # C++ on src/TestRefResolver.o = g++ ;
 
 # Main runProcessTest : RunProcess.cpp ;

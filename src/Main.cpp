@@ -6,6 +6,7 @@
 #include "Converters.hpp"
 #include "Evaluator.hpp"
 #include "Generators.hpp"
+#include "OutputPreambles.hpp"
 #include "RunProcess.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
@@ -149,7 +150,8 @@ int main(int argc, char* argv[])
 	// TODO: Local functions can be left out if not referenced (in fact, they may warn in C if not)
 	moduleContext.isRequired = true;
 	GeneratorOutput generatedOutput;
-	StringOutput bodyDelimiterTemplate = {"", StringOutMod_NewlineAfter, nullptr, nullptr};
+	StringOutput bodyDelimiterTemplate ={};
+	bodyDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
 	int numErrors = EvaluateGenerateAll_Recursive(environment, moduleContext, *tokens,
 	                                              /*startTokenIndex=*/0, bodyDelimiterTemplate,
 	                                              generatedOutput);
@@ -162,33 +164,27 @@ int main(int argc, char* argv[])
 
 	if (!EvaluateResolveReferences(environment))
 	{
-		// TODO Add compile time too
-		// if (!environment.unknownReferences.empty() ||
-		//     !environment.unknownReferencesForCompileTime.empty())
-		// {
-		// 	for (const UnknownReference& reference : environment.unknownReferences)
-		// 	{
-		// 		ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
-		// 		              reference.symbolReference->contents.c_str());
-		// 	}
-
-		// 	for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
-		// 	{
-		// 		ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
-		// 		              reference.symbolReference->contents.c_str());
-		// 	}
-
-			environmentDestroyInvalidateTokens(environment);
-			delete tokens;
-			return 1;
-		// }
+		environmentDestroyInvalidateTokens(environment);
+		delete tokens;
+		return 1;
 	}
 
+	// Final output
 	{
 		NameStyleSettings nameSettings;
 		WriterFormatSettings formatSettings;
 		WriterOutputSettings outputSettings;
 		outputSettings.sourceCakelispFilename = filename;
+
+		char sourceHeadingBuffer[1024] = {0};
+		// TODO: hpp to h support
+		// TODO: Strip path from filename
+		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", filename,
+		             generatedSourceHeading ? generatedSourceHeading : "");
+		outputSettings.sourceHeading = sourceHeadingBuffer;
+		outputSettings.sourceFooter = generatedSourceFooter;
+		outputSettings.headerHeading = generatedHeaderHeading;
+		outputSettings.headerFooter = generatedHeaderFooter;
 
 		printf("\nResult:\n");
 
