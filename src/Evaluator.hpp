@@ -155,6 +155,8 @@ struct ObjectReference
 	// ObjectReferentMap referents;
 };
 
+// NOTE: See comment in BuildEvaluateReferences() before changing this data structure. The current
+// implementation assumes references to values will not be invalidated if the hash map changes
 typedef std::unordered_map<std::string, ObjectDefinition> ObjectDefinitionMap;
 typedef std::pair<const std::string, ObjectDefinition> ObjectDefinitionPair;
 typedef std::unordered_map<std::string, ObjectReference> ObjectReferenceMap;

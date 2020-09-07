@@ -435,6 +435,68 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 	} while (numRequiresStatusChanged);
 }
 
+int BuildEvaluateReferences(EvaluatorEnvironment& environment)
+{
+	// Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
+	// iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
+	// references on resize. This will need to change if the data structure changes
+	std::vector<ObjectDefinition*> definitionsToBuild;
+	for (ObjectDefinitionPair& definitionPair : environment.definitions)
+	{
+		ObjectDefinition& definition = definitionPair.second;
+		// Does it need to be built?
+		if (definition.isRequired && definition.type == ObjectType_CompileTimeFunction)
+		{
+			// Can it be built in the current environment?
+			bool canBuild = true;
+			for (ObjectReferenceStatusPair& reference : definition.references)
+			{
+				ObjectReferenceStatus& referenceStatus = reference.second;
+
+				// TODO: (Performance) Add shortcut in reference
+				ObjectDefinitionMap::iterator findIt =
+				    environment.definitions.find(referenceStatus.name->contents);
+				if (findIt != environment.definitions.end())
+				{
+					if (findIt->second.type == ObjectType_CompileTimeFunction)
+					{
+						// TODO: Check for code loaded
+						if (true)
+						{
+							// If we know we are missing a compile time function, we won't try to
+							// guess
+							printf("\tCannot build until %s is loaded\n",
+							       referenceStatus.name->contents.c_str());
+							canBuild = false;
+						}
+						else
+						{
+							// Invoke, or mark this reference as resolved, or something
+						}
+					}
+
+					// TODO: Building references to non-comptime functions at comptime
+				}
+				else
+				{
+					// Guess it's a C invocation
+				}
+			}
+
+			if (canBuild)
+			{
+				definitionsToBuild.push_back(&definition);
+			}
+		}
+	}
+
+	for (ObjectDefinition* definition : definitionsToBuild)
+	{
+		printf("Build %s\n", definition->name->contents.c_str());
+	}
+	return 0;
+}
+
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 {
 	// Print state
@@ -449,7 +511,14 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 	}
 
-	PropagateRequiredToReferences(environment);
+	// This must be done in passes in case evaluation created more definitions. There's probably a
+	// smarter way, but I'll do it in this brute-force style first
+	int numReferencesResolved = 0;
+	do
+	{
+		PropagateRequiredToReferences(environment);
+		numReferencesResolved = BuildEvaluateReferences(environment);
+	} while (numReferencesResolved);
 
 	// Check everything is resolved
 	int errors = 0;
@@ -464,15 +533,15 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 			    !findGenerator(environment, definition.name->contents.c_str()))
 			{
 				// TODO: Add note for who required the object
-				ErrorAtToken(*definition.name, "\tFailed to build required object\n");
+				ErrorAtToken(*definition.name, "Failed to build required object");
 				++errors;
 			}
 			else
-				printf("\tBuilt successfully\n");
+				NoteAtToken(*definition.name, "Built successfully");
 		}
 		else
 		{
-			NoteAtToken(*definition.name, "omitted (not required by module)\n");
+			NoteAtToken(*definition.name, "omitted (not required by module)");
 		}
 	}
 

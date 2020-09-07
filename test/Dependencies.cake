@@ -2,7 +2,7 @@
 
 (defun main (&return int)
   (macro-a)
-  (macro-b)
+  ;; (macro-b)
   (return 0))
 
 (defmacro macro-a ()
