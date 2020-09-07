@@ -1,13 +1,14 @@
 #include "Evaluator.hpp"
 
 #include "Converters.hpp"
+#include "DynamicLoader.hpp"
 #include "GeneratorHelpers.hpp"
 #include "Generators.hpp"
+#include "OutputPreambles.hpp"
 #include "RunProcess.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 #include "Writer.hpp"
-#include "OutputPreambles.hpp"
 
 // TODO: safe version of strcat
 #include <stdio.h>
@@ -452,7 +453,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 		BuildStage_None,
 		BuildStage_Compiling,
 		BuildStage_Linking,
-		BuildStage_Loading
+		BuildStage_Loading,
+		BuildStage_Finished
 	};
 
 	// Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
@@ -460,10 +462,12 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 	// references on resize. This will need to change if the data structure changes
 	struct BuildObject
 	{
-		int buildId;
-		int status;
-		BuildStage stage;
-		ObjectDefinition* definition;
+		int buildId = -1;
+		int status = -1;
+		BuildStage stage = BuildStage_None;
+		std::string artifactsFilePath;
+		std::string dynamicLibraryPath;
+		ObjectDefinition* definition = nullptr;
 	};
 	std::vector<BuildObject> definitionsToBuild;
 	for (ObjectDefinitionPair& definitionPair : environment.definitions)
@@ -510,8 +514,10 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 
 			if (canBuild)
 			{
-				definitionsToBuild.push_back(
-				    {getNextFreeBuildId(environment), -1, BuildStage_None, &definition});
+				BuildObject objectToBuild = {};
+				objectToBuild.buildId = getNextFreeBuildId(environment);
+				objectToBuild.definition = &definition;
+				definitionsToBuild.push_back(objectToBuild);
 			}
 		}
 	}
@@ -520,6 +526,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 	// TODO: Limit number spawned at once?
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
 	// TODO: Instead of creating files, pipe straight to compiler?
+	// TODO: Make pipeline able to start e.g. linker while other objects are still compiling
 	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
 	// waitForAllProcessesClosed(), else the status pointer could be invalidated
 	for (BuildObject& buildObject : definitionsToBuild)
@@ -530,13 +537,15 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
 		// Writer will append the appropriate file extension
 		PrintfBuffer(sourceOutputName, "CakelispCompileTime_%d", buildObject.buildId);
+		buildObject.artifactsFilePath = sourceOutputName;
 
 		// Output definition to a file our compiler will be happy with
 		// TODO: Make these come from the top
 		NameStyleSettings nameSettings;
 		WriterFormatSettings formatSettings;
 		WriterOutputSettings outputSettings;
-		outputSettings.sourcePreamble = macroPreamble;
+		outputSettings.sourceHeading = macroSourceHeading;
+		outputSettings.sourceFooter = macroSourceFooter;
 		outputSettings.sourceCakelispFilename = sourceOutputName;
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
 		                          outputSettings))
@@ -552,7 +561,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 		PrintBuffer(fileToExec, "/usr/bin/clang++");
 
 		// TODO: Get file extension from output (once .c vs .cpp is implemented)
-		PrintfBuffer(sourceOutputName, "CakelispCompileTime_%d.cpp", buildObject.buildId);
+		PrintfBuffer(sourceOutputName, "%s.cpp", buildObject.artifactsFilePath.c_str());
 
 		// TODO: Get arguments all the way from the top
 		// If not null terminated, the call will fail
@@ -573,6 +582,9 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 	// Linking
 	for (BuildObject& buildObject : definitionsToBuild)
 	{
+		if (buildObject.stage != BuildStage_Compiling)
+			continue;
+
 		if (buildObject.status != 0)
 		{
 			ErrorAtTokenf(*buildObject.definition->name,
@@ -589,9 +601,10 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 
 		// TODO Store this on the build object
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(buildObjectName, "CakelispCompileTime_%d.o", buildObject.buildId);
+		PrintfBuffer(buildObjectName, "%s.o", buildObject.artifactsFilePath.c_str());
 		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(dynamicLibraryOut, "libCakelispCompileTime_%d.so", buildObject.buildId);
+		PrintfBuffer(dynamicLibraryOut, "lib%s.so", buildObject.artifactsFilePath.c_str());
+		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
 		char* arguments[] = {linkerExecutable,  strdup("-shared"), strdup("-o"),
 		                     dynamicLibraryOut, buildObjectName,   nullptr};
@@ -609,15 +622,44 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 
 	for (BuildObject& buildObject : definitionsToBuild)
 	{
-		if (buildObject.stage == BuildStage_Linking && buildObject.status != 0)
+		if (buildObject.stage != BuildStage_Linking)
+			continue;
+
+		if (buildObject.status != 0)
 		{
 			ErrorAtToken(*buildObject.definition->name, "Failed to link definition");
 			continue;
 		}
 
+		buildObject.stage = BuildStage_Loading;
+
 		printf("Linked %s successfully\n", buildObject.definition->name->contents.c_str());
 
-		buildObject.stage = BuildStage_Loading;
+		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
+		if (!builtLib)
+		{
+			ErrorAtToken(*buildObject.definition->name, "Failed to load compile-time library");
+			continue;
+		}
+
+		// We need to do name conversion to be compatible with C naming
+		// TODO: Make these come from the top
+		NameStyleSettings nameSettings;
+		char symbolNameBuffer[MAX_NAME_LENGTH] = {0};
+		lispNameStyleToCNameStyle(nameSettings.functionNameMode,
+		                          buildObject.definition->name->contents.c_str(), symbolNameBuffer,
+		                          sizeof(symbolNameBuffer));
+		void* compileTimeFunction = getSymbolFromDynamicLibrary(builtLib, symbolNameBuffer);
+		if (!compileTimeFunction)
+		{
+			ErrorAtToken(*buildObject.definition->name, "Failed to find symbol in loaded library");
+			continue;
+		}
+
+		buildObject.stage = BuildStage_Finished;
+
+		printf("Successfully built and loaded %s\n",
+		       buildObject.definition->name->contents.c_str());
 	}
 
 	return 0;

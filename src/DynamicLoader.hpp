@@ -1,6 +1,7 @@
 #pragma once
 
-extern "C"
-{
-	float hostSquareFunc(float numToSquare);
-}
+typedef void* DynamicLibHandle;
+
+DynamicLibHandle loadDynamicLibrary(const char* libraryPath);
+
+void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolName);

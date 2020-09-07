@@ -8,6 +8,8 @@
 #include <sys/types.h>  // pid
 #include <sys/wait.h>   // waitpid
 #include <unistd.h>     // exec, fork
+#else
+#error Platform support needed for running subprocesses
 #endif
 
 #include "Utilities.hpp"
@@ -51,7 +53,7 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
 {
 #ifdef UNIX
-	printf("Compiling file with command:\n");
+	printf("RunProcess command: ");
 	for (char** arg = arguments.arguments; *arg != nullptr; ++arg)
 	{
 		printf("%s ", *arg);
@@ -125,7 +127,9 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 
 	for (Subprocess& process : s_subprocesses)
 	{
+#ifdef UNIX
 		waitpid(process.processId, process.statusOut, 0);
+#endif
 	}
 
 	s_subprocesses.clear();

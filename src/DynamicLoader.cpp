@@ -4,64 +4,57 @@
 
 #ifdef UNIX
 #include <dlfcn.h>
+#else
+#error "Platform support needed for dynamic loading"
 #endif
 
-extern "C"
+DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 {
-	float hostSquareFunc(float numToSquare)
-	{
-		return numToSquare * numToSquare;
-	}
-}
+	void* libHandle = nullptr;
 
-int main()
-{
 #ifdef UNIX
-	void* libHandle;
-
 	// RTLD_LAZY: Don't look up symbols the shared library needs until it encounters them
 	// Note that this requires linking with -Wl,-rpath,. in order to turn up relative path .so files
-	libHandle = dlopen("src/libSquare.so", RTLD_LAZY);
+	libHandle = dlopen(libraryPath, RTLD_LAZY);
 
 	if (!libHandle)
 	{
 		fprintf(stderr, "DynamicLoader Error:\n%s\n", dlerror());
-		return 1;
+		return nullptr;
+	}
+#endif
+
+	return libHandle;
+}
+
+void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolName)
+{
+	if (!library)
+	{
+		fprintf(stderr, "DynamicLoader Error: Received empty library handle\n");
+		return nullptr;
 	}
 
+#ifdef UNIX
 	// Clear any existing error before running dlsym
 	char* error = dlerror();
 	if (error != nullptr)
 	{
 		fprintf(stderr, "DynamicLoader Error:\n%s\n", error);
-		return 1;
+		return nullptr;
 	}
 
-	printf("About to load\n");
-	float (*square)(float) = (float (*)(float))dlsym(libHandle, "square");
-	printf("Done load\n");
+	void* symbol = dlsym(library, symbolName);
 
 	error = dlerror();
 	if (error != nullptr)
 	{
 		fprintf(stderr, "DynamicLoader Error:\n%s\n", error);
-		return 1;
+		return nullptr;
 	}
 
-	printf("About to call\n");
-	printf("%f\n", (*square)(2.f));
-	printf("Done call\n");
-	dlclose(libHandle);
-
-	error = dlerror();
-	if (error != nullptr)
-	{
-		fprintf(stderr, "DynamicLoader Error:\n%s\n", error);
-		return 1;
-	}
-
-	return 0;
+	return symbol;
 #else
-	return 1;
+	return nullptr;
 #endif
 }

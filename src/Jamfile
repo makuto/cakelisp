@@ -8,13 +8,10 @@ Generators.cpp
 GeneratorHelpers.cpp
 RunProcess.cpp
 OutputPreambles.cpp
+DynamicLoader.cpp
 ;
 
 MakeLocate cakelisp : ../cakelisp ;
-
-Main Square$(SUFSHR) : Square.cpp ;
-
-Main dynamicLoadTest : DynamicLoader.cpp ;
 
 Main dependencyTest : TestRefResolver.cpp
 Utilities.cpp ;

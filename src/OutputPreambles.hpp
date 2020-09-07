@@ -1,3 +1,5 @@
 #pragma once
 
-extern const char* macroPreamble;
+// All generated macro source files automatically have this
+extern const char* macroSourceHeading;
+extern const char* macroSourceFooter;
