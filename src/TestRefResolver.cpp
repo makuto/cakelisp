@@ -155,8 +155,8 @@ int main()
 				for (const std::string& reference : definition.second.references)
 				{
 					printf("\tRefers to %s\n", reference.c_str());
-					if ((definition.second.isModuleRequired ||
-					     references[reference].isModuleRequired) &&
+					if ((definition.second.isModuleRequired /*||
+					     references[reference].isModuleRequired*/) &&
 					    definitions.find(reference) != definitions.end())
 					{
 						if (!definitions[reference].isModuleRequired)

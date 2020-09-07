@@ -79,3 +79,6 @@
 
 (defmacro the-answer ()
   (return 42))
+
+(defun the-answer-fun ()
+  (return 42))

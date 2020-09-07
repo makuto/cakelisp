@@ -31,6 +31,65 @@ MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
 	return nullptr;
 }
 
+bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition)
+{
+	ObjectDefinitionMap::iterator findIt = environment.definitions.find(definition.name->contents);
+	if (findIt == environment.definitions.end())
+	{
+		environment.definitions[definition.name->contents] = definition;
+		return true;
+	}
+	else
+	{
+		ErrorAtTokenf(*definition.name, "multiple definitions of %s",
+		              definition.name->contents.c_str());
+		NoteAtToken(*findIt->second.name, "first defined here");
+		return false;
+	}
+}
+
+void addObjectReference(EvaluatorEnvironment& environment, EvaluatorContext context,
+                        ObjectReference& reference)
+{
+	// Default to the module requiring the reference, for top-level references
+	const char* moduleDefinitionName = "<module>";
+	std::string definitionName = moduleDefinitionName;
+	if (context.definitionName)
+	{
+		definitionName = context.definitionName->contents;
+	}
+
+	// TODO This will become necessary once references store referents (append not overwrite)
+	// ObjectReferenceMap::iterator findIt = environment.references.find(definitionName);
+	// if (findIt == environment.references.end())
+	// {
+	environment.references[definitionName] = reference;
+	// }
+	// else
+	// {
+	// }
+
+	// Add the reference requirement to the definition we're working on
+	ObjectDefinitionMap::iterator findDefinition = environment.definitions.find(definitionName);
+	if (findDefinition == environment.definitions.end())
+	{
+		if (definitionName.compare(moduleDefinitionName) != 0)
+		{
+			printf("error: expected definition %s to already exist. Things will break\n",
+			       definitionName.c_str());
+		}
+		else
+		{
+			// TODO Add the <module> definition lazily?
+			// environment.definitions[moduleDefinitionName] = newDefinition;// {reference.name};
+		}
+	}
+	else
+	{
+		findDefinition->second.references[reference.name->contents] = {reference.name};
+	}
+}
+
 //
 // Evaluator
 //
@@ -120,6 +179,14 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		}
 		else
 		{
+			// Reference resolver v2
+			ObjectReference newReference;
+			newReference.tokens = &tokens;
+			newReference.startIndex = invocationStartIndex;
+			newReference.name = &invocationName;
+			newReference.isRequired = context.isRequired;
+			addObjectReference(environment, context, newReference);
+
 			// We don't know what this is. We cannot guess it is a C/C++ function yet, because it
 			// could be a generator or macro invocation that hasn't been defined yet. Leave a note
 			// for the evaluator to come back to this token once a satisfying answer is found
@@ -286,7 +353,7 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 	return numErrors;
 }
 
-bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
+bool EvaluateResolveReferencesV1(EvaluatorEnvironment& environment)
 {
 	// Stop as soon as we do a loop which made no progress
 	int numReferencesResolved = 0;
@@ -313,18 +380,103 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	// function calls
 	// TODO: backtrack if it turns out they aren't? e.g. in the case of a macro which writes another
 	// macro, which a generator uses
-	for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
+	// for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
+	// {
+	// 	// The only hard-coded generator: basic function invocations. We must hard-code this
+	// 	// because we don't interpret any C/C++ in order to determine which functions are valid
+	// 	// to call (we just let the C/C++ compiler determine that for us)
+	// 	// if (FunctionInvocationGenerator(environment, reference.context, *reference.tokens,
+	// 	                                // reference.startIndex, output))
+	// 	{
+	// 	}
+	// }
+
+	return false;
+}
+
+const char* objectTypeToString(ObjectType type);
+
+// TODO This can be made faster. I did the most naive version first, for now
+void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
+{
+	// Figure out what is required
+	// This needs to loop so long as it doesn't recurse to references
+	int numRequiresStatusChanged = 0;
+	do
 	{
-		// The only hard-coded generator: basic function invocations. We must hard-code this
-		// because we don't interpret any C/C++ in order to determine which functions are valid
-		// to call (we just let the C/C++ compiler determine that for us)
-		// if (FunctionInvocationGenerator(environment, reference.context, *reference.tokens,
-		                                // reference.startIndex, output))
+		numRequiresStatusChanged = 0;
+		for (ObjectDefinitionPair& definitionPair : environment.definitions)
 		{
+			ObjectDefinition& definition = definitionPair.second;
+			const char* status = definition.isRequired ? "(required)" : "(not required)";
+			printf("Define %s %s\n", definition.name->contents.c_str(), status);
+
+			for (ObjectReferenceStatusPair& reference : definition.references)
+			{
+				ObjectReferenceStatus& referenceStatus = reference.second;
+				printf("\tRefers to %s\n", referenceStatus.name->contents.c_str());
+				if (definition.isRequired)
+				{
+					ObjectDefinitionMap::iterator findIt =
+					    environment.definitions.find(referenceStatus.name->contents);
+					if (findIt != environment.definitions.end() &&
+					    !findIt->second.isRequired)
+					{
+						printf("\t Infecting %s with required due to %s\n",
+						       referenceStatus.name->contents.c_str(),
+						       definition.name->contents.c_str());
+						++numRequiresStatusChanged;
+						findIt->second.isRequired = true;
+					}
+					// TODO Recurse, infecting all of the definition's references as required?
+				}
+			}
+		}
+	} while (numRequiresStatusChanged);
+}
+
+bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
+{
+	// Print state
+	for (ObjectDefinitionPair& definitionPair : environment.definitions)
+	{
+		ObjectDefinition& definition = definitionPair.second;
+		printf("%s %s:\n", objectTypeToString(definition.type), definition.name->contents.c_str());
+		for (ObjectReferenceStatusPair& reference : definition.references)
+		{
+			ObjectReferenceStatus& referenceStatus = reference.second;
+			printf("\t%s\n", referenceStatus.name->contents.c_str());
 		}
 	}
 
-	return false;
+	PropagateRequiredToReferences(environment);
+
+	// Check everything is resolved
+	int errors = 0;
+	for (const ObjectDefinitionPair& definitionPair : environment.definitions)
+	{
+		const ObjectDefinition& definition = definitionPair.second;
+		printf("%s:\n", definition.name->contents.c_str());
+		if (definition.isRequired)
+		{
+			// TODO: Add ready-build runtime function check
+			if (!findMacro(environment, definition.name->contents.c_str()) &&
+			    !findGenerator(environment, definition.name->contents.c_str()))
+			{
+				// TODO: Add note for who required the object
+				ErrorAtToken(*definition.name, "\tFailed to build required object\n");
+				++errors;
+			}
+			else
+				printf("\tBuilt successfully\n");
+		}
+		else
+		{
+			NoteAtToken(*definition.name, "omitted (not required by module)\n");
+		}
+	}
+
+	return errors == 0;
 }
 
 // This serves only as a warning. I want to be very explicit with the lifetime of tokens
@@ -364,5 +516,18 @@ const char* evaluatorScopeToString(EvaluatorScope expectedScope)
 			return "expressions-only";
 		default:
 			return "unknown";
+	}
+}
+
+const char* objectTypeToString(ObjectType type)
+{
+	switch (type)
+	{
+		case ObjectType_Function:
+			return "Function";
+		case ObjectType_CompileTimeFunction:
+			return "CompileTimeFunction";
+		default:
+			return "Unknown";
 	}
 }

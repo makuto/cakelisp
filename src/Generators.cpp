@@ -457,6 +457,13 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		}
 	}
 
+	ObjectDefinition newFunctionDef = {};
+	newFunctionDef.name = &nameToken;
+	newFunctionDef.type = ObjectType_Function;
+	newFunctionDef.isRequired = context.isRequired;
+	if (!addObjectDefinition(environment, newFunctionDef))
+		return false;
+
 	// TODO: Hot-reloading functions shouldn't be declared static, right?
 	if (isModuleLocal)
 		output.source.push_back({"static", StringOutMod_SpaceAfter, &tokens[startTokenIndex],
@@ -601,6 +608,7 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	// Evaluate our body!
 	EvaluatorContext bodyContext = context;
 	bodyContext.scope = EvaluatorScope_Body;
+	bodyContext.definitionName = &nameToken;
 	// The statements will need to handle their ;
 	// TODO Remove this, we don't need it any more
 	StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr, nullptr};
@@ -855,6 +863,15 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	if (!ExpectTokenType("defmacro", argsStart, TokenType_OpenParen))
 		return false;
 
+	ObjectDefinition newMacroDef = {};
+	newMacroDef.name= &nameToken;
+	newMacroDef.type = ObjectType_CompileTimeFunction;
+	// Let the reference required propagation step handle this
+	// TODO: This can also just be a quick lookup to see whether the reference already exists
+	newMacroDef.isRequired = false;
+	if (!addObjectDefinition(environment, newMacroDef))
+		return false;
+
 	CompileTimeFunctionDefiniton newFunction = {};
 	// Will be cleaned up when the environment is destroyed
 	GeneratorOutput* compTimeOutput = new GeneratorOutput;
@@ -895,6 +912,10 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	EvaluatorContext macroBodyContext = context;
 	macroBodyContext.scope = EvaluatorScope_Body;
 	macroBodyContext.isMacroOrGeneratorDefinition = true;
+	// TODO Macros are default not required even when declared at module scope. They should start as
+	// required if a reference already exists. For now, make it not automatic
+	macroBodyContext.isRequired = false;
+	macroBodyContext.definitionName = &nameToken;
 	// TODO Remove this, we don't need it any more
 	StringOutput bodyDelimiterTemplate = {EmptyString, StringOutMod_None, nullptr, nullptr};
 	int numErrors =

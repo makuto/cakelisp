@@ -141,8 +141,11 @@ int main(int argc, char* argv[])
 	importFundamentalGenerators(environment);
 	// TODO Remove test macro
 	environment.macros["square"] = SquareMacro;
-	EvaluatorContext moduleContext;
+	EvaluatorContext moduleContext = {};
 	moduleContext.scope = EvaluatorScope_Module;
+	// Module always requires all its functions
+	// TODO: Local functions can be left out if not referenced (in fact, they may warn in C if not)
+	moduleContext.isRequired = true;
 	GeneratorOutput generatedOutput;
 	StringOutput bodyDelimiterTemplate = {"", StringOutMod_NewlineAfter, nullptr, nullptr};
 	int numErrors = EvaluateGenerateAll_Recursive(environment, moduleContext, *tokens,
@@ -158,25 +161,25 @@ int main(int argc, char* argv[])
 	if (!EvaluateResolveReferences(environment))
 	{
 		// TODO Add compile time too
-		if (!environment.unknownReferences.empty() ||
-		    !environment.unknownReferencesForCompileTime.empty())
-		{
-			for (const UnknownReference& reference : environment.unknownReferences)
-			{
-				ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
-				              reference.symbolReference->contents.c_str());
-			}
+		// if (!environment.unknownReferences.empty() ||
+		//     !environment.unknownReferencesForCompileTime.empty())
+		// {
+		// 	for (const UnknownReference& reference : environment.unknownReferences)
+		// 	{
+		// 		ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
+		// 		              reference.symbolReference->contents.c_str());
+		// 	}
 
-			for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
-			{
-				ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
-				              reference.symbolReference->contents.c_str());
-			}
+		// 	for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
+		// 	{
+		// 		ErrorAtTokenf(*reference.symbolReference, "reference to undefined symbol '%s'",
+		// 		              reference.symbolReference->contents.c_str());
+		// 	}
 
 			environmentDestroyInvalidateTokens(environment);
 			delete tokens;
 			return 1;
-		}
+		// }
 	}
 
 	{

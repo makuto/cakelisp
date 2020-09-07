@@ -68,6 +68,11 @@ struct EvaluatorContext
 	EvaluatorScope scope;
 	// Macro and generator definitions need to be resolved first
 	bool isMacroOrGeneratorDefinition;
+
+	// TODO Explain
+	bool isRequired;
+	// Associate all unknown references with this definition
+	const Token* definitionName;
 };
 
 struct UnknownReference
@@ -119,6 +124,41 @@ struct CompileTimeFunctionDefiniton
 	GeneratorOutput* output;
 };
 
+// TODO Need to add insertion points for later fixing
+struct ObjectReferenceStatus
+{
+	const Token* name;
+};
+
+typedef std::unordered_map<std::string, ObjectReferenceStatus> ObjectReferenceStatusMap;
+typedef std::pair<const std::string, ObjectReferenceStatus> ObjectReferenceStatusPair;
+// typedef std::unordered_map<std::string, int> ObjectReferentMap;
+
+struct ObjectDefinition
+{
+	const Token* name;
+	ObjectType type;
+	// Objects can be referenced by other objects, but something in the chain must be required in
+	// order for the objects to be built. Required-ness spreads from the top level module scope
+	bool isRequired;
+	ObjectReferenceStatusMap references;
+};
+
+struct ObjectReference
+{
+	const Token* name;
+	const std::vector<Token>* tokens;
+	int startIndex;
+
+	bool isRequired;
+
+	// ObjectReferentMap referents;
+};
+
+typedef std::unordered_map<std::string, ObjectDefinition> ObjectDefinitionMap;
+typedef std::pair<const std::string, ObjectDefinition> ObjectDefinitionPair;
+typedef std::unordered_map<std::string, ObjectReference> ObjectReferenceMap;
+
 // Unlike context, which can't be changed, environment can be changed.
 // Use care when modifying the environment. Only add things once you know things have succeeded.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -141,6 +181,9 @@ struct EvaluatorEnvironment
 	// inferred to be C/C++ function calls. This is because macros and generators aren't added to
 	// the environment until they have been completely resolved, built, and dynamically loaded
 	std::vector<UnknownReference> unknownReferencesForCompileTime;
+
+	ObjectDefinitionMap definitions;
+	ObjectReferenceMap references;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();
@@ -166,3 +209,5 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment);
 
 const char* evaluatorScopeToString(EvaluatorScope expectedScope);
+
+bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition);

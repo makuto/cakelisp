@@ -60,3 +60,9 @@ enum UnknownReferenceType
 	UnknownReferenceType_Symbol,
 	UnknownReferenceType_Invocation
 };
+
+enum ObjectType
+{
+	ObjectType_Function,
+	ObjectType_CompileTimeFunction,
+};
