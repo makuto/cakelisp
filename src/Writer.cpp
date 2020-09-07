@@ -107,7 +107,7 @@ static void printIndentation(const WriterFormatSettings& formatSettings, StringO
 	}
 }
 
-static void printStringOutput(const NameStyleSettings& nameSettings,
+static void writeStringOutput(const NameStyleSettings& nameSettings,
                               const WriterFormatSettings& formatSettings,
                               const StringOutput& outputOperation, StringOutputState& state)
 {
@@ -242,6 +242,7 @@ bool moveFile(const char* srcFilename, const char* destFilename)
 bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings,
+						  const char* preamble,
                           const std::vector<StringOutput>& outputOperations,
                           const char* outputFilename)
 {
@@ -249,7 +250,20 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
 	StringOutputState outputState = {};
 	char tempFilename[MAX_PATH_LENGTH] = {0};
 	PrintfBuffer(tempFilename, "%s.temp", outputFilename);
+	// TODO: If this fails to open, Writer_Writef just won't write to the file, it'll print
 	outputState.fileOut = fileOpen(tempFilename);
+
+	if (preamble)
+	{
+		Writer_Writef(outputState, preamble);
+		// TODO: Put this in Writer_Writef
+		for (const char* c = preamble; *c != '\0'; ++c)
+		{
+			if (*c == '\n')
+				++outputState.currentLine;
+		}
+	}
+
 	for (const StringOutput& operation : outputOperations)
 	{
 		// Debug print mapping
@@ -259,7 +273,7 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
 			       outputState.currentLine + 1);
 		}
 
-		printStringOutput(nameSettings, formatSettings, operation, outputState);
+		writeStringOutput(nameSettings, formatSettings, operation, outputState);
 	}
 	if (outputState.fileOut)
 	{
@@ -336,7 +350,8 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
 		if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
-		                          generatedOutput.source, sourceOutputName))
+		                          outputSettings.sourcePreamble, generatedOutput.source,
+		                          sourceOutputName))
 			return false;
 	}
 
@@ -345,7 +360,8 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
 		char headerOutputName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
 		if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
-		                          generatedOutput.header, headerOutputName))
+		                          outputSettings.headerPreamble, generatedOutput.header,
+		                          headerOutputName))
 			return false;
 	}
 

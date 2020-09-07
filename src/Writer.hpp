@@ -20,6 +20,8 @@ struct WriterFormatSettings
 struct WriterOutputSettings
 {
 	const char* sourceCakelispFilename;
+	const char* sourcePreamble;
+	const char* headerPreamble;
 };
 
 const char* importLanguageToString(ImportLanguage type);

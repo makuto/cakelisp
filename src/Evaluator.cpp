@@ -1,11 +1,13 @@
 #include "Evaluator.hpp"
 
 #include "Converters.hpp"
-#include "Generators.hpp"
 #include "GeneratorHelpers.hpp"
+#include "Generators.hpp"
+#include "RunProcess.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 #include "Writer.hpp"
+#include "OutputPreambles.hpp"
 
 // TODO: safe version of strcat
 #include <stdio.h>
@@ -88,6 +90,11 @@ void addObjectReference(EvaluatorEnvironment& environment, EvaluatorContext cont
 	{
 		findDefinition->second.references[reference.name->contents] = {reference.name};
 	}
+}
+
+int getNextFreeBuildId(EvaluatorEnvironment& environment)
+{
+	return ++environment.nextFreeBuildId;
 }
 
 //
@@ -419,8 +426,7 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 				{
 					ObjectDefinitionMap::iterator findIt =
 					    environment.definitions.find(referenceStatus.name->contents);
-					if (findIt != environment.definitions.end() &&
-					    !findIt->second.isRequired)
+					if (findIt != environment.definitions.end() && !findIt->second.isRequired)
 					{
 						printf("\t Infecting %s with required due to %s\n",
 						       referenceStatus.name->contents.c_str(),
@@ -435,12 +441,31 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 	} while (numRequiresStatusChanged);
 }
 
+void OnCompileProcessOutput(const char* output)
+{
+}
+
 int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 {
+	enum BuildStage
+	{
+		BuildStage_None,
+		BuildStage_Compiling,
+		BuildStage_Linking,
+		BuildStage_Loading
+	};
+
 	// Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
 	// iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
 	// references on resize. This will need to change if the data structure changes
-	std::vector<ObjectDefinition*> definitionsToBuild;
+	struct BuildObject
+	{
+		int buildId;
+		int status;
+		BuildStage stage;
+		ObjectDefinition* definition;
+	};
+	std::vector<BuildObject> definitionsToBuild;
 	for (ObjectDefinitionPair& definitionPair : environment.definitions)
 	{
 		ObjectDefinition& definition = definitionPair.second;
@@ -485,15 +510,116 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment)
 
 			if (canBuild)
 			{
-				definitionsToBuild.push_back(&definition);
+				definitionsToBuild.push_back(
+				    {getNextFreeBuildId(environment), -1, BuildStage_None, &definition});
 			}
 		}
 	}
 
-	for (ObjectDefinition* definition : definitionsToBuild)
+	// Spin up as many compile processes as necessary
+	// TODO: Limit number spawned at once?
+	// TODO: Combine sure-thing builds into batches (ones where we know all references)
+	// TODO: Instead of creating files, pipe straight to compiler?
+	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
+	// waitForAllProcessesClosed(), else the status pointer could be invalidated
+	for (BuildObject& buildObject : definitionsToBuild)
 	{
+		ObjectDefinition* definition = buildObject.definition;
 		printf("Build %s\n", definition->name->contents.c_str());
+
+		char sourceOutputName[MAX_PATH_LENGTH] = {0};
+		// Writer will append the appropriate file extension
+		PrintfBuffer(sourceOutputName, "CakelispCompileTime_%d", buildObject.buildId);
+
+		// Output definition to a file our compiler will be happy with
+		// TODO: Make these come from the top
+		NameStyleSettings nameSettings;
+		WriterFormatSettings formatSettings;
+		WriterOutputSettings outputSettings;
+		outputSettings.sourcePreamble = macroPreamble;
+		outputSettings.sourceCakelispFilename = sourceOutputName;
+		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
+		                          outputSettings))
+		{
+			ErrorAtToken(*buildObject.definition->name,
+			             "Failed to write to compile-time source file");
+			continue;
+		}
+
+		buildObject.stage = BuildStage_Compiling;
+
+		char fileToExec[MAX_PATH_LENGTH] = {0};
+		PrintBuffer(fileToExec, "/usr/bin/clang++");
+
+		// TODO: Get file extension from output (once .c vs .cpp is implemented)
+		PrintfBuffer(sourceOutputName, "CakelispCompileTime_%d.cpp", buildObject.buildId);
+
+		// TODO: Get arguments all the way from the top
+		// If not null terminated, the call will fail
+		char* arguments[] = {fileToExec, strdup("-c"), sourceOutputName, strdup("-Isrc/"), nullptr};
+		RunProcessArguments compileArguments = {};
+		compileArguments.fileToExecute = fileToExec;
+		compileArguments.arguments = arguments;
+		if (runProcess(compileArguments, &buildObject.status) != 0)
+		{
+			// TODO: Abort building if cannot invoke compiler
+			// return 0;
+		}
 	}
+
+	// The result of the builds will go straight to our definitionsToBuild
+	waitForAllProcessesClosed(OnCompileProcessOutput);
+
+	// Linking
+	for (BuildObject& buildObject : definitionsToBuild)
+	{
+		if (buildObject.status != 0)
+		{
+			ErrorAtTokenf(*buildObject.definition->name,
+			              "Failed to compile definition with status %d", buildObject.status);
+			continue;
+		}
+
+		buildObject.stage = BuildStage_Linking;
+
+		printf("Compiled %s successfully\n", buildObject.definition->name->contents.c_str());
+
+		char linkerExecutable[MAX_PATH_LENGTH] = {0};
+		PrintBuffer(linkerExecutable, "/usr/bin/clang++");
+
+		// TODO Store this on the build object
+		char buildObjectName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(buildObjectName, "CakelispCompileTime_%d.o", buildObject.buildId);
+		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(dynamicLibraryOut, "libCakelispCompileTime_%d.so", buildObject.buildId);
+
+		char* arguments[] = {linkerExecutable,  strdup("-shared"), strdup("-o"),
+		                     dynamicLibraryOut, buildObjectName,   nullptr};
+		RunProcessArguments linkArguments = {};
+		linkArguments.fileToExecute = linkerExecutable;
+		linkArguments.arguments = arguments;
+		if (runProcess(linkArguments, &buildObject.status) != 0)
+		{
+			// TODO: Abort if linker failed?
+		}
+	}
+
+	// The result of the linking will go straight to our definitionsToBuild
+	waitForAllProcessesClosed(OnCompileProcessOutput);
+
+	for (BuildObject& buildObject : definitionsToBuild)
+	{
+		if (buildObject.stage == BuildStage_Linking && buildObject.status != 0)
+		{
+			ErrorAtToken(*buildObject.definition->name, "Failed to link definition");
+			continue;
+		}
+
+		printf("Linked %s successfully\n", buildObject.definition->name->contents.c_str());
+
+		buildObject.stage = BuildStage_Loading;
+	}
+
 	return 0;
 }
 

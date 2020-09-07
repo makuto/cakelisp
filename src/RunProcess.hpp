@@ -1,9 +1,12 @@
 #pragma once
 
-struct CompilationArguments
+struct RunProcessArguments
 {
 	const char* fileToExecute;
 	char** arguments;
 };
 
-int compileFile(const CompilationArguments& arguments);
+typedef void (*SubprocessOnOutputFunc)(const char* subprocessOutput);
+
+int runProcess(const RunProcessArguments& arguments, int* statusOut);
+void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput);

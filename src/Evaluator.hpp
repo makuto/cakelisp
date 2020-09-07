@@ -142,6 +142,12 @@ struct ObjectDefinition
 	// order for the objects to be built. Required-ness spreads from the top level module scope
 	bool isRequired;
 	ObjectReferenceStatusMap references;
+
+	// Used only for compile-time functions
+	// Note that these don't need headers or metadata because they are found via dynamic linking.
+	// GeneratorOutput is (somewhat wastefully) used in order to make the API consistent for
+	// compile-time vs. runtime code generation
+	GeneratorOutput* output;
 };
 
 struct ObjectReference
@@ -186,6 +192,9 @@ struct EvaluatorEnvironment
 
 	ObjectDefinitionMap definitions;
 	ObjectReferenceMap references;
+
+	// Used to ensure unique filenames for compile-time artifacts
+	int nextFreeBuildId;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();

@@ -863,18 +863,20 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	if (!ExpectTokenType("defmacro", argsStart, TokenType_OpenParen))
 		return false;
 
+	// Will be cleaned up when the environment is destroyed
+	GeneratorOutput* compTimeOutput = new GeneratorOutput;
+
 	ObjectDefinition newMacroDef = {};
-	newMacroDef.name= &nameToken;
+	newMacroDef.name = &nameToken;
 	newMacroDef.type = ObjectType_CompileTimeFunction;
 	// Let the reference required propagation step handle this
 	// TODO: This can also just be a quick lookup to see whether the reference already exists
 	newMacroDef.isRequired = false;
+	newMacroDef.output = compTimeOutput;
 	if (!addObjectDefinition(environment, newMacroDef))
 		return false;
 
 	CompileTimeFunctionDefiniton newFunction = {};
-	// Will be cleaned up when the environment is destroyed
-	GeneratorOutput* compTimeOutput = new GeneratorOutput;
 	newFunction.output = compTimeOutput;
 	newFunction.startInvocation = &tokens[startTokenIndex];
 	newFunction.name = &nameToken;

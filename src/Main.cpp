@@ -111,33 +111,35 @@ int main(int argc, char* argv[])
 	fclose(file);
 
 	// TODO Move
-	if (false)
-	{
-		char sourceOutputName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(sourceOutputName, "%s.cpp", filename);
-		char fileToExec[MAX_PATH_LENGTH] = {0};
-		PrintBuffer(fileToExec, "/usr/bin/clang++");
-		// PrintBuffer(arguments.fileToExecute, "/usr/bin/ls");
+	// if (false)
+	// {
+	// 	char sourceOutputName[MAX_PATH_LENGTH] = {0};
+	// 	PrintfBuffer(sourceOutputName, "%s.cpp", filename);
+	// 	char fileToExec[MAX_PATH_LENGTH] = {0};
+	// 	PrintBuffer(fileToExec, "/usr/bin/clang++");
+	// 	// PrintBuffer(arguments.fileToExecute, "/usr/bin/ls");
 
-		// char arg0[64] = {0};
-		// PrintBuffer(arg0, "--version");
+	// 	// char arg0[64] = {0};
+	// 	// PrintBuffer(arg0, "--version");
 
-		// If not null terminated, the call will fail
-		// char* arguments[] = {arguments.fileToExecute, strdup("--version"), nullptr};
-		char* arguments[] = {fileToExec, strdup("-c"), sourceOutputName, nullptr};
-		CompilationArguments compilationArguments = {};
-		compilationArguments.fileToExecute = fileToExec;
-		compilationArguments.arguments = arguments;
-		if (compileFile(compilationArguments) != 0)
-		{
-			delete tokens;
-			return 1;
-		}
-	}
+	// 	// If not null terminated, the call will fail
+	// 	// char* arguments[] = {arguments.fileToExecute, strdup("--version"), nullptr};
+	// 	char* arguments[] = {fileToExec, strdup("-c"), sourceOutputName, nullptr};
+	// 	CompilationArguments compilationArguments = {};
+	// 	compilationArguments.fileToExecute = fileToExec;
+	// 	compilationArguments.arguments = arguments;
+	// 	int status = -1;
+	// 	if (compileFile(compilationArguments, &status) != 0)
+	// 	{
+	// 		delete tokens;
+	// 		return 1;
+	// 	}
+	// 	// wa
+	// }
 
 	printf("\nParsing and code generation:\n");
 
-	EvaluatorEnvironment environment;
+	EvaluatorEnvironment environment = {};
 	importFundamentalGenerators(environment);
 	// TODO Remove test macro
 	environment.macros["square"] = SquareMacro;
