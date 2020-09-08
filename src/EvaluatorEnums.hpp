@@ -66,5 +66,5 @@ enum ObjectReferenceGuessState
 {
 	GuessState_None = 0,
 	GuessState_Guessed,
-	GuessState_ResolvedAfterGuess
+	GuessState_Resolved
 };

@@ -59,16 +59,22 @@ bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& de
 	}
 }
 
-void addObjectReference(EvaluatorEnvironment& environment, EvaluatorContext context,
-                        const Token& referenceNameToken, ObjectReference& reference)
+void addObjectReference(EvaluatorEnvironment& environment, const Token& referenceNameToken,
+                        ObjectReference& reference)
 {
 	// Default to the module requiring the reference, for top-level references
 	const char* moduleDefinitionName = "<module>";
 	std::string definitionName = moduleDefinitionName;
-	if (context.definitionName)
+	if (!reference.context.definitionName && reference.context.scope != EvaluatorScope_Module)
+		printf("error: addObjectReference() expects a definitionName\n");
+
+	if (reference.context.definitionName)
 	{
-		definitionName = context.definitionName->contents;
+		definitionName = reference.context.definitionName->contents;
 	}
+
+	const char* defName = definitionName.c_str();
+	printf("Adding reference to %s\n", defName);
 
 	// Add the reference requirement to the definition it occurred in
 	ObjectDefinitionMap::iterator findDefinition = environment.definitions.find(definitionName);
@@ -238,9 +244,10 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			ObjectReference newReference = {};
 			newReference.tokens = &tokens;
 			newReference.startIndex = invocationStartIndex;
+			newReference.context = context;
 			// Make room for whatever gets output once this reference is resolved
 			newReference.spliceOutput = new GeneratorOutput;
-			addObjectReference(environment, context, invocationName, newReference);
+			addObjectReference(environment, invocationName, newReference);
 
 			// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
 			// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
@@ -459,9 +466,12 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		ObjectDefinition* definition = nullptr;
 	};
 	std::vector<BuildObject> definitionsToBuild;
+	// TODO These will be invalidated if new definitions are added!
 	for (ObjectDefinitionPair& definitionPair : environment.definitions)
 	{
 		ObjectDefinition& definition = definitionPair.second;
+		const char* defName = definition.name->contents.c_str();
+		printf("Checking to build %s\n", defName);
 		// Does it need to be built?
 		if (!definition.isRequired)
 			continue;
@@ -475,6 +485,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		bool canBuild = true;
 		bool hasRelevantChangeOccurred = false;
 		bool hasGuessedRefs = false;
+		// TODO These will be invalidated if new definitions are added!
 		for (ObjectReferenceStatusPair& reference : definition.references)
 		{
 			ObjectReferenceStatus& referenceStatus = reference.second;
@@ -484,28 +495,29 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			    environment.definitions.find(referenceStatus.name->contents);
 			if (findIt != environment.definitions.end())
 			{
-					bool refCompileTimeCodeLoaded =
-					    isCompileTimeCodeLoaded(environment, findIt->second);
-					if (refCompileTimeCodeLoaded)
+				bool refCompileTimeCodeLoaded =
+				    isCompileTimeCodeLoaded(environment, findIt->second);
+				if (refCompileTimeCodeLoaded)
+				{
+					// The reference is ready to go. Built objects immediately resolve
+					// references. We will react to it if the last thing we did was guess
+					// incorrectly that this was a C call
+					if (referenceStatus.guessState == GuessState_Guessed)
 					{
-						// The reference is ready to go. Built objects immediately resolve
-						// references. We will react to it if the last thing we did was guess
-						// incorrectly that this was a C call
-						if (referenceStatus.guessState == GuessState_Guessed)
-						{
-							printf("\tGuess has been resolved\n");
-							referenceStatus.guessState = GuessState_ResolvedAfterGuess;
-							hasRelevantChangeOccurred = true;
-						}
+						printf("\tGuess has been resolved\n");
+						hasRelevantChangeOccurred = true;
 					}
-					else
-					{
-						// If we know we are missing a compile time function, we won't try to
-						// guess
-						printf("\tCannot build until %s is loaded\n",
-						       referenceStatus.name->contents.c_str());
-						canBuild = false;
-					}
+
+					referenceStatus.guessState = GuessState_Resolved;
+				}
+				else
+				{
+					// If we know we are missing a compile time function, we won't try to
+					// guess
+					printf("\tCannot build until %s is loaded\n",
+					       referenceStatus.name->contents.c_str());
+					canBuild = false;
+				}
 				// TODO: Building references to non-comptime functions at comptime
 			}
 			else
@@ -515,10 +527,12 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 					printf("\tCannot build until %s is guessed. Guessing now\n",
 					       referenceStatus.name->contents.c_str());
 
-					// TODO: Do guess
 					// Find all the times the definition makes this reference
-					for (ObjectReference& reference : referenceStatus.references)
+					// We must use indices because the call to FunctionInvocationGenerator can add
+					// new references to the list
+					for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
 					{
+						ObjectReference& reference = referenceStatus.references[i];
 						// Run function invocation on it
 						bool result = FunctionInvocationGenerator(
 						    environment, reference.context, *reference.tokens, reference.startIndex,
@@ -828,6 +842,13 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 							missingDefinitionNames.push_back(findIt->second.name);
 							++errors;
 						}
+					}
+
+					if (referenceStatus.guessState == GuessState_None)
+					{
+						ErrorAtToken(
+						    *referenceStatus.name,
+						    "reference has not been guessed (this is an internal code error)");
 					}
 				}
 
