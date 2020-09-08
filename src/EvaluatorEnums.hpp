@@ -55,12 +55,6 @@ enum EvaluatorScope
 	EvaluatorScope_ExpressionsOnly
 };
 
-enum UnknownReferenceType
-{
-	UnknownReferenceType_Symbol,
-	UnknownReferenceType_Invocation
-};
-
 enum ObjectType
 {
 	ObjectType_Function,

@@ -84,25 +84,6 @@ struct EvaluatorContext
 	const Token* definitionName;
 };
 
-struct UnknownReference
-{
-	// In this list of tokens
-	const std::vector<Token>* tokens;
-	// ...at this token
-	int startIndex;
-	// (shortcut to symbol with name reference)
-	const Token* symbolReference;
-	// ...and in this context
-	EvaluatorContext context;
-	// ...there is an unknown reference of type
-	UnknownReferenceType type;
-
-	// Once resolved, output to this list
-	std::vector<StringOutput>* output;
-	// ...at this splice
-	int spliceOutputIndex;
-};
-
 struct EvaluatorEnvironment;
 
 // Generators output C/C++ code
@@ -123,16 +104,6 @@ typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
 typedef MacroTable::iterator MacroIterator;
 typedef GeneratorTable::iterator GeneratorIterator;
 
-struct CompileTimeFunctionDefiniton
-{
-	const Token* startInvocation;
-	const Token* name;
-	// Note that these don't need headers or metadata because they are found via dynamic linking.
-	// GeneratorOutput is (somewhat wastefully) used in order to make the API consistent for
-	// compile-time vs. runtime code generation
-	GeneratorOutput* output;
-};
-
 struct ObjectReference
 {
 	const std::vector<Token>* tokens;
@@ -141,6 +112,7 @@ struct ObjectReference
 
 	// This needs to be a pointer in case the references array gets moved while we are iterating it
 	GeneratorOutput* spliceOutput;
+	// Not used in ObjectReferenceStatus, only ReferencePools
 	bool isResolved;
 };
 
@@ -200,19 +172,10 @@ struct EvaluatorEnvironment
 	MacroTable macros;
 	GeneratorTable generators;
 
-	// Once compiled, these will move into macros and generators lists
-	std::vector<CompileTimeFunctionDefiniton> compileTimeFunctions;
-
 	// We need to keep the tokens macros create around so they can be referenced by StringOperations
 	// Token vectors must not be changed after they are created or pointers to Tokens will become
 	// invalid. The const here is to protect from that. You can change the token contents, however
 	std::vector<const std::vector<Token>*> macroExpansions;
-
-	std::vector<UnknownReference> unknownReferences;
-	// Macros and generators need their references resolved before any other references can be
-	// inferred to be C/C++ function calls. This is because macros and generators aren't added to
-	// the environment until they have been completely resolved, built, and dynamically loaded
-	std::vector<UnknownReference> unknownReferencesForCompileTime;
 
 	ObjectDefinitionMap definitions;
 	ObjectReferencePoolMap referencePools;

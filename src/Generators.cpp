@@ -846,11 +846,6 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	if (!addObjectDefinition(environment, newMacroDef))
 		return false;
 
-	CompileTimeFunctionDefiniton newFunction = {};
-	newFunction.output = compTimeOutput;
-	newFunction.startInvocation = &tokens[startTokenIndex];
-	newFunction.name = &nameToken;
-
 	// TODO: It would be nice to support global vs. local macros
 	// This only really needs to be an environment distinction, not a code output distinction
 	// Macros will be found without headers thanks to dynamic linking
@@ -898,9 +893,6 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	}
 
 	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
-
-	// Takes ownership of output
-	environment.compileTimeFunctions.push_back(newFunction);
 
 	return true;
 }

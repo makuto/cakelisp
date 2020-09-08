@@ -232,7 +232,9 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		}
 		else
 		{
-			// Reference resolver v2
+			// We don't know what this is. We cannot guess it is a C/C++ function yet, because it
+			// could be a generator or macro invocation that hasn't been defined yet. Leave a note
+			// for the evaluator to come back to this token once a satisfying answer is found
 			ObjectReference newReference = {};
 			newReference.tokens = &tokens;
 			newReference.startIndex = invocationStartIndex;
@@ -245,30 +247,9 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			// so that multiple splices take up space and will then maintain sequential order
 			addSpliceOutput(output.source, newReference.spliceOutput, &invocationStart);
 
-			// We don't know what this is. We cannot guess it is a C/C++ function yet, because it
-			// could be a generator or macro invocation that hasn't been defined yet. Leave a note
-			// for the evaluator to come back to this token once a satisfying answer is found
-			UnknownReference unknownInvocation = {};
-			unknownInvocation.tokens = &tokens;
-			unknownInvocation.startIndex = invocationStartIndex;
-			unknownInvocation.symbolReference = &invocationName;
-			unknownInvocation.context = context;
-			unknownInvocation.type = UnknownReferenceType_Invocation;
-
-			// Prepare our output splice, which is where output should go once the symbol is
-			// resolved. Rather than actually inserting and causing potentially massive shifts in
-			// the output list, the splice will redirect to an external output list. It is the
-			// responsibility of the Writer to watch for splices
-			unknownInvocation.output = &output.source;
-			unknownInvocation.spliceOutputIndex = output.source.size() - 1;
-
-			if (context.isMacroOrGeneratorDefinition)
-				environment.unknownReferencesForCompileTime.push_back(unknownInvocation);
-			else
-				environment.unknownReferences.push_back(unknownInvocation);
-
-			// We're going to return true even though evaluation isn't yet done. The topmost
-			// evaluate call should handle resolving all unknown references
+			// We're going to return true even though evaluation isn't yet done.
+			// BuildEvaluateReferences() will handle the evaluation after it knows what the
+			// references are
 		}
 
 		// TODO Relocate to symbol resolver
@@ -405,47 +386,6 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 	return numErrors;
 }
 
-bool EvaluateResolveReferencesV1(EvaluatorEnvironment& environment)
-{
-	// Stop as soon as we do a loop which made no progress
-	int numReferencesResolved = 0;
-	do
-	{
-		for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
-		{
-			const std::string& referenceName = reference.symbolReference->contents;
-			MacroFunc macro = findMacro(environment, referenceName.c_str());
-			if (macro)
-			{
-				++numReferencesResolved;
-			}
-			GeneratorFunc generator = findGenerator(environment, referenceName.c_str());
-			if (generator)
-			{
-				++numReferencesResolved;
-				// TODO Evaluate
-			}
-		}
-	} while (numReferencesResolved);
-
-	// No more macros/generators are resolvable. Guess that the remaining references are C/C++
-	// function calls
-	// TODO: backtrack if it turns out they aren't? e.g. in the case of a macro which writes another
-	// macro, which a generator uses
-	// for (const UnknownReference& reference : environment.unknownReferencesForCompileTime)
-	// {
-	// 	// The only hard-coded generator: basic function invocations. We must hard-code this
-	// 	// because we don't interpret any C/C++ in order to determine which functions are valid
-	// 	// to call (we just let the C/C++ compiler determine that for us)
-	// 	// if (FunctionInvocationGenerator(environment, reference.context, *reference.tokens,
-	// 	                                // reference.startIndex, output))
-	// 	{
-	// 	}
-	// }
-
-	return false;
-}
-
 const char* objectTypeToString(ObjectType type);
 
 // Determine what needs to be built, iteratively
@@ -523,7 +463,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 	{
 		ObjectDefinition& definition = definitionPair.second;
 		// Does it need to be built?
-		if (!definition.isRequired || !isCompileTimeObject(definition.type))
+		if (!definition.isRequired)
 			continue;
 
 		// Is it already in the environment?
@@ -544,8 +484,6 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			    environment.definitions.find(referenceStatus.name->contents);
 			if (findIt != environment.definitions.end())
 			{
-				if (isCompileTimeObject(findIt->second.type))
-				{
 					bool refCompileTimeCodeLoaded =
 					    isCompileTimeCodeLoaded(environment, findIt->second);
 					if (refCompileTimeCodeLoaded)
@@ -568,8 +506,6 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 						       referenceStatus.name->contents.c_str());
 						canBuild = false;
 					}
-				}
-
 				// TODO: Building references to non-comptime functions at comptime
 			}
 			else
@@ -605,8 +541,11 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		}
 
 		// hasRelevantChangeOccurred being false suppresses rebuilding compile-time functions which
-		// still have the same missing references
-		if (canBuild && (!hasGuessedRefs || hasRelevantChangeOccurred))
+		// still have the same missing references. Note that only compile time objects can be built.
+		// We put normal functions through the guessing system too because they need their functions
+		// resolved as well. It's a bit dirty but not too bad
+		if (canBuild && (!hasGuessedRefs || hasRelevantChangeOccurred) &&
+		    isCompileTimeObject(definition.type))
 		{
 			BuildObject objectToBuild = {};
 			objectToBuild.buildId = getNextFreeBuildId(environment);
@@ -925,12 +864,6 @@ EvaluatorEnvironment::~EvaluatorEnvironment()
 
 void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 {
-	for (CompileTimeFunctionDefiniton& function : environment.compileTimeFunctions)
-	{
-		delete function.output;
-	}
-	environment.compileTimeFunctions.clear();
-
 	for (ObjectReferencePoolPair& referencePoolPair : environment.referencePools)
 	{
 		for (ObjectReference& reference : referencePoolPair.second.references)
