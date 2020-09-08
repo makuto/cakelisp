@@ -31,25 +31,12 @@ else if $(NT)
 C++FLAGS = -std=c++11 -Wall -Wextra -Wno-unused-parameter
 # Only for profiling, i.e. not release builds
 # -DTRACY_ENABLE
-# BT_USE_DOUBLE_PRECISION solves the Dantzig LCP missing definition
-# Disabled now that I'm compiling Bullet in single-precision
-# -DBT_USE_DOUBLE_PRECISION
 -g
 # Needed for dynamic linking
 -fPIC
 
 $(OS_DEPENDENT_C++FLAGS)
 ;
-
-# HDRS = src
-# # Dependencies/base2.0
-# # Dependencies/glm
-# # Dependencies/tracy
-# Dependencies/curl/include
-# Dependencies/rapidjson/include
-# Dependencies/mecab/build/local/include
-# Dependencies/parallel-hashmap/parallel_hashmap
-# ;
 
 # TODO: Make base hold all this weirdness?
 # if $(DEBUG_BUILD)
@@ -74,16 +61,11 @@ LINKLIBS =
 -ldl
 ;
 
-# LINKFLAGS = -Wl,-rpath,. ;
-
 LINKFLAGS = -g
 # -Wl = pass to linker
 # --export-dynamic = 
 -Wl,-rpath,.,--export-dynamic
 ;
-# TODO: Copy libs to better directory, or static link?
-# -Wl,-rpath,.:Dependencies/curl/local_install/lib:Dependencies/mecab/build/local/lib ;
-
 ##
 ## Jam stuff
 ##

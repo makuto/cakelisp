@@ -6,6 +6,7 @@
 #include "Utilities.hpp"
 
 // TODO: safe version of strcat
+#include <stdarg.h>  // va_start
 #include <stdio.h>
 #include <string.h>
 

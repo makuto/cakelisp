@@ -111,46 +111,32 @@ int main(int argc, char* argv[])
 
 	fclose(file);
 
-	// TODO Move
-	// if (false)
-	// {
-	// 	char sourceOutputName[MAX_PATH_LENGTH] = {0};
-	// 	PrintfBuffer(sourceOutputName, "%s.cpp", filename);
-	// 	char fileToExec[MAX_PATH_LENGTH] = {0};
-	// 	PrintBuffer(fileToExec, "/usr/bin/clang++");
-	// 	// PrintBuffer(arguments.fileToExecute, "/usr/bin/ls");
-
-	// 	// char arg0[64] = {0};
-	// 	// PrintBuffer(arg0, "--version");
-
-	// 	// If not null terminated, the call will fail
-	// 	// char* arguments[] = {arguments.fileToExecute, strdup("--version"), nullptr};
-	// 	char* arguments[] = {fileToExec, strdup("-c"), sourceOutputName, nullptr};
-	// 	CompilationArguments compilationArguments = {};
-	// 	compilationArguments.fileToExecute = fileToExec;
-	// 	compilationArguments.arguments = arguments;
-	// 	int status = -1;
-	// 	if (compileFile(compilationArguments, &status) != 0)
-	// 	{
-	// 		delete tokens;
-	// 		return 1;
-	// 	}
-	// 	// wa
-	// }
-
 	printf("\nParsing and code generation:\n");
 
 	EvaluatorEnvironment environment = {};
 	importFundamentalGenerators(environment);
+	// Create module definition for top-level references to attach to
+	Token modulePsuedoInvocationName = {TokenType_Symbol, "<module>", "psuedotarget", 1, 1, 1};
+	{
+		ObjectDefinition moduleDefinition = {};
+		moduleDefinition.name = &modulePsuedoInvocationName;
+		moduleDefinition.type = ObjectType_Function;
+		moduleDefinition.isRequired = true;
+		// Will be cleaned up when the environment is destroyed
+		GeneratorOutput* compTimeOutput = new GeneratorOutput;
+		moduleDefinition.output = compTimeOutput;
+		addObjectDefinition(environment, moduleDefinition);
+	}
 	// TODO Remove test macro
 	environment.macros["square"] = SquareMacro;
 	EvaluatorContext moduleContext = {};
 	moduleContext.scope = EvaluatorScope_Module;
+	moduleContext.definitionName = &modulePsuedoInvocationName;
 	// Module always requires all its functions
 	// TODO: Local functions can be left out if not referenced (in fact, they may warn in C if not)
 	moduleContext.isRequired = true;
 	GeneratorOutput generatedOutput;
-	StringOutput bodyDelimiterTemplate ={};
+	StringOutput bodyDelimiterTemplate = {};
 	bodyDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
 	int numErrors = EvaluateGenerateAll_Recursive(environment, moduleContext, *tokens,
 	                                              /*startTokenIndex=*/0, bodyDelimiterTemplate,

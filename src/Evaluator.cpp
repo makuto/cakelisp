@@ -18,6 +18,8 @@
 // Environment
 //
 
+const char* moduleDefinitionName = "<module>";
+
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));
@@ -63,7 +65,6 @@ void addObjectReference(EvaluatorEnvironment& environment, const Token& referenc
                         ObjectReference& reference)
 {
 	// Default to the module requiring the reference, for top-level references
-	const char* moduleDefinitionName = "<module>";
 	std::string definitionName = moduleDefinitionName;
 	if (!reference.context.definitionName && reference.context.scope != EvaluatorScope_Module)
 		printf("error: addObjectReference() expects a definitionName\n");
@@ -74,7 +75,7 @@ void addObjectReference(EvaluatorEnvironment& environment, const Token& referenc
 	}
 
 	const char* defName = definitionName.c_str();
-	printf("Adding reference to %s\n", defName);
+	printf("Adding reference %s to %s\n", referenceNameToken.contents.c_str(), defName);
 
 	// Add the reference requirement to the definition it occurred in
 	ObjectDefinitionMap::iterator findDefinition = environment.definitions.find(definitionName);
@@ -87,8 +88,9 @@ void addObjectReference(EvaluatorEnvironment& environment, const Token& referenc
 		}
 		else
 		{
-			// TODO Add the <module> definition lazily?
-			// environment.definitions[moduleDefinitionName] = newDefinition;// {reference.name};
+			ErrorAtTokenf(referenceNameToken,
+			              "error: expected %s definition to exist as a top-level catch-all",
+			              moduleDefinitionName);
 		}
 	}
 	else
@@ -115,7 +117,8 @@ void addObjectReference(EvaluatorEnvironment& environment, const Token& referenc
 
 	// Add the reference to the reference pool. This makes it easier to find all places where it is
 	// referenced during resolve time
-	ObjectReferencePoolMap::iterator findIt = environment.referencePools.find(definitionName);
+	ObjectReferencePoolMap::iterator findIt =
+	    environment.referencePools.find(referenceNameToken.contents);
 	if (findIt == environment.referencePools.end())
 	{
 		ObjectReferencePool newPool = {};
@@ -199,7 +202,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		if (!validateResult)
 		{
 			NoteAtToken(invocationStart,
-			            "Code was generated from macro. See erroneous macro "
+			            "code was generated from macro. See erroneous macro "
 			            "expansion below:");
 			printTokens(*macroOutputTokens);
 			printf("\n");
@@ -222,7 +225,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		if (result != 0)
 		{
 			NoteAtToken(invocationStart,
-			            "Code was generated from macro. See macro expansion below:");
+			            "code was generated from macro. See macro expansion below:");
 			printTokens(*macroOutputTokens);
 			printf("\n");
 			return false;
@@ -514,6 +517,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 					// guess
 					printf("\tCannot build until %s is loaded\n",
 					       referenceStatus.name->contents.c_str());
+					referenceStatus.guessState = GuessState_WaitingForLoad;
 					canBuild = false;
 				}
 				// TODO: Building references to non-comptime functions at comptime
@@ -592,6 +596,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		outputSettings.sourceHeading = macroSourceHeading;
 		outputSettings.sourceFooter = macroSourceFooter;
 		outputSettings.sourceCakelispFilename = sourceOutputName;
+		// Use the separate output prepared specifically for this compile-time object
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
 		                          outputSettings))
 		{
@@ -738,8 +743,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			continue;
 		}
 
-		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found
-		// That won't work if references can be guessed
+		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found?
 		for (ObjectReference& reference : referencePoolIt->second.references)
 		{
 			if (reference.isResolved)
@@ -748,6 +752,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			// In case a compile-time function has already guessed the invocation was a C/C++
 			// function, clear that invocation output
 			resetGeneratorOutput(*reference.spliceOutput);
+
+			NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
 
 			// Evaluate from that reference
 			int result =
@@ -770,7 +776,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		buildObject.stage = BuildStage_Finished;
 
-		printf("Successfully built and loaded %s\n",
+		printf("Successfully built, loaded, and executed %s\n",
 		       buildObject.definition->name->contents.c_str());
 	}
 
@@ -848,9 +854,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 
 					if (referenceStatus.guessState == GuessState_None)
 					{
-						ErrorAtToken(
-						    *referenceStatus.name,
-						    "reference has not been guessed (this is an internal code error)");
+						ErrorAtToken(*referenceStatus.name, "reference has not been resolved");
 					}
 				}
 
@@ -896,6 +900,13 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 		referencePoolPair.second.references.clear();
 	}
 	environment.referencePools.clear();
+
+	for (ObjectDefinitionPair& definitionPair : environment.definitions)
+	{
+		ObjectDefinition& definition = definitionPair.second;
+		delete definition.output;
+	}
+	environment.definitions.clear();
 
 	for (const std::vector<Token>* macroExpansion : environment.macroExpansions)
 		delete macroExpansion;

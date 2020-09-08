@@ -66,5 +66,7 @@ enum ObjectReferenceGuessState
 {
 	GuessState_None = 0,
 	GuessState_Guessed,
-	GuessState_Resolved
+	// References can skip the guessed state if the definition is already known but not loaded
+	GuessState_WaitingForLoad,
+	GuessState_Resolved,
 };

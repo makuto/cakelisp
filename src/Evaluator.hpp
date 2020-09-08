@@ -213,3 +213,5 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment);
 const char* evaluatorScopeToString(EvaluatorScope expectedScope);
 
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition);
+
+extern const char* moduleDefinitionName;
