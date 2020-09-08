@@ -258,24 +258,6 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			// BuildEvaluateReferences() will handle the evaluation after it knows what the
 			// references are
 		}
-
-		// TODO Relocate to symbol resolver
-		// else if (context.scope == EvaluatorScope_Module)
-		// {
-		// 	ErrorAtTokenf(invocationStart,
-		// 	              "Unknown function %s. Only macros and generators may be "
-		// 	              "invoked at top level",
-		// 	              invocationName.contents.c_str());
-		// 	return false;
-		// }
-		// else
-		// {
-		// 	// The only hard-coded generator: basic function invocations. We must hard-code this
-		// 	// because we don't interpret any C/C++ in order to determine which functions are valid
-		// 	// to call (we just let the C/C++ compiler determine that for us)
-		// 	return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
-		// 	                                   output);
-		// }
 	}
 
 	return true;
@@ -465,38 +447,54 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		std::string dynamicLibraryPath;
 		ObjectDefinition* definition = nullptr;
 	};
+
 	std::vector<BuildObject> definitionsToBuild;
-	// TODO These will be invalidated if new definitions are added!
+
+	// We must copy references in case environment.definitions is modified, which would invalidate
+	// iterators, but not references
+	std::vector<ObjectDefinition*> definitionsToCheck;
+	definitionsToCheck.reserve(environment.definitions.size());
 	for (ObjectDefinitionPair& definitionPair : environment.definitions)
 	{
 		ObjectDefinition& definition = definitionPair.second;
-		const char* defName = definition.name->contents.c_str();
-		printf("Checking to build %s\n", defName);
 		// Does it need to be built?
 		if (!definition.isRequired)
 			continue;
 
 		// Is it already in the environment?
-		// TODO Add bool on definition to make this lookup go away (easy)
-		if (isCompileTimeCodeLoaded(environment, definition))
+		if (definition.isLoaded)
 			continue;
+
+		definitionsToCheck.push_back(&definition);
+	}
+
+	for (ObjectDefinition* definitionPointer : definitionsToCheck)
+	{
+		ObjectDefinition& definition = *definitionPointer;
+		const char* defName = definition.name->contents.c_str();
+		printf("Checking to build %s\n", defName);
 
 		// Can it be built in the current environment?
 		bool canBuild = true;
 		bool hasRelevantChangeOccurred = false;
 		bool hasGuessedRefs = false;
-		// TODO These will be invalidated if new definitions are added!
-		for (ObjectReferenceStatusPair& reference : definition.references)
+		// Copy pointers to refs in case of iterator invalidation
+		std::vector<ObjectReferenceStatus*> referencesToCheck;
+		referencesToCheck.reserve(definition.references.size());
+		for (ObjectReferenceStatusPair& referencePair : definition.references)
 		{
-			ObjectReferenceStatus& referenceStatus = reference.second;
+			referencesToCheck.push_back(&referencePair.second);
+		}
+		for (ObjectReferenceStatus* referencePointer : referencesToCheck)
+		{
+			ObjectReferenceStatus& referenceStatus = *referencePointer;
 
 			// TODO: (Performance) Add shortcut in reference
 			ObjectDefinitionMap::iterator findIt =
 			    environment.definitions.find(referenceStatus.name->contents);
 			if (findIt != environment.definitions.end())
 			{
-				bool refCompileTimeCodeLoaded =
-				    isCompileTimeCodeLoaded(environment, findIt->second);
+				bool refCompileTimeCodeLoaded = findIt->second.isLoaded;
 				if (refCompileTimeCodeLoaded)
 				{
 					// The reference is ready to go. Built objects immediately resolve
@@ -757,6 +755,9 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			                               reference.startIndex, *reference.spliceOutput);
 			// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
 			// again isn't going to change the number of errors
+			// Note that if new references emerge to this definition, they will automatically be
+			// recognized as the definition and handled then and there, so we don't need to make
+			// more than one pass
 			reference.isResolved = true;
 			numErrorsOut += result;
 			++numReferencesResolved;
@@ -765,6 +766,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		printf("Resolved %d references\n", numReferencesResolved);
 
 		// Remove need to build
+		buildObject.definition->isLoaded = true;
 
 		buildObject.stage = BuildStage_Finished;
 

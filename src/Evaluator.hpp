@@ -149,6 +149,10 @@ struct ObjectDefinition
 	// GeneratorOutput is (somewhat wastefully) used in order to make the API consistent for
 	// compile-time vs. runtime code generation
 	GeneratorOutput* output;
+
+	// For compile time functions, whether they have finished loading successfully. Mainly just a
+	// shortcut to what isCompileTimeCodeLoaded() would return
+	bool isLoaded;
 };
 
 struct ObjectReferencePool
