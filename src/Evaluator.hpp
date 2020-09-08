@@ -68,6 +68,8 @@ struct GeneratorOutput
 	std::vector<FunctionMetadata> functions;
 	std::vector<ImportMetadata> imports;
 };
+// Add members to this as necessary
+void resetGeneratorOutput(GeneratorOutput& output);
 
 // This is frequently copied, so keep it small
 struct EvaluatorContext
@@ -131,10 +133,29 @@ struct CompileTimeFunctionDefiniton
 	GeneratorOutput* output;
 };
 
+struct ObjectReference
+{
+	const std::vector<Token>* tokens;
+	int startIndex;
+	EvaluatorContext context;
+
+	// This needs to be a pointer in case the references array gets moved while we are iterating it
+	GeneratorOutput* spliceOutput;
+	bool isResolved;
+};
+
 // TODO Need to add insertion points for later fixing
 struct ObjectReferenceStatus
 {
 	const Token* name;
+	// We need to guess and check because we don't know what C/C++ functions might be available. The
+	// guessState keeps track of how successful the guess was, so we don't keep recompiling until
+	// some relevant change to our references has occurred
+	ObjectReferenceGuessState guessState;
+
+	// In the case of multiple references to the same object in the same definition, keep track of
+	// all of them for guessing
+	std::vector<ObjectReference> references;
 };
 
 typedef std::unordered_map<std::string, ObjectReferenceStatus> ObjectReferenceStatusMap;
@@ -156,17 +177,6 @@ struct ObjectDefinition
 	// GeneratorOutput is (somewhat wastefully) used in order to make the API consistent for
 	// compile-time vs. runtime code generation
 	GeneratorOutput* output;
-};
-
-struct ObjectReference
-{
-	const std::vector<Token>* tokens;
-	int startIndex;
-	EvaluatorContext context;
-
-	// This needs to be a pointer in case the references array gets moved while we are iterating it
-	GeneratorOutput* spliceOutput;
-	bool isResolved;
 };
 
 struct ObjectReferencePool

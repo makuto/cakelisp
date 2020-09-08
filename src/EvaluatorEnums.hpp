@@ -67,3 +67,10 @@ enum ObjectType
 	ObjectType_CompileTimeMacro,
 	ObjectType_CompileTimeGenerator,
 };
+
+enum ObjectReferenceGuessState
+{
+	GuessState_None = 0,
+	GuessState_Guessed,
+	GuessState_ResolvedAfterGuess
+};

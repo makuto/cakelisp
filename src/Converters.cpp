@@ -145,6 +145,11 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 					if (!writeStringToBuffer("Mod", &bufferWrite, bufferOut, bufferOutSize))
 						return;
 					break;
+				case '.':
+					// TODO: Decide how to handle object pathing
+					if (!writeStringToBuffer(".", &bufferWrite, bufferOut, bufferOutSize))
+						return;
+					break;
 				default:
 					printf(
 					    "Error: While converting lisp-style %s to C-style, encountered character "

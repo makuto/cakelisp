@@ -87,11 +87,24 @@ void addObjectReference(EvaluatorEnvironment& environment, EvaluatorContext cont
 	}
 	else
 	{
-		ObjectReferenceStatusMap::iterator findRef =
+		// The reference is copied here somewhat unnecessarily. It would be too much of a hassle to
+		// make a good link to the reference in the reference pool, because it can easily be moved
+		// by hash realloc or vector resize
+		ObjectReferenceStatusMap::iterator findRefIt =
 		    findDefinition->second.references.find(referenceNameToken.contents.c_str());
-		if (findRef == findDefinition->second.references.end())
-			findDefinition->second.references[referenceNameToken.contents.c_str()] = {
-			    &referenceNameToken};
+		if (findRefIt == findDefinition->second.references.end())
+		{
+			ObjectReferenceStatus newStatus;
+			newStatus.name = &referenceNameToken;
+			newStatus.guessState = GuessState_None;
+			newStatus.references.push_back(reference);
+			findDefinition->second.references[referenceNameToken.contents.c_str()] =
+			    std::move(newStatus);
+		}
+		else
+		{
+			findRefIt->second.references.push_back(reference);
+		}
 	}
 
 	// Add the reference to the reference pool. This makes it easier to find all places where it is
@@ -154,20 +167,22 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			macroOutputTokens = macroOutputTokensNoConst_CREATIONONLY;
 		}
 
+		// Don't even try to validate the code if the macro wasn't satisfied
+		if (!macroSucceeded)
+		{
+			ErrorAtToken(invocationName, "macro returned failure");
+
+			// Deleting these tokens is only safe at this point because we know we have not
+			// evaluated them. As soon as they are evaluated, they must be kept around
+			delete macroOutputTokens;
+			return false;
+		}
+
 		// The macro had no output, but we won't let that bother us
 		if (macroOutputTokens->empty())
 		{
 			delete macroOutputTokens;
 			return true;
-		}
-
-		// Don't even try to validate the code if the macro wasn't satisfied
-		if (!macroSucceeded)
-		{
-			// Deleting these tokens is only safe at this point because we know we have not
-			// evaluated them. As soon as they are evaluated, they must be kept around
-			delete macroOutputTokens;
-			return false;
 		}
 
 		// TODO: Pretty print to macro expand file and change output token source to
@@ -508,62 +523,95 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 	{
 		ObjectDefinition& definition = definitionPair.second;
 		// Does it need to be built?
-		if (definition.isRequired && isCompileTimeObject(definition.type))
+		if (!definition.isRequired || !isCompileTimeObject(definition.type))
+			continue;
+
+		// Is it already in the environment?
+		// TODO Add bool on definition to make this lookup go away (easy)
+		if (isCompileTimeCodeLoaded(environment, definition))
+			continue;
+
+		// Can it be built in the current environment?
+		bool canBuild = true;
+		bool hasRelevantChangeOccurred = false;
+		bool hasGuessedRefs = false;
+		for (ObjectReferenceStatusPair& reference : definition.references)
 		{
-			// Is it already in the environment?
-			// TODO: Shortcut?
-			bool compileTimeCodeLoaded =
-			    definition.type == ObjectType_CompileTimeMacro ?
-			        findMacro(environment, definition.name->contents.c_str()) != nullptr :
-			        findGenerator(environment, definition.name->contents.c_str()) != nullptr;
-			if (compileTimeCodeLoaded)
-				continue;
+			ObjectReferenceStatus& referenceStatus = reference.second;
 
-			// Can it be built in the current environment?
-			bool canBuild = true;
-			for (ObjectReferenceStatusPair& reference : definition.references)
+			// TODO: (Performance) Add shortcut in reference
+			ObjectDefinitionMap::iterator findIt =
+			    environment.definitions.find(referenceStatus.name->contents);
+			if (findIt != environment.definitions.end())
 			{
-				ObjectReferenceStatus& referenceStatus = reference.second;
-
-				// TODO: (Performance) Add shortcut in reference
-				ObjectDefinitionMap::iterator findIt =
-				    environment.definitions.find(referenceStatus.name->contents);
-				if (findIt != environment.definitions.end())
+				if (isCompileTimeObject(findIt->second.type))
 				{
-					if (isCompileTimeObject(findIt->second.type))
+					bool refCompileTimeCodeLoaded =
+					    isCompileTimeCodeLoaded(environment, findIt->second);
+					if (refCompileTimeCodeLoaded)
 					{
-						bool refCompileTimeCodeLoaded =
-						    isCompileTimeCodeLoaded(environment, findIt->second);
-						if (refCompileTimeCodeLoaded)
+						// The reference is ready to go. Built objects immediately resolve
+						// references. We will react to it if the last thing we did was guess
+						// incorrectly that this was a C call
+						if (referenceStatus.guessState == GuessState_Guessed)
 						{
-							// No need to build. It has already been handled. Built objects
-							// immediately resolve references
-						}
-						else
-						{
-							// If we know we are missing a compile time function, we won't try to
-							// guess
-							printf("\tCannot build until %s is loaded\n",
-							       referenceStatus.name->contents.c_str());
-							canBuild = false;
+							printf("\tGuess has been resolved\n");
+							referenceStatus.guessState = GuessState_ResolvedAfterGuess;
+							hasRelevantChangeOccurred = true;
 						}
 					}
+					else
+					{
+						// If we know we are missing a compile time function, we won't try to
+						// guess
+						printf("\tCannot build until %s is loaded\n",
+						       referenceStatus.name->contents.c_str());
+						canBuild = false;
+					}
+				}
 
-					// TODO: Building references to non-comptime functions at comptime
-				}
-				else
-				{
-					// TODO Guess it's a C invocation
-				}
+				// TODO: Building references to non-comptime functions at comptime
 			}
-
-			if (canBuild)
+			else
 			{
-				BuildObject objectToBuild = {};
-				objectToBuild.buildId = getNextFreeBuildId(environment);
-				objectToBuild.definition = &definition;
-				definitionsToBuild.push_back(objectToBuild);
+				if (referenceStatus.guessState == GuessState_None)
+				{
+					printf("\tCannot build until %s is guessed. Guessing now\n",
+					       referenceStatus.name->contents.c_str());
+
+					// TODO: Do guess
+					// Find all the times the definition makes this reference
+					for (ObjectReference& reference : referenceStatus.references)
+					{
+						// Run function invocation on it
+						bool result = FunctionInvocationGenerator(
+						    environment, reference.context, *reference.tokens, reference.startIndex,
+						    *reference.spliceOutput);
+						// Our guess didn't even evaluate
+						if (!result)
+							canBuild = false;
+					}
+
+					referenceStatus.guessState = GuessState_Guessed;
+					hasRelevantChangeOccurred = true;
+					hasGuessedRefs = true;
+				}
+				else if (referenceStatus.guessState == GuessState_Guessed)
+				{
+					// It has been guessed, and still isn't in definitions
+					hasGuessedRefs = true;
+				}
 			}
+		}
+
+		// hasRelevantChangeOccurred being false suppresses rebuilding compile-time functions which
+		// still have the same missing references
+		if (canBuild && (!hasGuessedRefs || hasRelevantChangeOccurred))
+		{
+			BuildObject objectToBuild = {};
+			objectToBuild.buildId = getNextFreeBuildId(environment);
+			objectToBuild.definition = &definition;
+			definitionsToBuild.push_back(objectToBuild);
 		}
 	}
 
@@ -610,6 +658,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		PrintfBuffer(sourceOutputName, "%s.cpp", buildObject.artifactsFilePath.c_str());
 
 		// TODO: Get arguments all the way from the top
+		// TODO: Memory leak
 		// If not null terminated, the call will fail
 		char* arguments[] = {fileToExec,       strdup("-c"),    sourceOutputName,
 		                     strdup("-Isrc/"), strdup("-fPIC"), nullptr};
@@ -662,6 +711,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		PrintfBuffer(dynamicLibraryOut, "lib%s.so", buildObject.artifactsFilePath.c_str());
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
+		// TODO: Memory leak
 		char* arguments[] = {linkerExecutable,  strdup("-shared"), strdup("-o"),
 		                     dynamicLibraryOut, buildObjectName,   nullptr};
 		RunProcessArguments linkArguments = {};
@@ -738,10 +788,15 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		}
 
 		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found
+		// That won't work if references can be guessed
 		for (ObjectReference& reference : referencePoolIt->second.references)
 		{
 			if (reference.isResolved)
 				continue;
+
+			// In case a compile-time function has already guessed the invocation was a C/C++
+			// function, clear that invocation output
+			resetGeneratorOutput(*reference.spliceOutput);
 
 			// Evaluate from that reference
 			int result =
@@ -811,7 +866,9 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 					++errors;
 				}
 				else
-					NoteAtToken(*definition.name, "built successfully");
+				{
+					// NoteAtToken(*definition.name, "built successfully");
+				}
 			}
 			else
 			{
@@ -917,4 +974,12 @@ const char* objectTypeToString(ObjectType type)
 		default:
 			return "Unknown";
 	}
+}
+
+void resetGeneratorOutput(GeneratorOutput& output)
+{
+	output.source.clear();
+	output.header.clear();
+	output.functions.clear();
+	output.imports.clear();
 }
