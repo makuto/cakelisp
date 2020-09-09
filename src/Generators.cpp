@@ -2,6 +2,7 @@
 
 #include "Evaluator.hpp"
 #include "GeneratorHelpers.hpp"
+#include "ModuleManager.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
@@ -149,6 +150,23 @@ bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 			isCakeImport = true;
 			// TODO Make .hpp optional for C-only support
 			PrintfBuffer(includeBuffer, "#include \"%s.hpp\"", pathToken.contents.c_str());
+
+			// Evaluate the import!
+			if (!environment.moduleManager)
+			{
+				ErrorAtToken(pathToken,
+				             "importing Cakelisp modules is disabled in this environment");
+				return false;
+			}
+			else
+			{
+				if (!moduleManagerAddEvaluateFile(*environment.moduleManager,
+				                                  pathToken.contents.c_str()))
+				{
+					ErrorAtToken(pathToken, "failed to import Cakelisp module");
+					return false;
+				}
+			}
 		}
 		else
 		{

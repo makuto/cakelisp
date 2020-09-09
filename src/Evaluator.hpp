@@ -10,6 +10,7 @@
 struct NameStyleSettings;
 struct Token;
 struct GeneratorOutput;
+struct ModuleManager;
 
 // Rather than needing to allocate and edit a buffer eventually equal to the size of the final
 // output, store output operations instead. This also facilitates source <-> generated mapping data
@@ -185,6 +186,9 @@ struct EvaluatorEnvironment
 
 	// Used to ensure unique filenames for compile-time artifacts
 	int nextFreeBuildId;
+
+	// If this is null, it means other Cakelisp files will not be imported (which could be desired)
+	ModuleManager* moduleManager;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();

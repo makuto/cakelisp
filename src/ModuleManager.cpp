@@ -25,6 +25,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		moduleDefinition.output = compTimeOutput;
 		addObjectDefinition(manager.environment, moduleDefinition);
 	}
+
+	manager.environment.moduleManager = &manager;
 }
 
 void moduleManagerDestroy(ModuleManager& manager)
@@ -131,6 +133,16 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 
 bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 {
+	for (Module& module : manager.modules)
+	{
+		if (module.filename.compare(filename) == 0)
+		{
+			printf("Already loaded %s\n", filename);
+			return true;
+		}
+	}
+
+	// TODO: Add relative path support
 	Module newModule = {};
 	newModule.filename = filename;
 	// This stage cleans up after itself if it fails
@@ -157,6 +169,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 	if (numErrors)
 		return false;
 
+	printf("Loaded %s\n", filename);
 	return true;
 }
 
@@ -173,12 +186,12 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	for (Module& module : manager.modules)
 	{
 		WriterOutputSettings outputSettings;
-		outputSettings.sourceCakelispFilename = module.filename;
+		outputSettings.sourceCakelispFilename = module.filename.c_str();
 
 		char sourceHeadingBuffer[1024] = {0};
 		// TODO: hpp to h support
 		// TODO: Strip path from filename
-		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", module.filename,
+		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", module.filename.c_str(),
 		             generatedSourceHeading ? generatedSourceHeading : "");
 		outputSettings.sourceHeading = sourceHeadingBuffer;
 		outputSettings.sourceFooter = generatedSourceFooter;

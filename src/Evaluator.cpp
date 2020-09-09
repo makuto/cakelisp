@@ -777,7 +777,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			// function, clear that invocation output
 			resetGeneratorOutput(*reference.spliceOutput);
 
-			NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
+			if (verbose)
+				NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
 
 			// Evaluate from that reference
 			int result =

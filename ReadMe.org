@@ -54,7 +54,7 @@ Cakelisp is written in C/C++ while C-mera is written in Common Lisp.
 This is good and bad: the advanages of writing it in C/C++ are:
 - It is fast; no garbage collection pauses etc. to deal with. This might not actually be the case if intermediate compilation and loading of generators and macros ends up being slow
 - C++ is what I'm most familiar with; it would've taken me much longer in Common Lisp simply because I'm inexperienced in it
-- Cakelisp does not depend on a runtime, which means it would be possible to integrate the Cakelisp compiler into the project being compiled itself. This could be pretty handy for in-process self-modification thanks to the hot-reloading features
+- Cakelisp does not depend on a runtime (except for the C runtime), which means it would be possible to integrate the Cakelisp compiler into the project being compiled itself. This could be pretty handy for in-process self-modification thanks to the hot-reloading features
 - Macros and generators can be written in the same language being generated (and in Cakelisp, of course, because Cakelisp itself can load its own generated code to expand itself)
 
 The bad things:
