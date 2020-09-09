@@ -116,7 +116,7 @@ int main(int argc, char* argv[])
 	EvaluatorEnvironment environment = {};
 	importFundamentalGenerators(environment);
 	// Create module definition for top-level references to attach to
-	Token modulePsuedoInvocationName = {TokenType_Symbol, "<module>", "psuedotarget", 1, 1, 1};
+	Token modulePsuedoInvocationName = {TokenType_Symbol, "<module>", filename, 1, 0, 1};
 	{
 		ObjectDefinition moduleDefinition = {};
 		moduleDefinition.name = &modulePsuedoInvocationName;

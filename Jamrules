@@ -14,7 +14,19 @@ LINK = clang++ ;
 
 ## Compiler arguments
 
-if $(UNIX)
+
+if $(CROSS_COMPILE_WINDOWS)
+{
+  C++ = x86_64-w64-mingw32-g++ ;
+  LINK = x86_64-w64-mingw32-g++ ;
+  AR = x86_64-w64-mingw32-ar ;
+  SUFSHR = .dll ;
+
+  OS_DEPENDENT_C++FLAGS = -DWINDOWS ;
+  # TODO: Windows support
+  OS_DEPENDENT_LINKFLAGS = ;
+}
+else if $(UNIX)
 {
   OS_DEPENDENT_C++FLAGS = -DUNIX ;
   # For dynamic linking

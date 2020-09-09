@@ -4,8 +4,10 @@
 
 #ifdef UNIX
 #include <dlfcn.h>
+#elif WINDOWS
+#include <windows.h>
 #else
-#error "Platform support needed for dynamic loading"
+#error Platform support is needed for dynamic loading
 #endif
 
 DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
@@ -22,6 +24,9 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 		fprintf(stderr, "DynamicLoader Error:\n%s\n", dlerror());
 		return nullptr;
 	}
+#elif WINDOWS
+	// TODO: Any way to get errors if this fails?
+	libHandle = LoadLibrary(libraryPath);
 #endif
 
 	return libHandle;
@@ -54,6 +59,10 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 	}
 
 	return symbol;
+#elif WINDOWS
+	// TODO: Any way to get errors if this fails?
+	void* procedure = (void*)GetProcAddress((HINSTANCE)library, symbolName);
+	return procedure;
 #else
 	return nullptr;
 #endif

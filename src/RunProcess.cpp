@@ -9,7 +9,7 @@
 #include <sys/wait.h>   // waitpid
 #include <unistd.h>     // exec, fork
 #else
-#error Platform support needed for running subprocesses
+#error Platform support is needed for running subprocesses
 #endif
 
 #include "Utilities.hpp"
@@ -72,7 +72,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	pid_t pid = fork();
 	if (pid == -1)
 	{
-		perror("RunProcess fork() error: cannot create child");
+		perror("RunProcess fork() error: cannot create child: ");
 		return 1;
 	}
 	// Child

@@ -21,7 +21,7 @@
   (output.push_back (array TokenType_OpenParen ""
                            startToken.source startToken.lineNumber
 	                       startToken.columnStart startToken.columnEnd))
-  (output.push_back (array TokenType_Symbol "defun"
+  (output.push_back (array TokenType_Symbol "defun" ;; "defun-local" to get rid of error
                            startToken.source startToken.lineNumber
 	                       startToken.columnStart startToken.columnEnd))
   (output.push_back (array TokenType_Symbol "amazing-print"
@@ -48,6 +48,7 @@
   (output.push_back (array TokenType_CloseParen ""
                            startToken.source startToken.lineNumber
 	                       startToken.columnStart startToken.columnEnd))
+  ;; (bad-function)
   (return true))
 
 (amazing-print-create)
