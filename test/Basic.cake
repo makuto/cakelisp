@@ -78,7 +78,11 @@
   (return (the-answer)))
 
 (defmacro the-answer ()
-  (return 42))
+  (var (& (const Token)) startToken (at startTokenIndex tokens))
+  (output.push_back (array TokenType_Symbol "42"
+                           startToken.source startToken.lineNumber
+	                       startToken.columnStart startToken.columnEnd))
+  (return true))
 
 (defun the-answer-fun ()
   (return 42))

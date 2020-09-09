@@ -26,7 +26,6 @@ struct StringOutput
 
 	// Used to correlate Cakelisp code with generated output code
 	const Token* startToken;
-	const Token* endToken;
 };
 
 struct FunctionArgumentMetadata

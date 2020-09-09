@@ -42,5 +42,7 @@ void printIndentToDepth(int depth);
 
 #define PushBackAll(dest, src) (dest).insert((dest).end(), (src).begin(), (src).end())
 
+FILE* fileOpen(const char* filename, const char* mode);
+
 // Let this serve as more of a TODO to get rid of std::string
 extern std::string EmptyString;

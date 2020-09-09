@@ -167,7 +167,6 @@ void addStringOutput(std::vector<StringOutput>& output, const std::string& symbo
 	StringOutput newStringOutput = {};
 	newStringOutput.modifiers = modifiers;
 	newStringOutput.startToken = startToken;
-	newStringOutput.endToken = startToken;
 
 	newStringOutput.output = symbol;
 
@@ -180,7 +179,6 @@ void addLangTokenOutput(std::vector<StringOutput>& output, StringOutputModifierF
 	StringOutput newStringOutput = {};
 	newStringOutput.modifiers = modifiers;
 	newStringOutput.startToken = startToken;
-	newStringOutput.endToken = startToken;
 
 	output.push_back(std::move(newStringOutput));
 }
@@ -192,7 +190,6 @@ void addSpliceOutput(std::vector<StringOutput>& output, GeneratorOutput* spliceO
 	// No other modifiers are valid because splice is handled outside the normal writer
 	newStringOutput.modifiers = StringOutMod_Splice;
 	newStringOutput.startToken = startToken;
-	newStringOutput.endToken = startToken;
 
 	newStringOutput.spliceOutput = spliceOutput;
 

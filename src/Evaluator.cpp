@@ -18,7 +18,7 @@
 // Environment
 //
 
-const char* moduleDefinitionName = "<module>";
+const char* moduleDefinitionName = "<global>";
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
@@ -363,7 +363,6 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 		{
 			StringOutput delimiter = delimiterTemplate;
 			delimiter.startToken = &tokens[currentTokenIndex];
-			delimiter.endToken = &tokens[currentTokenIndex];
 			// TODO: Controlling source vs. header output?
 			output.source.push_back(std::move(delimiter));
 		}
@@ -424,7 +423,6 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 						++numRequiresStatusChanged;
 						findIt->second.isRequired = true;
 					}
-					// TODO Recurse, infecting all of the definition's references as required?
 				}
 			}
 		}
@@ -814,17 +812,23 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 {
 	// Print state
-	for (ObjectDefinitionPair& definitionPair : environment.definitions)
+	bool verbose = false;
+	if (verbose)
 	{
-		ObjectDefinition& definition = definitionPair.second;
-		printf("%s %s:\n", objectTypeToString(definition.type), definition.name->contents.c_str());
-		for (ObjectReferenceStatusPair& reference : definition.references)
+		for (ObjectDefinitionPair& definitionPair : environment.definitions)
 		{
-			ObjectReferenceStatus& referenceStatus = reference.second;
-			printf("\t%s\n", referenceStatus.name->contents.c_str());
+			ObjectDefinition& definition = definitionPair.second;
+			printf("%s %s:\n", objectTypeToString(definition.type),
+			       definition.name->contents.c_str());
+			for (ObjectReferenceStatusPair& reference : definition.references)
+			{
+				ObjectReferenceStatus& referenceStatus = reference.second;
+				printf("\t%s\n", referenceStatus.name->contents.c_str());
+			}
 		}
 	}
 
+	// Keep propagating and evaluating until no more references are resolved.
 	// This must be done in passes in case evaluation created more definitions. There's probably a
 	// smarter way, but I'll do it in this brute-force style first
 	int numReferencesResolved = 0;

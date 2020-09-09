@@ -25,7 +25,6 @@ const char* importLanguageToString(ImportLanguage type)
 	}
 }
 
-// TODO This should be automatically generated
 static NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
                                               StringOutputModifierFlags modifierFlags)
 {
@@ -200,25 +199,6 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 	}
 }
 
-FILE* fileOpen(const char* filename)
-{
-	bool verbose = false;
-
-	FILE* file = nullptr;
-	file = fopen(filename, "w");
-	if (!file)
-	{
-		printf("Error: Could not open %s\n", filename);
-		return nullptr;
-	}
-	else
-	{
-		if (verbose)
-			printf("Opened %s\n", filename);
-	}
-	return file;
-}
-
 bool moveFile(const char* srcFilename, const char* destFilename)
 {
 	FILE* srcFile = fopen(srcFilename, "r");
@@ -291,7 +271,7 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
 	char tempFilename[MAX_PATH_LENGTH] = {0};
 	PrintfBuffer(tempFilename, "%s.temp", outputFilename);
 	// TODO: If this fails to open, Writer_Writef just won't write to the file, it'll print
-	outputState.fileOut = fileOpen(tempFilename);
+	outputState.fileOut = fileOpen(tempFilename, "w");
 
 	if (heading)
 	{

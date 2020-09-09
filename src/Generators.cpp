@@ -840,7 +840,6 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	newMacroDef.name = &nameToken;
 	newMacroDef.type = ObjectType_CompileTimeMacro;
 	// Let the reference required propagation step handle this
-	// TODO: This can also just be a quick lookup to see whether the reference already exists
 	newMacroDef.isRequired = false;
 	newMacroDef.output = compTimeOutput;
 	if (!addObjectDefinition(environment, newMacroDef))
@@ -877,8 +876,7 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	EvaluatorContext macroBodyContext = context;
 	macroBodyContext.scope = EvaluatorScope_Body;
 	macroBodyContext.isMacroOrGeneratorDefinition = true;
-	// TODO Macros are default not required even when declared at module scope. They should start as
-	// required if a reference already exists. For now, make it not automatic
+	// Let the reference required propagation step handle this
 	macroBodyContext.isRequired = false;
 	macroBodyContext.definitionName = &nameToken;
 	// TODO Remove this, we don't need it any more
@@ -1207,13 +1205,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 // Macros
 //
 
-// TODO: Only necessary for macro definition generated body
-// invocationSource should be a human-generated file, when possible
-// void makeMacroSource(char* buffer, int bufferSize, const char* invocationSource)
-// {
-// 	SafeSnprinf(buffer, bufferSize, "%s.macroexpand", invocationSource);
-// }
-
+// An example of a macro in C++
+#if 0
 bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                  const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output)
 {
@@ -1260,6 +1253,7 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 
 	return true;
 }
+#endif
 
 //
 // Environment interaction

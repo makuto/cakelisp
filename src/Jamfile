@@ -9,6 +9,7 @@ GeneratorHelpers.cpp
 RunProcess.cpp
 OutputPreambles.cpp
 DynamicLoader.cpp
+ModuleManager.cpp
 ;
 
 MakeLocate cakelisp : ../cakelisp ;

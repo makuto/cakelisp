@@ -12,7 +12,4 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
                                  const std::vector<Token>& tokens, int startTokenIndex,
                                  GeneratorOutput& output);
 
-bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                 const std::vector<Token>& tokens, int startTokenIndex, std::vector<Token>& output);
-
 void importFundamentalGenerators(EvaluatorEnvironment& environment);
