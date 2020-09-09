@@ -202,6 +202,8 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 
 FILE* fileOpen(const char* filename)
 {
+	bool verbose = false;
+
 	FILE* file = nullptr;
 	file = fopen(filename, "w");
 	if (!file)
@@ -211,7 +213,8 @@ FILE* fileOpen(const char* filename)
 	}
 	else
 	{
-		printf("Opened %s\n", filename);
+		if (verbose)
+			printf("Opened %s\n", filename);
 	}
 	return file;
 }
@@ -229,6 +232,8 @@ bool moveFile(const char* srcFilename, const char* destFilename)
 
 	fclose(srcFile);
 	fclose(destFile);
+
+	printf("Wrote %s\n", destFilename);
 
 	if (remove(srcFilename) != 0)
 	{
@@ -279,6 +284,8 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
                           const char* footer, const std::vector<StringOutput>& outputOperations,
                           const char* outputFilename)
 {
+	bool verbose = false;
+
 	// Write to a temporary file
 	StringOutputState outputState = {};
 	char tempFilename[MAX_PATH_LENGTH] = {0};
@@ -327,12 +334,16 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
 	if (!oldFile)
 	{
 		// Write new and remove temp
-		printf("Destination file didn't exist. Writing\n");
+		if (verbose)
+			printf("Destination file didn't exist. Writing\n");
+
 		return moveFile(tempFilename, outputFilename);
 	}
 	else
 	{
-		printf("Destination file exists. Comparing\n");
+		if (verbose)
+			printf("Destination file exists. Comparing\n");
+
 		char newBuffer[1024] = {0};
 		char oldBuffer[1024] = {0};
 		bool identical = true;
@@ -356,7 +367,9 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
 
 		if (identical)
 		{
-			printf("Files are identical. Skipping\n");
+			if (verbose)
+				printf("Files are identical. Skipping\n");
+
 			fclose(newFile);
 			fclose(oldFile);
 			if (remove(tempFilename) != 0)
@@ -367,7 +380,9 @@ bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
 			return true;
 		}
 
-		printf("File changed. writing\n");
+		if (verbose)
+			printf("File changed. writing\n");
+
 		fclose(newFile);
 		fclose(oldFile);
 
@@ -380,9 +395,12 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings)
 {
+	bool verbose = false;
 	if (!generatedOutput.source.empty())
 	{
-		printf("\tTo source file:\n");
+		if (verbose)
+			printf("\tTo source file:\n");
+
 		{
 			char sourceOutputName[MAX_PATH_LENGTH] = {0};
 			PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
@@ -395,7 +413,9 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
 
 	if (!generatedOutput.header.empty())
 	{
-		printf("\n\tTo header file:\n");
+		if (verbose)
+			printf("\n\tTo header file:\n");
+
 		{
 			char headerOutputName[MAX_PATH_LENGTH] = {0};
 			PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
