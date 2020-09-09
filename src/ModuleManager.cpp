@@ -1,7 +1,13 @@
 #include "ModuleManager.hpp"
 
+#include "Converters.hpp"
+#include "Evaluator.hpp"
 #include "Generators.hpp"
+#include "OutputPreambles.hpp"
+#include "RunProcess.hpp"
+#include "Tokenizer.hpp"
 #include "Utilities.hpp"
+#include "Writer.hpp"
 
 void moduleManagerInitialize(ModuleManager& manager)
 {
@@ -19,6 +25,17 @@ void moduleManagerInitialize(ModuleManager& manager)
 		moduleDefinition.output = compTimeOutput;
 		addObjectDefinition(manager.environment, moduleDefinition);
 	}
+}
+
+void moduleManagerDestroy(ModuleManager& manager)
+{
+	environmentDestroyInvalidateTokens(manager.environment);
+	for (Module& module : manager.modules)
+	{
+		delete module.tokens;
+		delete module.generatedOutput;
+	}
+	manager.modules.clear();
 }
 
 bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>** tokensOut)
@@ -112,10 +129,65 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 	return true;
 }
 
-bool moduleManagerAddFile(ModuleManager& manager, const char* filename)
+bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 {
 	Module newModule = {};
+	newModule.filename = filename;
+	// This stage cleans up after itself if it fails
 	if (!moduleLoadTokenizeValidate(filename, &newModule.tokens))
 		return false;
+
+	newModule.generatedOutput = new GeneratorOutput;
+
+	manager.modules.push_back(newModule);
+
+	EvaluatorContext moduleContext = {};
+	moduleContext.scope = EvaluatorScope_Module;
+	moduleContext.definitionName = &manager.globalPseudoInvocationName;
+	// Module always requires all its functions
+	// TODO: Local functions can be left out if not referenced (in fact, they may warn in C if not)
+	moduleContext.isRequired = true;
+	StringOutput bodyDelimiterTemplate = {};
+	bodyDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
+	int numErrors = EvaluateGenerateAll_Recursive(manager.environment, moduleContext, *newModule.tokens,
+	                                              /*startTokenIndex=*/0, bodyDelimiterTemplate,
+	                                              *newModule.generatedOutput);
+	// After this point, the module may have references to its tokens in the environmment, so we
+	// cannot destroy it until we're done evaluating everything
+	if (numErrors)
+		return false;
+
+	return true;
+}
+
+bool moduleManagerEvaluateResolveReferences(ModuleManager& manager)
+{
+	return EvaluateResolveReferences(manager.environment);
+}
+
+bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
+{
+	NameStyleSettings nameSettings;
+	WriterFormatSettings formatSettings;
+
+	for (Module& module : manager.modules)
+	{
+		WriterOutputSettings outputSettings;
+		outputSettings.sourceCakelispFilename = module.filename;
+
+		char sourceHeadingBuffer[1024] = {0};
+		// TODO: hpp to h support
+		// TODO: Strip path from filename
+		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", module.filename,
+		             generatedSourceHeading ? generatedSourceHeading : "");
+		outputSettings.sourceHeading = sourceHeadingBuffer;
+		outputSettings.sourceFooter = generatedSourceFooter;
+		outputSettings.headerHeading = generatedHeaderHeading;
+		outputSettings.headerFooter = generatedHeaderFooter;
+
+		if (!writeGeneratorOutput(*module.generatedOutput, nameSettings, formatSettings, outputSettings))
+			return false;
+	}
+
 	return true;
 }
