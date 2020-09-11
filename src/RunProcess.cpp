@@ -94,11 +94,6 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	// Parent
 	else
 	{
-		// if (dup2(pipeFileDescriptors[PipeRead], STDIN_FILENO) == -1)
-		// {
-		// 	perror("RunProcess: ");
-		// 	return 1;
-		// }
 		// Only read
 		close(pipeFileDescriptors[PipeWrite]);
 		// printf("Created child process %d\n", pid);
