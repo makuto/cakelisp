@@ -1,5 +1,6 @@
 #include "Converters.hpp"
 
+#include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
 // TODO: safe version of strcat
@@ -7,16 +8,17 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize)
+static bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize,
+                              const Token& token)
 {
 	**at = c;
 	++(*at);
 	char* endOfBuffer = bufferStart + bufferSize - 1;
 	if (*at >= endOfBuffer)
 	{
-		printf(
-		    "\nError: lispNameStyleToCNameStyle(): buffer of size %d was too small. String will be "
-		    "cut off\n",
+		ErrorAtTokenf(
+		    token,
+		    "lispNameStyleToCNameStyle(): buffer of size %d was too small. String will be cut off",
 		    bufferSize);
 		*endOfBuffer = '\0';
 		return false;
@@ -25,7 +27,8 @@ static bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSi
 	return true;
 }
 
-static bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize)
+static bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize,
+                                const Token& token)
 {
 	for (const char* c = str; *c != '\0'; ++c)
 	{
@@ -34,10 +37,10 @@ static bool writeStringToBuffer(const char* str, char** at, char* bufferStart, i
 		char* endOfBuffer = bufferStart + bufferSize - 1;
 		if (*at >= endOfBuffer)
 		{
-			printf(
-			    "\nError: lispNameStyleToCNameStyle(): buffer of size %d was too small. String "
-			    "will be cut off\n",
-			    bufferSize);
+			ErrorAtTokenf(token,
+			              "lispNameStyleToCNameStyle(): buffer of size %d was too small. String "
+			              "will be cut off",
+			              bufferSize);
 			*(endOfBuffer) = '\0';
 			return false;
 		}
@@ -47,7 +50,7 @@ static bool writeStringToBuffer(const char* str, char** at, char* bufferStart, i
 }
 
 void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* bufferOut,
-                               int bufferOutSize)
+                               int bufferOutSize, const Token& token)
 {
 	bool upcaseNextCharacter = false;
 	bool isPlural = false;
@@ -62,7 +65,7 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 			switch (mode)
 			{
 				case NameStyleMode_Underscores:
-					if (!writeCharToBuffer('_', &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeCharToBuffer('_', &bufferWrite, bufferOut, bufferOutSize, token))
 						return;
 					break;
 				case NameStyleMode_CamelCase:
@@ -76,9 +79,9 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 					upcaseNextCharacter = true;
 					break;
 				default:
-					printf(
-					    "Error: lispNameStyleToCNameStyle() encountered unrecognized separator "
-					    "mode\n");
+					ErrorAtToken(token,
+					             "lispNameStyleToCNameStyle() encountered unrecognized separator "
+					             "mode\n");
 					break;
 			}
 		}
@@ -87,19 +90,20 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 			// Special case for C++ namespaces: valid only if there are two in a row
 			if ((c == name && *c + 1 == ':') || (*(c + 1) == ':' || *(c - 1) == ':'))
 			{
-				if (!writeCharToBuffer(*c, &bufferWrite, bufferOut, bufferOutSize))
+				if (!writeCharToBuffer(*c, &bufferWrite, bufferOut, bufferOutSize, token))
 					return;
 			}
 			else
 			{
 				if (c == name)
-					printf(
-					    "Warning: lispNameStyleToCNameStyle() received name starting with : which "
+					ErrorAtToken(
+					    token,
+					    "lispNameStyleToCNameStyle() received name starting with : which "
 					    "wasn't a C++-style :: scope resolution operator; is a generator wrongly "
 					    "interpreting a special symbol?\n");
 
 				requiredSymbolConversion = true;
-				if (!writeStringToBuffer("Colon", &bufferWrite, bufferOut, bufferOutSize))
+				if (!writeStringToBuffer("Colon", &bufferWrite, bufferOut, bufferOutSize, token))
 					return;
 			}
 		}
@@ -107,12 +111,12 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 		{
 			if (upcaseNextCharacter)
 			{
-				if (!writeCharToBuffer(toupper(*c), &bufferWrite, bufferOut, bufferOutSize))
+				if (!writeCharToBuffer(toupper(*c), &bufferWrite, bufferOut, bufferOutSize, token))
 					return;
 			}
 			else
 			{
-				if (!writeCharToBuffer(*c, &bufferWrite, bufferOut, bufferOutSize))
+				if (!writeCharToBuffer(*c, &bufferWrite, bufferOut, bufferOutSize, token))
 					return;
 			}
 
@@ -126,37 +130,39 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 			switch (*c)
 			{
 				case '+':
-					if (!writeStringToBuffer("Add", &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeStringToBuffer("Add", &bufferWrite, bufferOut, bufferOutSize, token))
 						return;
 					break;
 				case '-':
-					if (!writeStringToBuffer("Sub", &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeStringToBuffer("Sub", &bufferWrite, bufferOut, bufferOutSize, token))
 						return;
 					break;
 				case '*':
-					if (!writeStringToBuffer("Mul", &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeStringToBuffer("Mul", &bufferWrite, bufferOut, bufferOutSize, token))
 						return;
 					break;
 				case '/':
-					if (!writeStringToBuffer("Div", &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeStringToBuffer("Div", &bufferWrite, bufferOut, bufferOutSize, token))
 						return;
 					break;
 				case '%':
-					if (!writeStringToBuffer("Mod", &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeStringToBuffer("Mod", &bufferWrite, bufferOut, bufferOutSize, token))
 						return;
 					break;
 				case '.':
 					// TODO: Decide how to handle object pathing
-					if (!writeStringToBuffer(".", &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeStringToBuffer(".", &bufferWrite, bufferOut, bufferOutSize, token))
 						return;
 					break;
 				default:
-					printf(
-					    "Error: While converting lisp-style %s to C-style, encountered character "
+					ErrorAtTokenf(
+					    token,
+					    "while converting lisp-style '%s' to C-style, encountered character "
 					    "'%c' which has no conversion equivalent. It will be replaced with "
-					    "'BadChar'\n",
+					    "'BadChar'",
 					    name, *c);
-					if (!writeStringToBuffer("BadChar", &bufferWrite, bufferOut, bufferOutSize))
+					if (!writeStringToBuffer("BadChar", &bufferWrite, bufferOut, bufferOutSize,
+					                         token))
 						return;
 					break;
 			}

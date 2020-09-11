@@ -24,6 +24,7 @@ struct Subprocess
 {
 	int* statusOut;
 	ProcessId processId;
+	int pipeReadFileDescriptor;
 };
 
 static std::vector<Subprocess> s_subprocesses;
@@ -93,15 +94,15 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	// Parent
 	else
 	{
-		if (dup2(pipeFileDescriptors[PipeRead], STDIN_FILENO) == -1)
-		{
-			perror("RunProcess: ");
-			return 1;
-		}
+		// if (dup2(pipeFileDescriptors[PipeRead], STDIN_FILENO) == -1)
+		// {
+		// 	perror("RunProcess: ");
+		// 	return 1;
+		// }
 		// Only read
 		close(pipeFileDescriptors[PipeWrite]);
 		// printf("Created child process %d\n", pid);
-		s_subprocesses.push_back({statusOut, pid});
+		s_subprocesses.push_back({statusOut, pid, pipeFileDescriptors[PipeRead]});
 	}
 
 	return 1;
@@ -114,18 +115,23 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 	if (s_subprocesses.empty())
 		return;
 
-	// TODO: Don't merge all subprocesses to stdin, keep them separate to prevent multi-line errors
-	// from being split
-	char processOutputBuffer[1024];
-	while (fgets(processOutputBuffer, sizeof(processOutputBuffer), stdin))
-	{
-		subprocessReceiveStdOut(processOutputBuffer);
-		onOutput(processOutputBuffer);
-	}
-
 	for (Subprocess& process : s_subprocesses)
 	{
 #ifdef UNIX
+		char processOutputBuffer[1024] = {0};
+		int numBytesRead =
+		    read(process.pipeReadFileDescriptor, processOutputBuffer, sizeof(processOutputBuffer));
+		while (numBytesRead > 0)
+		{
+			processOutputBuffer[numBytesRead] = '\0';
+			subprocessReceiveStdOut(processOutputBuffer);
+			onOutput(processOutputBuffer);
+			numBytesRead = read(process.pipeReadFileDescriptor, processOutputBuffer,
+			                    sizeof(processOutputBuffer));
+		}
+
+		close(process.pipeReadFileDescriptor);
+
 		waitpid(process.processId, process.statusOut, 0);
 #endif
 	}

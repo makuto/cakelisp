@@ -615,8 +615,16 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		NameStyleSettings nameSettings;
 		WriterFormatSettings formatSettings;
 		WriterOutputSettings outputSettings = {};
-		outputSettings.sourceHeading = macroSourceHeading;
-		outputSettings.sourceFooter = macroSourceFooter;
+		if (definition->type == ObjectType_CompileTimeGenerator)
+		{
+			outputSettings.sourceHeading = generatorSourceHeading;
+			outputSettings.sourceFooter = generatorSourceFooter;
+		}
+		else
+		{
+			outputSettings.sourceHeading = macroSourceHeading;
+			outputSettings.sourceFooter = macroSourceFooter;
+		}
 		outputSettings.sourceCakelispFilename = sourceOutputName;
 		// Use the separate output prepared specifically for this compile-time object
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
@@ -671,7 +679,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		if (buildObject.status != 0)
 		{
 			ErrorAtTokenf(*buildObject.definition->name,
-			              "Failed to compile definition with status %d", buildObject.status);
+			              "Failed to compile definition '%s' with status %d",
+			              buildObject.definition->name->contents.c_str(), buildObject.status);
 			continue;
 		}
 
@@ -734,7 +743,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		char symbolNameBuffer[MAX_NAME_LENGTH] = {0};
 		lispNameStyleToCNameStyle(nameSettings.functionNameMode,
 		                          buildObject.definition->name->contents.c_str(), symbolNameBuffer,
-		                          sizeof(symbolNameBuffer));
+		                          sizeof(symbolNameBuffer), *buildObject.definition->name);
 		void* compileTimeFunction = getSymbolFromDynamicLibrary(builtLib, symbolNameBuffer);
 		if (!compileTimeFunction)
 		{

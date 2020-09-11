@@ -10,6 +10,101 @@
 #include <stdio.h>
 #include <string.h>
 
+bool moveFile(const char* srcFilename, const char* destFilename)
+{
+	FILE* srcFile = fopen(srcFilename, "r");
+	FILE* destFile = fopen(destFilename, "w");
+	if (!srcFile || !destFile)
+		return false;
+
+	char buffer[1024];
+	while (fgets(buffer, sizeof(buffer), srcFile))
+		fputs(buffer, destFile);
+
+	fclose(srcFile);
+	fclose(destFile);
+
+	printf("Wrote %s\n", destFilename);
+
+	if (remove(srcFilename) != 0)
+	{
+		printf("Failed to remove %s\n", srcFilename);
+		return false;
+	}
+
+	return true;
+}
+
+bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
+{
+	bool verbose = false;
+	// Read temporary file and destination file and compare
+	FILE* newFile = fopen(tempFilename, "r");
+	if (!newFile)
+	{
+		printf("Error: Could not open %s\n", tempFilename);
+		return false;
+	}
+	FILE* oldFile = fopen(outputFilename, "r");
+	if (!oldFile)
+	{
+		// Write new and remove temp
+		if (verbose)
+			printf("Destination file didn't exist. Writing\n");
+
+		return moveFile(tempFilename, outputFilename);
+	}
+	else
+	{
+		if (verbose)
+			printf("Destination file exists. Comparing\n");
+
+		char newBuffer[1024] = {0};
+		char oldBuffer[1024] = {0};
+		bool identical = true;
+		while (1)
+		{
+			bool newBufferRead = fgets(newBuffer, sizeof(newBuffer), newFile) != nullptr;
+			bool oldBufferRead = fgets(oldBuffer, sizeof(oldBuffer), oldFile) != nullptr;
+			if (!newBufferRead || !oldBufferRead)
+			{
+				if (newBufferRead != oldBufferRead)
+					identical = false;
+				break;
+			}
+
+			if (memcmp(newBuffer, oldBuffer, sizeof(newBuffer)) != 0)
+			{
+				identical = false;
+				break;
+			}
+		}
+
+		if (identical)
+		{
+			if (verbose)
+				printf("Files are identical. Skipping\n");
+
+			fclose(newFile);
+			fclose(oldFile);
+			if (remove(tempFilename) != 0)
+			{
+				printf("Failed to remove %s\n", tempFilename);
+				return false;
+			}
+			return true;
+		}
+
+		if (verbose)
+			printf("File changed. writing\n");
+
+		fclose(newFile);
+		fclose(oldFile);
+
+		return moveFile(tempFilename, outputFilename);
+	}
+}
+
 const char* importLanguageToString(ImportLanguage type)
 {
 	switch (type)
@@ -90,6 +185,8 @@ static void Writer_Writef(StringOutputState& state, const char* format, ...)
 
 static void printIndentation(const WriterFormatSettings& formatSettings, StringOutputState& state)
 {
+	// TODO: Good indentation
+	return;
 	if (formatSettings.indentStyle == WriterFormatIndentType_Tabs)
 	{
 		for (int i = 0; i < state.blockDepth; ++i)
@@ -127,13 +224,16 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 		}
 	}
 
+	if (outputOperation.modifiers & StringOutMod_SpaceBefore)
+		Writer_Writef(state, " ");
+
 	// TODO Validate flags for e.g. OpenParen | CloseParen, which shouldn't be allowed
 	NameStyleMode mode = getNameStyleModeForFlags(nameSettings, outputOperation.modifiers);
 	if (mode)
 	{
 		char convertedName[MAX_NAME_LENGTH] = {0};
 		lispNameStyleToCNameStyle(mode, outputOperation.output.c_str(), convertedName,
-		                          sizeof(convertedName));
+		                          sizeof(convertedName), *outputOperation.startToken);
 		Writer_Writef(state, "%s", convertedName);
 	}
 	else if (outputOperation.modifiers & StringOutMod_SurroundWithQuotes)
@@ -199,35 +299,13 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 	}
 }
 
-bool moveFile(const char* srcFilename, const char* destFilename)
-{
-	FILE* srcFile = fopen(srcFilename, "r");
-	FILE* destFile = fopen(destFilename, "w");
-	if (!srcFile || !destFile)
-		return false;
-
-	char buffer[1024];
-	while (fgets(buffer, sizeof(buffer), srcFile))
-		fputs(buffer, destFile);
-
-	fclose(srcFile);
-	fclose(destFile);
-
-	printf("Wrote %s\n", destFilename);
-
-	if (remove(srcFilename) != 0)
-	{
-		printf("Failed to remove %s\n", srcFilename);
-		return false;
-	}
-
-	return true;
-}
-
+// This is annoyingly complex because splices allow things in source to write to header
 void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
                                         const WriterFormatSettings& formatSettings,
                                         StringOutputState& outputState,
-                                        const std::vector<StringOutput>& outputOperations)
+                                        StringOutputState& otherOutputState,
+                                        const std::vector<StringOutput>& outputOperations,
+                                        bool isHeader)
 {
 	for (const StringOutput& operation : outputOperations)
 	{
@@ -242,11 +320,24 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 		{
 			if (operation.spliceOutput)
 			{
-				writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
-				                                   operation.spliceOutput->source);
-				if (!operation.spliceOutput->header.empty())
-					ErrorAtToken(*operation.startToken,
-					             "splice output contained header output, which is not supported");
+				if (isHeader)
+				{
+					writeOutputFollowSplices_Recursive(
+					    nameSettings, formatSettings, otherOutputState, outputState,
+					    operation.spliceOutput->source, /*isHeader=*/false);
+					writeOutputFollowSplices_Recursive(
+					    nameSettings, formatSettings, outputState, otherOutputState,
+					    operation.spliceOutput->header, /*isHeader=*/true);
+				}
+				else
+				{
+					writeOutputFollowSplices_Recursive(
+					    nameSettings, formatSettings, outputState, otherOutputState,
+					    operation.spliceOutput->source, /*isHeader=*/false);
+					writeOutputFollowSplices_Recursive(
+					    nameSettings, formatSettings, otherOutputState, outputState,
+					    operation.spliceOutput->header, /*isHeader=*/true);
+				}
 			}
 			else
 				ErrorAtToken(*operation.startToken, "expected splice output");
@@ -256,118 +347,116 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 	}
 }
 
-// TODO This sucks
-// TODO Lots of params
-bool writeIfContentsNewer(const NameStyleSettings& nameSettings,
-                          const WriterFormatSettings& formatSettings,
-                          const WriterOutputSettings& outputSettings, const char* heading,
-                          const char* footer, const std::vector<StringOutput>& outputOperations,
-                          const char* outputFilename)
+bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSettings& formatSettings,
+                  const WriterOutputSettings& outputSettings, const GeneratorOutput& outputToWrite)
 {
 	bool verbose = false;
 
-	// Write to a temporary file
-	StringOutputState outputState = {};
-	char tempFilename[MAX_PATH_LENGTH] = {0};
-	PrintfBuffer(tempFilename, "%s.temp", outputFilename);
-	// TODO: If this fails to open, Writer_Writef just won't write to the file, it'll print
-	outputState.fileOut = fileOpen(tempFilename, "w");
+	char sourceOutputName[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
+	char headerOutputName[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
 
-	if (heading)
+	struct
 	{
-		Writer_Writef(outputState, heading);
-		// TODO: Put this in Writer_Writef
-		for (const char* c = heading; *c != '\0'; ++c)
+		bool isHeader;
+		const char* outputFilename;
+		const char* heading;
+		const char* footer;
+
+		StringOutputState outputState;
+		// To determine if anything was actually written
+		StringOutputState stateBeforeOutputWrite;
+		char tempFilename[MAX_PATH_LENGTH];
+	} outputs[] = {{/*isHeader=*/false,
+	                sourceOutputName,
+	                outputSettings.sourceHeading,
+	                outputSettings.sourceFooter,
+	                {},
+	                {},
+	                {0}},
+	               {
+	                   /*isHeader=*/true,
+	                   headerOutputName,
+	                   outputSettings.headerHeading,
+	                   outputSettings.headerFooter,
+	                   {},
+	                   {},
+	                   {0},
+	               }};
+
+	for (int i = 0; i < static_cast<int>(ArraySize(outputs)); ++i)
+	{
+		// Write to a temporary file
+		PrintfBuffer(outputs[i].tempFilename, "%s.temp", outputs[i].outputFilename);
+		// TODO: If this fails to open, Writer_Writef just won't write to the file, it'll print
+		outputs[i].outputState.fileOut = fileOpen(outputs[i].tempFilename, "w");
+
+		if (outputs[i].heading)
 		{
-			if (*c == '\n')
-				++outputState.currentLine;
-		}
-	}
-
-	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState, outputOperations);
-
-	if (footer)
-	{
-		Writer_Writef(outputState, footer);
-		// TODO: Put this in Writer_Writef
-		for (const char* c = footer; *c != '\0'; ++c)
-		{
-			if (*c == '\n')
-				++outputState.currentLine;
-		}
-	}
-
-	if (outputState.fileOut)
-	{
-		fclose(outputState.fileOut);
-		outputState.fileOut = nullptr;
-	}
-
-	// Read temporary file and destination file and compare
-	FILE* newFile = fopen(tempFilename, "r");
-	if (!newFile)
-	{
-		printf("Error: Could not open %s\n", tempFilename);
-		return false;
-	}
-	FILE* oldFile = fopen(outputFilename, "r");
-	if (!oldFile)
-	{
-		// Write new and remove temp
-		if (verbose)
-			printf("Destination file didn't exist. Writing\n");
-
-		return moveFile(tempFilename, outputFilename);
-	}
-	else
-	{
-		if (verbose)
-			printf("Destination file exists. Comparing\n");
-
-		char newBuffer[1024] = {0};
-		char oldBuffer[1024] = {0};
-		bool identical = true;
-		while (1)
-		{
-			bool newBufferRead = fgets(newBuffer, sizeof(newBuffer), newFile) != nullptr;
-			bool oldBufferRead = fgets(oldBuffer, sizeof(oldBuffer), oldFile) != nullptr;
-			if (!newBufferRead || !oldBufferRead)
+			Writer_Writef(outputs[i].outputState, outputs[i].heading);
+			// TODO: Put this in Writer_Writef
+			for (const char* c = outputs[i].heading; *c != '\0'; ++c)
 			{
-				if (newBufferRead != oldBufferRead)
-					identical = false;
-				break;
-			}
-
-			if (memcmp(newBuffer, oldBuffer, sizeof(newBuffer)) != 0)
-			{
-				identical = false;
-				break;
+				if (*c == '\n')
+					++outputs[i].outputState.currentLine;
 			}
 		}
 
-		if (identical)
+		outputs[i].stateBeforeOutputWrite = outputs[i].outputState;
+	}
+
+	// Source
+	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputs[0].outputState,
+	                                   outputs[1].outputState, outputToWrite.source,
+	                                   outputs[0].isHeader);
+	// Header
+	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputs[1].outputState,
+	                                   outputs[0].outputState, outputToWrite.header,
+	                                   outputs[1].isHeader);
+
+	for (int i = 0; i < static_cast<int>(ArraySize(outputs)); ++i)
+	{
+		// No output to this file. Don't write anything
+		if (outputs[i].outputState.numCharsOutput ==
+		    outputs[i].stateBeforeOutputWrite.numCharsOutput)
 		{
 			if (verbose)
-				printf("Files are identical. Skipping\n");
+				printf("%s had no meaningful output\n", outputs[i].tempFilename);
 
-			fclose(newFile);
-			fclose(oldFile);
-			if (remove(tempFilename) != 0)
+			fclose(outputs[i].outputState.fileOut);
+			outputs[i].outputState.fileOut = nullptr;
+
+			if (remove(outputs[i].tempFilename) != 0)
 			{
-				printf("Failed to remove %s\n", tempFilename);
+				printf("Error: Failed to remove %s\n", outputs[i].tempFilename);
 				return false;
 			}
-			return true;
+			continue;
 		}
 
-		if (verbose)
-			printf("File changed. writing\n");
+		if (outputs[i].footer)
+		{
+			Writer_Writef(outputs[i].outputState, outputs[i].footer);
+			// TODO: Put this in Writer_Writef
+			for (const char* c = outputs[i].footer; *c != '\0'; ++c)
+			{
+				if (*c == '\n')
+					++outputs[i].outputState.currentLine;
+			}
+		}
 
-		fclose(newFile);
-		fclose(oldFile);
+		if (outputs[i].outputState.fileOut)
+		{
+			fclose(outputs[i].outputState.fileOut);
+			outputs[i].outputState.fileOut = nullptr;
+		}
 
-		return moveFile(tempFilename, outputFilename);
+		if (!writeIfContentsNewer(outputs[i].tempFilename, outputs[i].outputFilename))
+			return false;
 	}
+
+	return true;
 }
 
 bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
@@ -376,38 +465,12 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const WriterOutputSettings& outputSettings)
 {
 	bool verbose = false;
-	if (!generatedOutput.source.empty())
-	{
-		if (verbose)
-			printf("\tTo source file:\n");
 
-		{
-			char sourceOutputName[MAX_PATH_LENGTH] = {0};
-			PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
-			if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
-			                          outputSettings.sourceHeading, outputSettings.sourceFooter,
-			                          generatedOutput.source, sourceOutputName))
-				return false;
-		}
-	}
-
-	if (!generatedOutput.header.empty())
-	{
-		if (verbose)
-			printf("\n\tTo header file:\n");
-
-		{
-			char headerOutputName[MAX_PATH_LENGTH] = {0};
-			PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
-			if (!writeIfContentsNewer(nameSettings, formatSettings, outputSettings,
-			                          outputSettings.headerHeading, outputSettings.headerFooter,
-			                          generatedOutput.header, headerOutputName))
-				return false;
-		}
-	}
+	if (!writeOutputs(nameSettings, formatSettings, outputSettings, generatedOutput))
+		return false;
 
 	// TODO: Write mapping and metadata
-	if (false)
+	if (verbose)
 	{
 		// Metadata
 		printf("\n\tImports:\n");

@@ -148,6 +148,8 @@ bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 		        .compare(cakeSuffix) == 0)
 		{
 			isCakeImport = true;
+			// TODO Only include the cakelisp file if it is actually needed. For example, macro-only
+			// .cake files will not have a header output at all
 			// TODO Make .hpp optional for C-only support
 			PrintfBuffer(includeBuffer, "#include \"%s.hpp\"", pathToken.contents.c_str());
 
@@ -661,7 +663,7 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 	return true;
 }
 
-// Handles both uninitized and initilized variables as well as global and static
+// Handles both uninitialized and initialized variables as well as global and static
 // Module-local variables are automatically marked as static
 bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
@@ -827,6 +829,7 @@ bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 	return true;
 }
 
+// TODO Consider merging with defgenerator?
 bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                        const std::vector<Token>& tokens, int startTokenIndex,
                        GeneratorOutput& output)
@@ -913,6 +916,95 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	return true;
 }
 
+// Essentially the same as DefMacro, though I could see them diverging or merging
+bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                           const std::vector<Token>& tokens, int startTokenIndex,
+                           GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("defgenerator", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	int endDefunTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int endTokenIndex = endDefunTokenIndex;
+	int startNameTokenIndex = startTokenIndex;
+	StripInvocation(startNameTokenIndex, endTokenIndex);
+
+	int nameIndex = startNameTokenIndex;
+	const Token& nameToken = tokens[nameIndex];
+	if (!ExpectTokenType("defgenerator", nameToken, TokenType_Symbol))
+		return false;
+
+	int argsIndex = nameIndex + 1;
+	if (!ExpectInInvocation("defgenerator expected arguments", tokens, argsIndex,
+	                        endDefunTokenIndex))
+		return false;
+	const Token& argsStart = tokens[argsIndex];
+	if (!ExpectTokenType("defgenerator", argsStart, TokenType_OpenParen))
+		return false;
+
+	// Will be cleaned up when the environment is destroyed
+	GeneratorOutput* compTimeOutput = new GeneratorOutput;
+
+	ObjectDefinition newGeneratorDef = {};
+	newGeneratorDef.name = &nameToken;
+	newGeneratorDef.type = ObjectType_CompileTimeGenerator;
+	// Let the reference required propagation step handle this
+	newGeneratorDef.isRequired = false;
+	newGeneratorDef.output = compTimeOutput;
+	if (!addObjectDefinition(environment, newGeneratorDef))
+		return false;
+
+	// TODO: It would be nice to support global vs. local generators
+	// This only really needs to be an environment distinction, not a code output distinction
+	// Generators will be found without headers thanks to dynamic linking
+	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defgenerator-local") == 0;
+
+	// Generators must return success or failure
+	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,
+	                &tokens[startTokenIndex]);
+
+	addStringOutput(compTimeOutput->source, nameToken.contents, StringOutMod_ConvertFunctionName,
+	                &nameToken);
+
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenParen, &argsStart);
+
+	// Generators always receive the same arguments
+	// TODO: Output generator arguments with proper output calls
+	addStringOutput(compTimeOutput->source,
+	                "EvaluatorEnvironment& environment, const EvaluatorContext& context, const "
+	                "std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output",
+	                StringOutMod_None, &argsStart);
+
+	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
+
+	int startBodyIndex = endArgsIndex + 1;
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+
+	// Evaluate our body!
+	EvaluatorContext generatorBodyContext = context;
+	generatorBodyContext.scope = EvaluatorScope_Body;
+	generatorBodyContext.isMacroOrGeneratorDefinition = true;
+	// Let the reference required propagation step handle this
+	generatorBodyContext.isRequired = false;
+	generatorBodyContext.definitionName = &nameToken;
+	// TODO Remove this, we don't need it any more
+	StringOutput bodyDelimiterTemplate = {};
+	int numErrors =
+	    EvaluateGenerateAll_Recursive(environment, generatorBodyContext, tokens, startBodyIndex,
+	                                  bodyDelimiterTemplate, *compTimeOutput);
+	if (numErrors)
+	{
+		delete compTimeOutput;
+		return false;
+	}
+
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
+
+	return true;
+}
+
 //
 // C Statement generation
 //
@@ -930,6 +1022,7 @@ enum CStatementOperationType
 	CloseList,
 
 	Keyword,
+	KeywordNoSpace,
 	EndStatement,
 
 	// Evaluate argument(s)
@@ -965,6 +1058,10 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				addStringOutput(output.source, operation[i].keywordOrSymbol,
 				                StringOutMod_SpaceAfter, &nameToken);
 				break;
+			case KeywordNoSpace:
+				addStringOutput(output.source, operation[i].keywordOrSymbol, StringOutMod_None,
+				                &nameToken);
+				break;
 			case Splice:
 			{
 				if (operation[i].argumentIndex < 0)
@@ -981,7 +1078,8 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				bodyContext.scope = EvaluatorScope_ExpressionsOnly;
 				StringOutput spliceDelimiterTemplate = {};
 				spliceDelimiterTemplate.output = operation[i].keywordOrSymbol;
-				spliceDelimiterTemplate.modifiers = StringOutMod_SpaceAfter;
+				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
+				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
 				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
 				                                              startSpliceListIndex,
 				                                              spliceDelimiterTemplate, output);
@@ -1117,8 +1215,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	                                                   {Expression, nullptr, 2},
 	                                                   {EndStatement, nullptr, -1}};
 
-	const CStatementOperation dereference[] = {{Keyword, "*", -1}, {Expression, nullptr, 1}};
-	const CStatementOperation addressOf[] = {{Keyword, "&", -1}, {Expression, nullptr, 1}};
+	const CStatementOperation dereference[] = {{KeywordNoSpace, "*", -1}, {Expression, nullptr, 1}};
+	const CStatementOperation addressOf[] = {{KeywordNoSpace, "&", -1}, {Expression, nullptr, 1}};
 
 	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
 	// barriers or anything). It's useful both for making arbitrary scopes and for making if
@@ -1127,9 +1225,22 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {OpenBlock, nullptr, -1}, {Body, nullptr, 1}, {CloseBlock, nullptr, -1}};
 
 	// https://www.tutorialspoint.com/cprogramming/c_operators.htm proved useful
-	const CStatementOperation booleanOr[] = {{Splice, "||", 1}};
-	const CStatementOperation booleanAnd[] = {{Splice, "&&", 1}};
-	const CStatementOperation booleanNot[] = {{Keyword, "!", -1}, {Expression, nullptr, 1}};
+	// These could probably be made smarter to not need all the redundant parentheses. For now I'll
+	// make it absolutely unambiguous
+	const CStatementOperation booleanOr[] = {
+	    {OpenParen, nullptr, -1},
+	    {Splice, "||", 1},
+	    {CloseParen, nullptr, -1},
+	};
+	const CStatementOperation booleanAnd[] = {
+	    {OpenParen, nullptr, -1},
+	    {Splice, "&&", 1},
+	    {CloseParen, nullptr, -1},
+	};
+	const CStatementOperation booleanNot[] = {{KeywordNoSpace, "!", -1},
+	                                          {OpenParen, nullptr, -1},
+	                                          {Expression, nullptr, 1},
+	                                          {CloseParen, nullptr, -1}};
 
 	const CStatementOperation bitwiseOr[] = {{Splice, "|", 1}};
 	const CStatementOperation bitwiseAnd[] = {{Splice, "&", 1}};
@@ -1287,6 +1398,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["defun-local"] = DefunGenerator;
 
 	environment.generators["defmacro"] = DefMacroGenerator;
+	environment.generators["defgenerator"] = DefGeneratorGenerator;
 
 	environment.generators["var"] = VariableDeclarationGenerator;
 	environment.generators["global-var"] = VariableDeclarationGenerator;

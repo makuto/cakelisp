@@ -2,6 +2,8 @@
 
 #include "ConverterEnums.hpp"
 
+struct Token;
+
 struct NameStyleSettings
 {
 	// In general, you should write C/C++ types as they appear in C/C++, because then ETAGS etc. can
@@ -23,4 +25,4 @@ struct NameStyleSettings
 // them. This also means you can use whatever style you want in Cakelisp, and you'll get valid C/C++
 // generated (so long as your non-'-' strings match the other C/C++ names)
 void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* bufferOut,
-                               int bufferOutSize);
+                               int bufferOutSize, const Token& token);
