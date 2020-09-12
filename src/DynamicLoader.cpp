@@ -5,6 +5,7 @@
 #ifdef UNIX
 #include <dlfcn.h>
 #elif WINDOWS
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
 #error Platform support is needed for dynamic loading
@@ -61,6 +62,7 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 	return symbol;
 #elif WINDOWS
 	// TODO: Any way to get errors if this fails?
+	// Sergey: GetLastError
 	void* procedure = (void*)GetProcAddress((HINSTANCE)library, symbolName);
 	return procedure;
 #else

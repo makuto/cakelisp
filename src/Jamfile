@@ -1,5 +1,10 @@
-Main cakelisp : Main.cpp
-Tokenizer.cpp
+SubDir . src ;
+
+Main cakelisp : Main.cpp ;
+
+LinkLibraries cakelisp : libCakelisp ;
+
+Library libCakelisp : Tokenizer.cpp
 Evaluator.cpp
 Utilities.cpp
 Converters.cpp
@@ -9,9 +14,11 @@ GeneratorHelpers.cpp
 RunProcess.cpp
 OutputPreambles.cpp
 DynamicLoader.cpp
-ModuleManager.cpp
-;
+ModuleManager.cpp ;
 
-MakeLocate cakelisp : ../cakelisp ;
+MakeLocate cakelisp$(SUFEXE) : bin ;
+MakeLocate libCakelisp.a : lib ;
 
-SubDir . src ;
+# TODO: Why won't these create the bin dir?
+# MkDir bin ;
+Bulk bin : $(OS_DEPENDENT_DLLS) ;

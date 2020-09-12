@@ -640,7 +640,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		char fileToExec[MAX_PATH_LENGTH] = {0};
 		PrintBuffer(fileToExec, "/usr/bin/clang++");
 
-		// TODO: Get file extension from output (once .c vs .cpp is implemented)
+		// The evaluator is written in C++, so all generators and macros need to support the C++
+		// features used (e.g. their signatures have std::vector<>)
 		PrintfBuffer(sourceOutputName, "%s.cpp", buildObject.artifactsFilePath.c_str());
 
 		// TODO: Get arguments all the way from the top

@@ -39,3 +39,6 @@ src/dependencyTest
 *.cake.hpp
 
 *CakelispCompileTime*
+
+bin/
+lib/

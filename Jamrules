@@ -7,36 +7,40 @@ LINK = clang++ ;
 # C++ = g++ ;
 # LINK = g++ ;
 
-# If I was building a library, these would be useful
-# LINKFLAGS = -shared ;
-# if $(UNIX)      { SUFSHR = .so ; }
-# else if $(NT)   { SUFSHR = .dll ; }
-
-## Compiler arguments
-
+if $(UNIX)      { SUFSHR = .so ; }
+else if $(NT)   { SUFSHR = .dll ; }
 
 if $(CROSS_COMPILE_WINDOWS)
 {
   C++ = x86_64-w64-mingw32-g++ ;
   LINK = x86_64-w64-mingw32-g++ ;
   AR = x86_64-w64-mingw32-ar ;
-  SUFSHR = .dll ;
+  SUFEXE = .exe ;
 
   OS_DEPENDENT_C++FLAGS = -DWINDOWS ;
-  # TODO: Windows support
-  OS_DEPENDENT_LINKFLAGS = ;
+  OS_DEPENDENT_LINKLIBS = ;
+  OS_DEPENDENT_LINKFLAGS = --export-all-symbols ;
+
+  MINGW_LIB_PATH = /usr/lib/gcc/x86_64-w64-mingw32/7.3-win32 ;
+  OS_DEPENDENT_DLLS =
+  $(MINGW_LIB_PATH)/libgcc_s_seh-1.dll
+  $(MINGW_LIB_PATH)/libstdc++-6.dll ;
 }
 else if $(UNIX)
 {
   OS_DEPENDENT_C++FLAGS = -DUNIX ;
-  # For dynamic linking
-  OS_DEPENDENT_LINKFLAGS = -ldl ;
+  # For dynamic loading: ldl loads, export-dynamic lets the loaded code resolve its symbols to the loader's code
+  OS_DEPENDENT_LINKLIBS = -ldl ;
+  OS_DEPENDENT_LINKFLAGS = --export-dynamic ;
+  OS_DEPENDENT_DLLS = ;
 }
 else if $(NT)
 {
   OS_DEPENDENT_C++FLAGS = -DWINDOWS ;
   # TODO: Windows support
+  OS_DEPENDENT_LINKLIBS = ;
   OS_DEPENDENT_LINKFLAGS = ;
+  OS_DEPENDENT_DLLS = ;
 }
 
 # Arguments used on all projects, regardless of any variables
@@ -70,13 +74,13 @@ LINKLIBS =
 # Standard (e.g. for Tracy)
 -lpthread
 # Functions for dynamically loading libraries (UNIX)
--ldl
+$(OS_DEPENDENT_LINKLIBS)
 ;
 
 LINKFLAGS = -g
 # -Wl = pass to linker
-# --export-dynamic = 
--Wl,-rpath,.,--export-dynamic
+# --export-dynamic = Export all symbols so dynamically loaded code can resolve their symbols to ours
+-Wl,-rpath,.,$(OS_DEPENDENT_LINKFLAGS)
 ;
 ##
 ## Jam stuff
@@ -89,21 +93,10 @@ NOARSCAN = true ; # This actually fixes the problem
                # It doesn't seem like this is the problem though
 AR = ar cr ;
 
-# Cross compilation
-# E.g.
-# jam -j4 -q -sCROSS_COMPILE_WINDOWS=true
-# if $(CROSS_COMPILE_WINDOWS)
-# {
-# 	CC = x86_64-w64-mingw32-gcc ;
-# 	LINK = x86_64-w64-mingw32-gcc ;
-# 	AR = x86_64-w64-mingw32-ar ;
-# 	SUFSHR = .dll ;
-# }
-
 # Some helpful Jam commands
 # -q        : stop on failed target
 # -jN       : use N cores
-# -sVAR=VAL : Set VAR to VAL. Note that setting WINDOWS=false is the same as setting UNREAL=true,
-#              frustratingly
+# -sVAR=VAL : Set VAR to VAL. Note that setting WINDOWS=false is the same as setting WINDOWS=true,
+#              frustratingly (as if it's an ifdef not an if x = y
 # -dx       : print commands being used
 # -n        : don't actually run commands
