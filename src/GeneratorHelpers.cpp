@@ -156,6 +156,17 @@ bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int e
 	return true;
 }
 
+int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
+                     int endArrayTokenIndex)
+{
+	int nextArgStart = currentTokenIndex;
+	if (tokens[currentTokenIndex].type == TokenType_OpenParen)
+		nextArgStart = FindCloseParenTokenIndex(tokens, currentTokenIndex);
+
+	++nextArgStart;
+	return nextArgStart;
+}
+
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag)
 {
 	operation.modifiers = (StringOutputModifierFlags)((int)operation.modifiers | (int)flag);

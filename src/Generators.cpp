@@ -1005,6 +1005,102 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	return true;
 }
 
+bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                        const std::vector<Token>& tokens, int startTokenIndex,
+                        GeneratorOutput& output)
+{
+	if (IsForbiddenEvaluatorScope("defstruct", tokens[startTokenIndex], context,
+	                              EvaluatorScope_ExpressionsOnly))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int nameIndex =
+	    getExpectedArgument("expected struct name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (nameIndex == -1 || !ExpectTokenType("defstruct", tokens[nameIndex], TokenType_Symbol))
+		return false;
+
+	// Structs defined in body scope are automatically local
+	bool isGlobal = context.scope == EvaluatorScope_Module &&
+	                tokens[startTokenIndex + 1].contents.compare("defstruct") == 0;
+
+	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
+
+	addStringOutput(outputDest, "struct", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+
+	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_ConvertTypeName,
+	                &tokens[nameIndex]);
+	addLangTokenOutput(outputDest, StringOutMod_OpenBlock, &tokens[nameIndex + 1]);
+
+	struct
+	{
+		int nameIndex;
+		int typeStart;
+	} currentMember = {-1, -1};
+
+	for (int i = nameIndex + 1; i < endInvocationIndex;
+	     i = getNextArgument(tokens, i, endInvocationIndex))
+	{
+		if (currentMember.typeStart == -1 && currentMember.nameIndex != -1)
+		{
+			// Type
+			currentMember.typeStart = i;
+		}
+		else
+		{
+			// Name
+			if (!ExpectTokenType("defstruct member name", tokens[i], TokenType_Symbol))
+				return false;
+
+			currentMember.nameIndex = i;
+		}
+
+		if (currentMember.nameIndex != -1 && currentMember.typeStart != -1)
+		{
+			// Output finished member
+
+			std::vector<StringOutput> typeOutput;
+			std::vector<StringOutput> typeAfterNameOutput;
+			// Arrays cannot be return types, they must be * instead
+			if (!tokenizedCTypeToString_Recursive(tokens, currentMember.typeStart,
+			                                      /*allowArray=*/true, typeOutput,
+			                                      typeAfterNameOutput))
+				return false;
+
+			// At this point, we probably have a valid variable. Start outputting
+			addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
+
+			// Type
+			PushBackAll(outputDest, typeOutput);
+
+			// Name
+			addStringOutput(outputDest, tokens[currentMember.nameIndex].contents,
+			                StringOutMod_ConvertVariableName, &tokens[currentMember.nameIndex]);
+
+			// Array
+			PushBackAll(outputDest, typeAfterNameOutput);
+
+			addLangTokenOutput(outputDest, StringOutMod_EndStatement,
+			                   &tokens[currentMember.nameIndex]);
+
+			// Prepare for next member
+			currentMember.nameIndex = -1;
+			currentMember.typeStart = -1;
+		}
+	}
+
+	if (currentMember.nameIndex != -1 && currentMember.typeStart == -1)
+	{
+		ErrorAtToken(tokens[currentMember.nameIndex + 1], "expected type to follow member name");
+		return false;
+	}
+
+	addLangTokenOutput(outputDest, StringOutMod_CloseBlock, &tokens[endInvocationIndex]);
+	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
+
+	return true;
+}
+
 //
 // C Statement generation
 //
@@ -1399,6 +1495,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["defmacro"] = DefMacroGenerator;
 	environment.generators["defgenerator"] = DefGeneratorGenerator;
+
+	environment.generators["defstruct"] = DefStructGenerator;
+	environment.generators["defstruct-local"] = DefStructGenerator;
 
 	environment.generators["var"] = VariableDeclarationGenerator;
 	environment.generators["global-var"] = VariableDeclarationGenerator;

@@ -33,6 +33,10 @@ int getExpectedArgument(const char* message, const std::vector<Token>& tokens, i
 // Note: Body arguments will not work properly with this
 int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
+// There are no more arguments once this returns endArrayTokenIndex
+int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
+                    int endArrayTokenIndex);
+
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
 
 void addStringOutput(std::vector<StringOutput>& output, const std::string& symbol,
