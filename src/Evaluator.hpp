@@ -173,6 +173,7 @@ typedef std::pair<const std::string, ObjectReferencePool> ObjectReferencePoolPai
 // if things resize.
 struct EvaluatorEnvironment
 {
+	// Compile-time-executable functions
 	MacroTable macros;
 	GeneratorTable generators;
 

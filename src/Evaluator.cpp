@@ -233,37 +233,45 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			printf("\n");
 			return false;
 		}
+
+		return true;
 	}
-	else
+
+	GeneratorFunc invokedGenerator = findGenerator(environment, invocationName.contents.c_str());
+	if (invokedGenerator)
 	{
-		GeneratorFunc invokedGenerator =
-		    findGenerator(environment, invocationName.contents.c_str());
-		if (invokedGenerator)
-		{
-			return invokedGenerator(environment, context, tokens, invocationStartIndex, output);
-		}
-		else
-		{
-			// We don't know what this is. We cannot guess it is a C/C++ function yet, because it
-			// could be a generator or macro invocation that hasn't been defined yet. Leave a note
-			// for the evaluator to come back to this token once a satisfying answer is found
-			ObjectReference newReference = {};
-			newReference.tokens = &tokens;
-			newReference.startIndex = invocationStartIndex;
-			newReference.context = context;
-			// Make room for whatever gets output once this reference is resolved
-			newReference.spliceOutput = new GeneratorOutput;
-			addObjectReference(environment, invocationName, newReference);
+		return invokedGenerator(environment, context, tokens, invocationStartIndex, output);
+	}
 
-			// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
-			// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
-			// so that multiple splices take up space and will then maintain sequential order
-			addSpliceOutput(output.source, newReference.spliceOutput, &invocationStart);
+	// Check for known Cakelisp functions
+	ObjectDefinitionMap::iterator findIt = environment.definitions.find(invocationName.contents);
+	if (findIt != environment.definitions.end() && !isCompileTimeObject(findIt->second.type))
+	{
+		return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
+		                                   output);
+	}
 
-			// We're going to return true even though evaluation isn't yet done.
-			// BuildEvaluateReferences() will handle the evaluation after it knows what the
-			// references are
-		}
+	// Unknown reference
+	{
+		// We don't know what this is. We cannot guess it is a C/C++ function yet, because it
+		// could be a generator or macro invocation that hasn't been defined yet. Leave a note
+		// for the evaluator to come back to this token once a satisfying answer is found
+		ObjectReference newReference = {};
+		newReference.tokens = &tokens;
+		newReference.startIndex = invocationStartIndex;
+		newReference.context = context;
+		// Make room for whatever gets output once this reference is resolved
+		newReference.spliceOutput = new GeneratorOutput;
+		addObjectReference(environment, invocationName, newReference);
+
+		// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
+		// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
+		// so that multiple splices take up space and will then maintain sequential order
+		addSpliceOutput(output.source, newReference.spliceOutput, &invocationStart);
+
+		// We're going to return true even though evaluation isn't yet done.
+		// BuildEvaluateReferences() will handle the evaluation after it knows what the
+		// references are
 	}
 
 	return true;
@@ -436,7 +444,7 @@ void OnCompileProcessOutput(const char* output)
 
 int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
 {
-	bool verbose = false;
+	bool verbose = true;
 	bool verboseBuildProcess = true;
 
 	int numReferencesResolved = 0;
@@ -512,32 +520,54 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			    environment.definitions.find(referenceStatus.name->contents);
 			if (findIt != environment.definitions.end())
 			{
-				bool refCompileTimeCodeLoaded = findIt->second.isLoaded;
-				if (refCompileTimeCodeLoaded)
+				if (isCompileTimeObject(findIt->second.type))
 				{
-					// The reference is ready to go. Built objects immediately resolve
-					// references. We will react to it if the last thing we did was guess
-					// incorrectly that this was a C call
-					if (referenceStatus.guessState == GuessState_Guessed)
+					bool refCompileTimeCodeLoaded = findIt->second.isLoaded;
+					if (refCompileTimeCodeLoaded)
 					{
-						if (verbose)
-							printf("\tGuess has been resolved\n");
+						// The reference is ready to go. Built objects immediately resolve
+						// references. We will react to it if the last thing we did was guess
+						// incorrectly that this was a C call
+						if (referenceStatus.guessState == GuessState_Guessed)
+						{
+							if (verbose)
+								printf("\tGuess has been resolved\n");
 
-						hasRelevantChangeOccurred = true;
+							hasRelevantChangeOccurred = true;
+						}
+
+						referenceStatus.guessState = GuessState_Resolved;
+					}
+					else
+					{
+						// If we know we are missing a compile time function, we won't try to
+						// guess
+						if (verbose)
+							printf("\tCannot build until %s is loaded\n",
+							       referenceStatus.name->contents.c_str());
+
+						referenceStatus.guessState = GuessState_WaitingForLoad;
+						canBuild = false;
+					}
+				}
+				else if (findIt->second.type == ObjectType_Function &&
+				         referenceStatus.guessState != GuessState_Resolved)
+				{
+					// A known Cakelisp function call
+					for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
+					{
+						ObjectReference& reference = referenceStatus.references[i];
+						// Run function invocation on it
+						// TODO: Make invocation generator know it is a Cakelisp function
+						bool result = FunctionInvocationGenerator(
+						    environment, reference.context, *reference.tokens, reference.startIndex,
+						    *reference.spliceOutput);
+						// Our guess didn't even evaluate
+						if (!result)
+							canBuild = false;
 					}
 
 					referenceStatus.guessState = GuessState_Resolved;
-				}
-				else
-				{
-					// If we know we are missing a compile time function, we won't try to
-					// guess
-					if (verbose)
-						printf("\tCannot build until %s is loaded\n",
-						       referenceStatus.name->contents.c_str());
-
-					referenceStatus.guessState = GuessState_WaitingForLoad;
-					canBuild = false;
 				}
 				// TODO: Building references to non-comptime functions at comptime
 			}

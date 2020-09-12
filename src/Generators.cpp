@@ -690,14 +690,14 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	                                      context, EvaluatorScope_Body))
 		return false;
 
-	int typeIndex = getExpectedArgument("expected variable type", tokens, startTokenIndex, 1,
-	                                    endInvocationIndex);
-	if (typeIndex == -1)
-		return false;
-
-	int varNameIndex = getExpectedArgument("expected variable name", tokens, startTokenIndex, 2,
+	int varNameIndex = getExpectedArgument("expected variable name", tokens, startTokenIndex, 1,
 	                                       endInvocationIndex);
 	if (varNameIndex == -1)
+		return false;
+
+	int typeIndex = getExpectedArgument("expected variable type", tokens, startTokenIndex, 2,
+	                                    endInvocationIndex);
+	if (typeIndex == -1)
 		return false;
 
 	std::vector<StringOutput> typeOutput;
@@ -735,12 +735,7 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 		PushBackAll(output.header, typeAfterNameOutput);
 
 	// Possibly find whether it is initialized
-	int valueIndex = varNameIndex + 1;
-	if (tokens[varNameIndex].type == TokenType_OpenParen)
-	{
-		// Skip any nesting
-		valueIndex = FindCloseParenTokenIndex(tokens, varNameIndex);
-	}
+	int valueIndex = getNextArgument(tokens, typeIndex, endInvocationIndex);
 
 	// Initialized
 	if (valueIndex < endInvocationIndex)
