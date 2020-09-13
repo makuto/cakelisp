@@ -528,10 +528,10 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 						// The reference is ready to go. Built objects immediately resolve
 						// references. We will react to it if the last thing we did was guess
 						// incorrectly that this was a C call
-						if (referenceStatus.guessState == GuessState_Guessed)
+						if (referenceStatus.guessState != GuessState_Resolved)
 						{
 							if (verbose)
-								printf("\tGuess has been resolved\n");
+								printf("\tRequired code has been loaded\n");
 
 							hasRelevantChangeOccurred = true;
 						}
