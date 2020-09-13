@@ -1230,11 +1230,11 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 					printf("Error: Expected valid argument index for expression\n");
 					return false;
 				}
+				// We're actually fine with no arguments
 				int startExpressionIndex =
-				    getExpectedArgument("expected expression", tokens, startTokenIndex,
-				                        operation[i].argumentIndex, endTokenIndex);
+				    getArgument(tokens, startTokenIndex, operation[i].argumentIndex, endTokenIndex);
 				if (startExpressionIndex == -1)
-					return false;
+					break;
 				EvaluatorContext expressionContext = context;
 				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
 				StringOutput listDelimiterTemplate = {};
@@ -1303,6 +1303,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation returnStatement[] = {
 	    {Keyword, "return", -1}, {Expression, nullptr, 1}, {EndStatement, nullptr, -1}};
 
+	const CStatementOperation continueStatement[] = {{KeywordNoSpace, "continue", -1},
+	                                                 {EndStatement, nullptr, -1}};
+
+	const CStatementOperation breakStatement[] = {{KeywordNoSpace, "break", -1},
+	                                              {EndStatement, nullptr, -1}};
+
 	const CStatementOperation initializerList[] = {
 	    {OpenList, nullptr, -1}, {ExpressionList, nullptr, 1}, {CloseList, nullptr, -1}};
 
@@ -1316,6 +1322,11 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 
 	// TODO: Pathing is going to need a fancier generator for mixed pointers/member access
 	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
+
+	const CStatementOperation memberFunctionInvocation[] = {
+	    {Expression, nullptr, 1}, {KeywordNoSpace, ".", -1},    {Expression, nullptr, 2},
+	    {OpenParen, nullptr, -1}, {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
+	};
 
 	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
 	// barriers or anything). It's useful both for making arbitrary scopes and for making if
@@ -1378,6 +1389,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	} statementOperators[] = {
 	    {"while", whileStatement, ArraySize(whileStatement)},
 	    {"return", returnStatement, ArraySize(returnStatement)},
+	    {"continue", continueStatement, ArraySize(continueStatement)},
+	    {"break", breakStatement, ArraySize(breakStatement)},
 	    {"when", whenStatement, ArraySize(whenStatement)},
 	    {"array", initializerList, ArraySize(initializerList)},
 	    {"set", assignmentStatement, ArraySize(assignmentStatement)},
@@ -1386,8 +1399,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"scope", blockStatement, ArraySize(blockStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
-		{"addr", addressOf, ArraySize(addressOf)},
-		{"field", field, ArraySize(field)},
+	    {"addr", addressOf, ArraySize(addressOf)},
+	    {"field", field, ArraySize(field)},
+		{"on-call", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
 	    // Expressions
 	    {"or", booleanOr, ArraySize(booleanOr)},
 	    {"and", booleanAnd, ArraySize(booleanAnd)},
@@ -1514,7 +1528,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
 	    "while",
-	    "return",
+		"return",
+		"continue",
+		"break",
 	    "when",
 	    "array",
 	    "set",
@@ -1523,6 +1539,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    "deref",
 	    "addr",
 		"field",
+		"on-call",
 	    // Boolean
 	    "or",
 	    "and",

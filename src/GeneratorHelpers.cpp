@@ -105,7 +105,7 @@ bool isSpecialSymbol(const Token& token)
 
 // This function would be simpler and faster if there was an actual syntax tree, because we wouldn't
 // be repeatedly traversing all the arguments
-int getExpectedArgument(const char* message, const std::vector<Token>& tokens, int startTokenIndex,
+int getArgument(const std::vector<Token>& tokens, int startTokenIndex,
                         int desiredArgumentIndex, int endTokenIndex)
 {
 	int currentArgumentIndex = 0;
@@ -124,8 +124,18 @@ int getExpectedArgument(const char* message, const std::vector<Token>& tokens, i
 		++currentArgumentIndex;
 	}
 
-	ErrorAtTokenf(tokens[endTokenIndex], "missing arguments: %s", message);
 	return -1;
+}
+
+int getExpectedArgument(const char* message, const std::vector<Token>& tokens, int startTokenIndex,
+                        int desiredArgumentIndex, int endTokenIndex)
+{
+	int argumentIndex = getArgument(tokens, startTokenIndex, desiredArgumentIndex, endTokenIndex);
+
+	if (argumentIndex == -1)
+		ErrorAtTokenf(tokens[endTokenIndex], "missing arguments: %s", message);
+
+	return argumentIndex;
 }
 
 int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex)
