@@ -1104,6 +1104,7 @@ enum CStatementOperationType
 {
 	// Insert keywordOrSymbol between each thing
 	Splice,
+	SpliceNoSpace,
 
 	OpenParen,
 	CloseParen,
@@ -1153,6 +1154,7 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				addStringOutput(output.source, operation[i].keywordOrSymbol, StringOutMod_None,
 				                &nameToken);
 				break;
+			case SpliceNoSpace:
 			case Splice:
 			{
 				if (operation[i].argumentIndex < 0)
@@ -1169,8 +1171,11 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				bodyContext.scope = EvaluatorScope_ExpressionsOnly;
 				StringOutput spliceDelimiterTemplate = {};
 				spliceDelimiterTemplate.output = operation[i].keywordOrSymbol;
-				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
-				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
+				if (operation[i].type == Splice)
+				{
+					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
+					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
+				}
 				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
 				                                              startSpliceListIndex,
 				                                              spliceDelimiterTemplate, output);
@@ -1309,6 +1314,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation dereference[] = {{KeywordNoSpace, "*", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation addressOf[] = {{KeywordNoSpace, "&", -1}, {Expression, nullptr, 1}};
 
+	// TODO: Pathing is going to need a fancier generator for mixed pointers/member access
+	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
+
 	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
 	// barriers or anything). It's useful both for making arbitrary scopes and for making if
 	// blocks with multiple statements
@@ -1355,6 +1363,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation modulus[] = {{Splice, "%", 1}};
 	// Always pre-increment, which matches what you'd expect given the invocation comes before
 	// the expression. It's also slightly faster, yadda yadda
+	// TODO: These need to be context sensitive, and add EndStatement if in Body scope
 	const CStatementOperation increment[] = {{Keyword, "++", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation decrement[] = {{Keyword, "--", -1}, {Expression, nullptr, 1}};
 
@@ -1377,7 +1386,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"scope", blockStatement, ArraySize(blockStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
-	    {"addr", addressOf, ArraySize(addressOf)},
+		{"addr", addressOf, ArraySize(addressOf)},
+		{"field", field, ArraySize(field)},
 	    // Expressions
 	    {"or", booleanOr, ArraySize(booleanOr)},
 	    {"and", booleanAnd, ArraySize(booleanAnd)},
@@ -1512,6 +1522,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Pointers
 	    "deref",
 	    "addr",
+		"field",
 	    // Boolean
 	    "or",
 	    "and",

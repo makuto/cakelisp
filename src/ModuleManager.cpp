@@ -14,7 +14,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 	importFundamentalGenerators(manager.environment);
 	// Create module definition for top-level references to attach to
 	// The token isn't actually tied to one file
-	manager.globalPseudoInvocationName = {TokenType_Symbol, "<global>", "global_pseudo", 1, 0, 1};
+	manager.globalPseudoInvocationName = {TokenType_Symbol, "<global>", "global_pseudotarget", 1, 0, 1};
 	{
 		ObjectDefinition moduleDefinition = {};
 		moduleDefinition.name = &manager.globalPseudoInvocationName;
