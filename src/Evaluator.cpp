@@ -61,8 +61,9 @@ bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& de
 	}
 }
 
-void addObjectReference(EvaluatorEnvironment& environment, const Token& referenceNameToken,
-                        ObjectReference& reference)
+const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environment,
+                                                const Token& referenceNameToken,
+                                                ObjectReference& reference)
 {
 	bool verbose = false;
 
@@ -81,6 +82,7 @@ void addObjectReference(EvaluatorEnvironment& environment, const Token& referenc
 		printf("Adding reference %s to %s\n", referenceNameToken.contents.c_str(), defName);
 
 	// Add the reference requirement to the definition it occurred in
+	ObjectReferenceStatus* refStatus = nullptr;
 	ObjectDefinitionMap::iterator findDefinition = environment.definitions.find(definitionName);
 	if (findDefinition == environment.definitions.end())
 	{
@@ -109,12 +111,15 @@ void addObjectReference(EvaluatorEnvironment& environment, const Token& referenc
 			newStatus.name = &referenceNameToken;
 			newStatus.guessState = GuessState_None;
 			newStatus.references.push_back(reference);
-			findDefinition->second.references[referenceNameToken.contents.c_str()] =
-			    std::move(newStatus);
+			std::pair<ObjectReferenceStatusMap::iterator, bool> newRefStatusResult =
+			    findDefinition->second.references.emplace(
+			        std::make_pair(referenceNameToken.contents, std::move(newStatus)));
+			refStatus = &newRefStatusResult.first->second;
 		}
 		else
 		{
 			findRefIt->second.references.push_back(reference);
+			refStatus = &findRefIt->second;
 		}
 	}
 
@@ -132,6 +137,8 @@ void addObjectReference(EvaluatorEnvironment& environment, const Token& referenc
 	{
 		findIt->second.references.push_back(reference);
 	}
+
+	return refStatus;
 }
 
 int getNextFreeBuildId(EvaluatorEnvironment& environment)
@@ -268,47 +275,29 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// so that multiple splices take up space and will then maintain sequential order
 		addSpliceOutput(output.source, newReference.spliceOutput, &invocationStart);
 
-		addObjectReference(environment, invocationName, newReference);
+		const ObjectReferenceStatus* referenceStatus =
+		    addObjectReference(environment, invocationName, newReference);
+		if (!referenceStatus)
+		{
+			ErrorAtToken(tokens[invocationStartIndex],
+			             "failed to create reference status (internal error)");
+			return false;
+		}
 
 		// If some action has already happened on this reference, duplicate it here
 		// This code wouldn't be necessary if BuildEvaluateReferences() checked all of its reference
 		// instances, and stored a status on each one. I don't like the duplication here, but it
 		// does match the other HandleInvocation_Recursive() invocation types, which are handled as
 		// soon as the environment has enough information to resolve the invocation
-		if (!context.definitionName)
+		if (referenceStatus->guessState == GuessState_Guessed)
 		{
-			ErrorAtToken(tokens[invocationStartIndex],
-			             "invocation needs definition to properly resolve (internal error)");
-			return false;
-		}
-		ObjectDefinitionMap::iterator findDefinitionIt =
-		    environment.definitions.find(context.definitionName->contents);
-		if (findDefinitionIt != environment.definitions.end())
-		{
-			ObjectReferenceStatusMap::iterator findRefIt =
-			    findDefinitionIt->second.references.find(invocationName.contents.c_str());
-			if (findRefIt == findDefinitionIt->second.references.end())
-			{
-				ErrorAtToken(tokens[invocationStartIndex],
-				             "expected reference to exist, but it did not (internal error)");
+			// Guess now, because BuildEvaluateReferences thinks it has already guessed all refs
+			bool result =
+			    FunctionInvocationGenerator(environment, newReference.context, *newReference.tokens,
+			                                newReference.startIndex, *newReference.spliceOutput);
+			// Our guess didn't even evaluate
+			if (!result)
 				return false;
-			}
-			else if (findRefIt->second.guessState == GuessState_Guessed)
-			{
-				// Guess now, because BuildEvaluateReferences thinks it has already guessed all refs
-				bool result = FunctionInvocationGenerator(
-				    environment, newReference.context, *newReference.tokens,
-				    newReference.startIndex, *newReference.spliceOutput);
-				// Our guess didn't even evaluate
-				if (!result)
-					return false;
-			}
-		}
-		else
-		{
-			ErrorAtToken(tokens[invocationStartIndex],
-			             "invocation needs definition to properly resolve (internal error)");
-			return false;
 		}
 
 		// We're going to return true even though evaluation isn't yet done.
