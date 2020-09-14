@@ -8,47 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize,
-                              const Token& token)
-{
-	**at = c;
-	++(*at);
-	char* endOfBuffer = bufferStart + bufferSize - 1;
-	if (*at >= endOfBuffer)
-	{
-		ErrorAtTokenf(
-		    token,
-		    "lispNameStyleToCNameStyle(): buffer of size %d was too small. String will be cut off",
-		    bufferSize);
-		*endOfBuffer = '\0';
-		return false;
-	}
-
-	return true;
-}
-
-static bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize,
-                                const Token& token)
-{
-	for (const char* c = str; *c != '\0'; ++c)
-	{
-		**at = *c;
-		++(*at);
-		char* endOfBuffer = bufferStart + bufferSize - 1;
-		if (*at >= endOfBuffer)
-		{
-			ErrorAtTokenf(token,
-			              "lispNameStyleToCNameStyle(): buffer of size %d was too small. String "
-			              "will be cut off",
-			              bufferSize);
-			*(endOfBuffer) = '\0';
-			return false;
-		}
-	}
-
-	return true;
-}
-
 void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* bufferOut,
                                int bufferOutSize, const Token& token)
 {

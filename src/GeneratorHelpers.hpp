@@ -39,6 +39,8 @@ bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int e
 int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
                     int endArrayTokenIndex);
 
+void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
+
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
 
 void addStringOutput(std::vector<StringOutput>& output, const std::string& symbol,

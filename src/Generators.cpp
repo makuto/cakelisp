@@ -1096,6 +1096,121 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 	return true;
 }
 
+// I'm not too happy with this
+static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
+                                           const char* stringToTokenize, GeneratorOutput& output)
+{
+	// TODO Need to gensym error, or replace with a function call
+	char tokenizeLineBuffer[2048] = {0};
+	PrintfBuffer(tokenizeLineBuffer,
+	             "{\n\tconst char* _error = tokenizeLine(\"%s\", \"%s\", %d, %s);\n\tif (_error != "
+	             "nullptr)\n\t{\n\t\tprintf(\"error: %%s\\n\", _error); \t\treturn false;\n\t}\n}\n",
+	             stringToTokenize, triggerToken.source, triggerToken.lineNumber, outputVarName);
+	addStringOutput(output.source, tokenizeLineBuffer, StringOutMod_None, &triggerToken);
+}
+
+bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                           const std::vector<Token>& tokens, int startTokenIndex,
+                           GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("tokenize-push", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Body))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int outputIndex = getExpectedArgument("tokenize-push expected output variable name", tokens,
+	                                      startTokenIndex, 1, endInvocationIndex);
+	if (outputIndex == -1)
+		return false;
+
+	// This is odd: convert tokens in the macro invocation into string, then the generated C++ will
+	// use that string to create tokens...
+	char tokenToStringBuffer[1024] = {0};
+	char* tokenToStringWrite = tokenToStringBuffer;
+	const Token* tokenToStringStartToken = nullptr;
+
+	for (int i = getExpectedArgument("tokenize-push expected tokens to output", tokens,
+	                                 startTokenIndex, 2, endInvocationIndex);
+	     i < endInvocationIndex; ++i)
+	{
+		const Token& currentToken = tokens[i];
+		const Token& nextToken = tokens[i + 1];
+		if (currentToken.type == TokenType_OpenParen && nextToken.type == TokenType_Symbol &&
+		    (nextToken.contents.compare("token-splice") == 0 ||
+		     nextToken.contents.compare("token-splice-array") == 0))
+		{
+			// TODO: Performance: remove extra string compare
+			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
+
+			if (tokenToStringWrite != tokenToStringBuffer)
+			{
+				*tokenToStringWrite = '\0';
+				// TODO: Get output var from a gensym'd ref to given output
+				tokenizeGenerateStringTokenize("output", *tokenToStringStartToken,
+				                               tokenToStringBuffer, output);
+				tokenToStringWrite = tokenToStringBuffer;
+				tokenToStringStartToken = nullptr;
+			}
+
+			// Skip invocation
+			int startSpliceArgs = i + 2;
+			int endSpliceIndex = FindCloseParenTokenIndex(tokens, i);
+			for (int spliceArg = startSpliceArgs; spliceArg < endSpliceIndex;
+			     spliceArg = getNextArgument(tokens, spliceArg, endSpliceIndex))
+			{
+				addStringOutput(output.source,
+				                isArray ? "PushBackAll(" : "PushBackTokenExpression(",
+				                StringOutMod_None, &tokens[spliceArg]);
+
+				// Evaluate output variable
+				// TODO: Don't evaluate more than once!
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, outputIndex,
+				                               output) != 0)
+					return false;
+
+				addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[spliceArg]);
+
+				// Evaluate token to start output expression
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, spliceArg,
+				                               output) != 0)
+					return false;
+
+				addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[spliceArg]);
+				addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[spliceArg]);
+			}
+
+			// Finished splice list
+			i = endSpliceIndex;
+		}
+		else
+		{
+			// All other tokens are "quoted" and added to string to output at compile-time
+			if (!tokenToStringStartToken)
+				tokenToStringStartToken = &currentToken;
+
+			if (!appendTokenToString(currentToken, &tokenToStringWrite, tokenToStringBuffer,
+			                         sizeof(tokenToStringBuffer)))
+				return false;
+		}
+	}
+
+	// Finish up leftover tokens
+	if (tokenToStringWrite != tokenToStringBuffer)
+	{
+		*tokenToStringWrite = '\0';
+		// TODO: Use output gensym var name
+		tokenizeGenerateStringTokenize("output", *tokenToStringStartToken, tokenToStringBuffer,
+		                               output);
+		// We don't really need to reset it, but we will
+		tokenToStringWrite = tokenToStringBuffer;
+		tokenToStringStartToken = nullptr;
+	}
+
+	return true;
+}
+
 //
 // C Statement generation
 //
@@ -1115,7 +1230,8 @@ enum CStatementOperationType
 
 	Keyword,
 	KeywordNoSpace,
-	EndStatement,
+	// End the statement if it isn't an expression
+	SmartEndStatement,
 
 	// Evaluate argument(s)
 	Expression,
@@ -1201,8 +1317,9 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 			case CloseList:
 				addLangTokenOutput(output.source, StringOutMod_CloseList, &nameToken);
 				break;
-			case EndStatement:
-				addLangTokenOutput(output.source, StringOutMod_EndStatement, &nameToken);
+			case SmartEndStatement:
+				if (context.scope != EvaluatorScope_ExpressionsOnly)
+					addLangTokenOutput(output.source, StringOutMod_EndStatement, &nameToken);
 				break;
 			case Expression:
 			{
@@ -1301,13 +1418,13 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 
 	// Misc.
 	const CStatementOperation returnStatement[] = {
-	    {Keyword, "return", -1}, {Expression, nullptr, 1}, {EndStatement, nullptr, -1}};
+	    {Keyword, "return", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation continueStatement[] = {{KeywordNoSpace, "continue", -1},
-	                                                 {EndStatement, nullptr, -1}};
+	                                                 {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation breakStatement[] = {{KeywordNoSpace, "break", -1},
-	                                              {EndStatement, nullptr, -1}};
+	                                              {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation initializerList[] = {
 	    {OpenList, nullptr, -1}, {ExpressionList, nullptr, 1}, {CloseList, nullptr, -1}};
@@ -1315,7 +1432,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation assignmentStatement[] = {{Expression /*Name*/, nullptr, 1},
 	                                                   {Keyword, "=", -1},
 	                                                   {Expression, nullptr, 2},
-	                                                   {EndStatement, nullptr, -1}};
+	                                                   {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation dereference[] = {{KeywordNoSpace, "*", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation addressOf[] = {{KeywordNoSpace, "&", -1}, {Expression, nullptr, 1}};
@@ -1324,9 +1441,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
 
 	const CStatementOperation memberFunctionInvocation[] = {
-	    {Expression, nullptr, 1}, {KeywordNoSpace, ".", -1},    {Expression, nullptr, 2},
-	    {OpenParen, nullptr, -1}, {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
-	};
+	    {Expression, nullptr, 1},        {KeywordNoSpace, ".", -1},    {Expression, nullptr, 2},
+	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
+	    {SmartEndStatement, nullptr, -1}};
 
 	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
 	// barriers or anything). It's useful both for making arbitrary scopes and for making if
@@ -1374,9 +1491,10 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation modulus[] = {{Splice, "%", 1}};
 	// Always pre-increment, which matches what you'd expect given the invocation comes before
 	// the expression. It's also slightly faster, yadda yadda
-	// TODO: These need to be context sensitive, and add EndStatement if in Body scope
-	const CStatementOperation increment[] = {{Keyword, "++", -1}, {Expression, nullptr, 1}};
-	const CStatementOperation decrement[] = {{Keyword, "--", -1}, {Expression, nullptr, 1}};
+	const CStatementOperation increment[] = {
+	    {KeywordNoSpace, "++", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
+	const CStatementOperation decrement[] = {
+	    {KeywordNoSpace, "--", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
 
 	// Useful for marking e.g. the increment statement in a for loop blank
 	// const CStatementOperation noOpStatement[] = {};
@@ -1524,6 +1642,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["at"] = ArrayAccessGenerator;
 	environment.generators["nth"] = ArrayAccessGenerator;
+
+	// Token manipulation
+	environment.generators["tokenize-push"] = TokenizePushGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

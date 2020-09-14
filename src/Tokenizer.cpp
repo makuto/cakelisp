@@ -230,7 +230,7 @@ void printFormattedToken(const Token& token)
 			printf("%s ", token.contents.c_str());
 			break;
 		case TokenType_String:
-			printf("\"%s\"", token.contents.c_str());
+			printf("\"%s\" ", token.contents.c_str());
 			break;
 		default:
 			printf("Unknown type");
@@ -238,11 +238,77 @@ void printFormattedToken(const Token& token)
 	}
 }
 
+bool appendTokenToString(const Token& token, char** at, char* bufferStart, int bufferSize)
+{
+	switch (token.type)
+	{
+		case TokenType_OpenParen:
+			return writeCharToBuffer('(', at, bufferStart, bufferSize, token);
+		case TokenType_CloseParen:
+			return writeCharToBuffer(')', at, bufferStart, bufferSize, token);
+		case TokenType_Symbol:
+			if (!writeStringToBuffer(token.contents.c_str(), at, bufferStart, bufferSize, token))
+				return false;
+			// Must add space after symbol to separate it from everything else
+			return writeCharToBuffer(' ', at, bufferStart, bufferSize, token);
+		case TokenType_String:
+			if (!writeStringToBuffer("\\\"", at, bufferStart, bufferSize, token))
+				return false;
+			// TODO Need to delimit quotes properly (try e.g. "test\"" and see it break)
+			if (!writeStringToBuffer(token.contents.c_str(), at, bufferStart, bufferSize, token))
+				return false;
+			// Must add space after string to separate it from everything else
+			return writeStringToBuffer("\\\" ", at, bufferStart, bufferSize, token);
+			break;
+		default:
+			ErrorAtToken(token, "cannot append token of this type to string");
+			return false;
+	}
+
+	return false;
+}
+
 void printTokens(const std::vector<Token>& tokens)
 {
-	// Note that token parens could be invalid, so we shouldn't do things which rely validity
+	// Note that token parens could be invalid, so we shouldn't do things which rely on validity
 	for (const Token& token : tokens)
 	{
 		printFormattedToken(token);
 	}
+	printf("\n");
+}
+
+bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize, const Token& token)
+{
+	**at = c;
+	++(*at);
+	char* endOfBuffer = bufferStart + bufferSize - 1;
+	if (*at >= endOfBuffer)
+	{
+		ErrorAtTokenf(token, "buffer of size %d was too small. String will be cut off", bufferSize);
+		*endOfBuffer = '\0';
+		return false;
+	}
+
+	return true;
+}
+
+bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize,
+                         const Token& token)
+{
+	for (const char* c = str; *c != '\0'; ++c)
+	{
+		**at = *c;
+		++(*at);
+		char* endOfBuffer = bufferStart + bufferSize - 1;
+		if (*at >= endOfBuffer)
+		{
+			ErrorAtTokenf(token, "buffer of size %d was too small. String will be cut off",
+			              bufferSize);
+			*(endOfBuffer) = '\0';
+			return false;
+		}
+	}
+
+	return true;
 }

@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 
+std::string EmptyString;
+
 void printIndentToDepth(int depth)
 {
 	for (int i = 0; i < depth; ++i)
@@ -26,5 +28,3 @@ FILE* fileOpen(const char* filename, const char* mode)
 	}
 	return file;
 }
-
-std::string EmptyString;

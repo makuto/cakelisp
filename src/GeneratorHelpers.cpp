@@ -177,6 +177,41 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
 	return nextArgStart;
 }
 
+//
+// Token list manipulation
+//
+
+void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken)
+{
+	if (!startToken)
+	{
+		printf("error: PushBackTokenExpression() received null token\n");
+		return;
+	}
+
+	if (startToken->type != TokenType_OpenParen)
+	{
+		output.push_back(*startToken);
+	}
+	else
+	{
+		int depth = 0;
+		for (const Token* currentToken = startToken; depth >= 0; ++currentToken)
+		{
+			if (currentToken->type == TokenType_OpenParen)
+				++depth;
+			else if (currentToken->type == TokenType_CloseParen)
+				--depth;
+
+			output.push_back(*currentToken);
+		}
+	}
+}
+
+//
+// Outputting
+//
+
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag)
 {
 	operation.modifiers = (StringOutputModifierFlags)((int)operation.modifiers | (int)flag);
