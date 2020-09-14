@@ -262,12 +262,54 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		newReference.context = context;
 		// Make room for whatever gets output once this reference is resolved
 		newReference.spliceOutput = new GeneratorOutput;
-		addObjectReference(environment, invocationName, newReference);
 
 		// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
 		// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
 		// so that multiple splices take up space and will then maintain sequential order
 		addSpliceOutput(output.source, newReference.spliceOutput, &invocationStart);
+
+		addObjectReference(environment, invocationName, newReference);
+
+		// If some action has already happened on this reference, duplicate it here
+		// This code wouldn't be necessary if BuildEvaluateReferences() checked all of its reference
+		// instances, and stored a status on each one. I don't like the duplication here, but it
+		// does match the other HandleInvocation_Recursive() invocation types, which are handled as
+		// soon as the environment has enough information to resolve the invocation
+		if (!context.definitionName)
+		{
+			ErrorAtToken(tokens[invocationStartIndex],
+			             "invocation needs definition to properly resolve (internal error)");
+			return false;
+		}
+		ObjectDefinitionMap::iterator findDefinitionIt =
+		    environment.definitions.find(context.definitionName->contents);
+		if (findDefinitionIt != environment.definitions.end())
+		{
+			ObjectReferenceStatusMap::iterator findRefIt =
+			    findDefinitionIt->second.references.find(invocationName.contents.c_str());
+			if (findRefIt == findDefinitionIt->second.references.end())
+			{
+				ErrorAtToken(tokens[invocationStartIndex],
+				             "expected reference to exist, but it did not (internal error)");
+				return false;
+			}
+			else if (findRefIt->second.guessState == GuessState_Guessed)
+			{
+				// Guess now, because BuildEvaluateReferences thinks it has already guessed all refs
+				bool result = FunctionInvocationGenerator(
+				    environment, newReference.context, *newReference.tokens,
+				    newReference.startIndex, *newReference.spliceOutput);
+				// Our guess didn't even evaluate
+				if (!result)
+					return false;
+			}
+		}
+		else
+		{
+			ErrorAtToken(tokens[invocationStartIndex],
+			             "invocation needs definition to properly resolve (internal error)");
+			return false;
+		}
 
 		// We're going to return true even though evaluation isn't yet done.
 		// BuildEvaluateReferences() will handle the evaluation after it knows what the
