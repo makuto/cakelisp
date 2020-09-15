@@ -155,6 +155,20 @@ int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int e
 	return currentArgumentIndex;
 }
 
+bool ExpectNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex,
+                        int numExpectedArguments)
+{
+	int numArguments = getNumArguments(tokens, startTokenIndex, endTokenIndex);
+	if (numArguments != numExpectedArguments)
+	{
+		ErrorAtTokenf(tokens[startTokenIndex],
+		              "expected %d arguments, got %d (counts include invocation as first argument)",
+		              numExpectedArguments, numArguments);
+		return false;
+	}
+	return true;
+}
+
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex)
 {
 	if (tokens[startTokenIndex].type == TokenType_OpenParen &&

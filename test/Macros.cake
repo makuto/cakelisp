@@ -33,6 +33,7 @@
     (var current-arg (* (const Token)) (addr (at current-arg-index tokens)))
     (var num-destructured-args-token Token (array TokenType_Symbol (std::to_string num-destructured-args)
                                                   "test/Macros.cake" 1 1 1))
+    ;; TODO: This should add expect argument stuff for error checking
     (tokenize-push output
                    (var (token-splice current-arg) int
                         (+ startTokenIndex 2 (token-splice (addr num-destructured-args-token)))))
@@ -43,24 +44,47 @@
   (return true))
 
 (defmacro def-serialize-struct ()
-  (destructure-arguments test test2)
+  (destructure-arguments name-index first-member-index)
   (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
-  ;; TODO This should use the get expected argument stuff for safety
-  (var struct-name (* (const Token)) (addr (at (+ 2 startTokenIndex) tokens)))
-  (var arg-tokens (<> std::vector Token))
-  (var current-arg int (+ 3 startTokenIndex))
-  (while (< current-arg end-invocation-index)
-    (on-call arg-tokens push_back (at current-arg tokens))
-    (on-call arg-tokens push_back (at (+ 1 current-arg) tokens))
-    ;; Advance once for name and second time for type
-    (set current-arg (getNextArgument tokens current-arg end-invocation-index))
-    (set current-arg (getNextArgument tokens current-arg end-invocation-index)))
+  (var struct-name (& (const Token)) (at name-index tokens))
 
-  (printTokens arg-tokens)
+  (var member-tokens (<> std::vector Token))
+  (var serialize-tokens (<> std::vector Token))
+  (var current-member int first-member-index)
+  (while (< current-member end-invocation-index)
+    (var member-name-token (& (const Token)) (at current-member tokens))
+    (var member-type-token (& (const Token)) (at (+ 1 current-member) tokens))
+    (on-call member-tokens push_back member-name-token)
+    (on-call member-tokens push_back member-type-token)
+    (when (= 0 (on-call (field member-type-token contents) compare "int"))
+      (tokenize-push serialize-tokens
+                     (load-int (addr (field struct (token-splice (addr member-type-token)))))))
+    (when (= 0 (on-call (field member-type-token contents) compare "bool"))
+      (tokenize-push serialize-tokens
+                     (load-bool (addr (field struct (token-splice (addr member-type-token)))))))
+    ;; Advance once for name and second time for type
+    (set current-member (getNextArgument tokens current-member end-invocation-index))
+    (set current-member (getNextArgument tokens current-member end-invocation-index)))
+
+  (printTokens member-tokens)
 
   (tokenize-push output
-                 (defstruct (token-splice struct-name)
-                   (token-splice-array arg-tokens)))
+                 (defstruct (token-splice (addr struct-name))
+                   (token-splice-array member-tokens)))
+
+  (var func-name ([] 256 char) (array 0))
+  (PrintfBuffer func-name "%s-load" (on-call (field struct-name contents) c_str))
+  (var struct-serialize-func-name Token (array TokenType_Symbol func-name
+                                               (field struct-name source)
+                                               (field struct-name lineNumber)
+                                               (field struct-name columnStart)
+                                               (field struct-name columnEnd)))
+  (when (not (on-call serialize-tokens empty))
+      (tokenize-push output
+                 (defun (token-splice (addr struct-serialize-func-name)) (out (* (token-splice (addr struct-name)))
+                                                                              file (* FILE))
+                   ;; TODO: Add token-splice-array
+                   (token-splice (addr (at 0 serialize-tokens))))))
   (return true))
 
 (def-serialize-struct serialize-me

@@ -237,6 +237,9 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 
 		if (typeInvocation.contents.compare("const") == 0)
 		{
+			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))
+				return false;
+
 			// Prepend const-ness
 			addStringOutput(typeOutput, "const", StringOutMod_SpaceAfter, &typeInvocation);
 
@@ -251,6 +254,9 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 		else if (typeInvocation.contents.compare("*") == 0 ||
 		         typeInvocation.contents.compare("&") == 0)
 		{
+			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))
+				return false;
+
 			// Append pointer/reference
 			int typeIndex =
 			    getExpectedArgument("expected type", tokens, startTokenIndex, 1, endTokenIndex);
@@ -267,6 +273,9 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 		else if (typeInvocation.contents.compare("&&") == 0 ||
 		         typeInvocation.contents.compare("rval-ref-to") == 0)
 		{
+			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))
+				return false;
+
 			int typeIndex =
 			    getExpectedArgument("expected type", tokens, startTokenIndex, 1, endTokenIndex);
 			if (typeIndex == -1)
@@ -857,7 +866,10 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	newMacroDef.isRequired = false;
 	newMacroDef.output = compTimeOutput;
 	if (!addObjectDefinition(environment, newMacroDef))
+	{
+		delete compTimeOutput;
 		return false;
+	}
 
 	// TODO: It would be nice to support global vs. local macros
 	// This only really needs to be an environment distinction, not a code output distinction
@@ -898,7 +910,6 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	                                  /*delimiterTemplate=*/nullptr, *compTimeOutput);
 	if (numErrors)
 	{
-		delete compTimeOutput;
 		return false;
 	}
 
@@ -944,7 +955,10 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	newGeneratorDef.isRequired = false;
 	newGeneratorDef.output = compTimeOutput;
 	if (!addObjectDefinition(environment, newGeneratorDef))
+	{
+		delete compTimeOutput;
 		return false;
+	}
 
 	// TODO: It would be nice to support global vs. local generators
 	// This only really needs to be an environment distinction, not a code output distinction

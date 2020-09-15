@@ -14,7 +14,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 	importFundamentalGenerators(manager.environment);
 	// Create module definition for top-level references to attach to
 	// The token isn't actually tied to one file
-	manager.globalPseudoInvocationName = {TokenType_Symbol, "<global>", "global_pseudotarget", 1, 0, 1};
+	manager.globalPseudoInvocationName = {
+	    TokenType_Symbol, "<global>", "global_pseudotarget", 1, 0, 1};
 	{
 		ObjectDefinition moduleDefinition = {};
 		moduleDefinition.name = &manager.globalPseudoInvocationName;
@@ -23,7 +24,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		// Will be cleaned up when the environment is destroyed
 		GeneratorOutput* compTimeOutput = new GeneratorOutput;
 		moduleDefinition.output = compTimeOutput;
-		addObjectDefinition(manager.environment, moduleDefinition);
+		if (!addObjectDefinition(manager.environment, moduleDefinition))
+			printf(
+			    "error: <global> couldn't be added. Was module manager initialized twice? Things "
+			    "will definitely break\n");
 	}
 
 	manager.environment.moduleManager = &manager;

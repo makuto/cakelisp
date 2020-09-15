@@ -34,6 +34,9 @@ int getExpectedArgument(const char* message, const std::vector<Token>& tokens, i
 // Expects startTokenIndex to be the invocation. The name of the invocation is included in the count
 // Note: Body arguments will not work properly with this
 int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
+// Like getNumArguments, includes invocation
+bool ExpectNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex,
+                        int numExpectedArguments);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 // There are no more arguments once this returns endArrayTokenIndex
 int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
