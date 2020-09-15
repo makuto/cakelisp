@@ -9,7 +9,7 @@
 
 ;; The defun generator will implicitly invoke a (generate-args) generator on the args list. "int"
 ;;  isn't a generator or a function, it's a DSL symbol generate-args understands
-(defun main (int arg-count ([] (* char)) args &return int)
+(defun main (arg-count int args ([] (* char)) &return int)
   ;; (printf 1 2)
   (printf "This is a test. Here's a number: %d" 4)
   (when (= (square (square 2)) 16)
@@ -23,7 +23,7 @@
 
 (global-var unitialized int)
 
-(defun-local helper ((rval-ref-to std::string) copy-string  &return std::string)
+(defun-local helper (copy-string (rval-ref-to std::string) &return std::string)
   (scope
    (var temp (& std::string) (std::move copy-string))
    (set temp "crazy"))
@@ -32,19 +32,19 @@
   (printf "%p" (addr temp))
   (return "test"))
 
-(defun test-complex-args ((* (const char)) filename
+(defun test-complex-args (filename (* (const char))
                           ;; Need to upcase singular argument type names manually (see PascalCaseIfPlural comments)
-                          (& (const (<> std::vector Token))) tokens
-                          int start-token-index
+                          tokens (& (const (<> std::vector Token)))
+                          start-token-index int
                           ;; generate-operation is a C++ type, but because of PascalCaseIfPlural,
                           ;; the lispy version becomes GenerateOperation. It's probably a good idea
                           ;; to write GenerateOperation here instead, because then ETAGS etc. can
                           ;; still find the C++ definition without running our conversion functions
-                          (& (<> std::vector (* generate-operation) other-thing)) operations-out
+                          operations-out (& (<> std::vector (* generate-operation) other-thing))
                           &return int)
   (return 2))
 
-(defun test-array-args (([] int) numbers ([] ([] 5 char)) five-letter-words
+(defun test-array-args (numbers ([] int) five-letter-words ([] ([] 5 char))
                         ;; ([] 4 ([] 4 float)) matrix ;; C doesn't like this, but the Cakelisp type system can handle it
                         &return (* char))
   (return (nth (test-complex-args) (def-after) five-letter-words)))
@@ -55,10 +55,10 @@
 ;; Terminology notes: :thing is a keyword symbol. &thing is a symbol or marker symbol (maybe I call it a sentinel?)
 
 ;; Becomes add() once converted
-(defun + (int a int b &return int)
+(defun + (a int b int &return int)
   (return 0))
 
-(defun vec-+ (int a int b &return int)
+(defun vec-+ (a int b int &return int)
   (return 0))
 
 ;; Test max buffer length handling
@@ -67,11 +67,11 @@
 
 ;; (square (defun oh-no (&return std::string)(return "Hello macros!")))
 
-(defun variable-declaration-generator ((& EvaluatorEnvironment) environment
-                                       (& (const EvaluatorContext)) context
-                                       (& (const (<> std::vector Token))) tokens
-                                       int start-token-index
-                                       (& GeneratorOutput) output)
+(defun variable-declaration-generator (environment (& EvaluatorEnvironment)
+                                       context (& (const EvaluatorContext))
+                                       tokens (& (const (<> std::vector Token)))
+                                       start-token-index int
+                                       output (& GeneratorOutput))
   (when (IsForbiddenEvaluatorScope "variable declaration" (nth start-token-index tokens)
                                    context EvaluatorScope_ExpressionsOnly)
     (return false))

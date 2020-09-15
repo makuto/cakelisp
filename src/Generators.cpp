@@ -390,12 +390,12 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 
 	enum DefunState
 	{
-		Type,
 		Name,
+		Type,
 		ReturnType
 	};
 
-	DefunState state = Type;
+	DefunState state = Name;
 	int returnTypeStart = -1;
 
 	struct DefunArgument
@@ -418,27 +418,6 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		}
 		else if (state == Name)
 		{
-			if (!ExpectTokenType("defun", currentToken, TokenType_Symbol))
-				return false;
-			if (isSpecialSymbol(currentToken))
-			{
-				ErrorAtTokenf(currentToken,
-				              "defun expected argument name, but got symbol or marker %s",
-				              currentToken.contents.c_str());
-				return false;
-			}
-			else
-			{
-				currentArgument.nameIndex = i;
-				// Finished with an argument
-				arguments.push_back(currentArgument);
-				currentArgument = {};
-
-				state = Type;
-			}
-		}
-		else if (state == Type)
-		{
 			if (currentToken.type == TokenType_Symbol &&
 			    currentToken.contents.compare("&return") == 0)
 			{
@@ -449,6 +428,26 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 				continue;
 			}
 
+			if (!ExpectTokenType("defun", currentToken, TokenType_Symbol))
+				return false;
+
+			currentArgument.nameIndex = i;
+			state = Type;
+
+			// We've now introduced an expectation that a name will follow
+			if (!ExpectInInvocation("expected argument type", tokens, i + 1, endArgsIndex))
+				return false;
+		}
+		else if (state == Type)
+		{
+			if (currentToken.type == TokenType_Symbol && isSpecialSymbol(currentToken))
+			{
+				ErrorAtTokenf(currentToken,
+				              "defun expected argument type, but got symbol or marker %s",
+				              currentToken.contents.c_str());
+				return false;
+			}
+
 			if (currentToken.type != TokenType_OpenParen && currentToken.type != TokenType_Symbol)
 			{
 				ErrorAtTokenf(currentToken, "defun expected argument type, got %s",
@@ -457,16 +456,17 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 			}
 
 			currentArgument.startTypeIndex = i;
+
+			// Finished with an argument
+			arguments.push_back(currentArgument);
+			currentArgument = {};
+
 			state = Name;
 			// Skip past type declaration; it will be handled later
 			if (currentToken.type == TokenType_OpenParen)
 			{
 				i = FindCloseParenTokenIndex(tokens, i);
 			}
-
-			// We've now introduced an expectation that a name will follow
-			if (!ExpectInInvocation("expected argument name", tokens, i + 1, endArgsIndex))
-				return false;
 		}
 	}
 
