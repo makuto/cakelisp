@@ -1,0 +1,11 @@
+#+TITLE:Debugging Cakelisp
+* Verbosity
+I've sprinkled ~bool verbose~ flags throughout the code. Eventually I will add a proper command-line option for changing verbosity (TODO).
+* GDB
+This command should be run in order to tell GDB where the ~.so~ files you want to debug are located:
+
+#+BEGIN_SRC sh
+set solib-search-path ~/Development/code/repositories/cakelisp/
+#+END_SRC
+
+By setting a breakpoint in already generated C++ code, you will then hit the breakpoint once the code is regenerated and loaded at transpiler runtime (a.k.a. compile-time code execution).

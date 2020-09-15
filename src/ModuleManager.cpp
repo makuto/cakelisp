@@ -159,11 +159,12 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 	// Module always requires all its functions
 	// TODO: Local functions can be left out if not referenced (in fact, they may warn in C if not)
 	moduleContext.isRequired = true;
+	// A delimiter isn't strictly necessary here, but it is nice to space out things
 	StringOutput bodyDelimiterTemplate = {};
 	bodyDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
-	int numErrors = EvaluateGenerateAll_Recursive(manager.environment, moduleContext, *newModule.tokens,
-	                                              /*startTokenIndex=*/0, bodyDelimiterTemplate,
-	                                              *newModule.generatedOutput);
+	int numErrors = EvaluateGenerateAll_Recursive(
+	    manager.environment, moduleContext, *newModule.tokens,
+	    /*startTokenIndex=*/0, &bodyDelimiterTemplate, *newModule.generatedOutput);
 	// After this point, the module may have references to its tokens in the environmment, so we
 	// cannot destroy it until we're done evaluating everything
 	if (numErrors)

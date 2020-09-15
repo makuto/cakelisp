@@ -205,10 +205,10 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
                                const std::vector<Token>& tokens, int startTokenIndex,
                                GeneratorOutput& output);
 
-// Delimiter template will be inserted between the outputs
+// Delimiter template will be inserted between the outputs. Pass nullptr for no delimiter
 int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
-                                  int startTokenIndex, const StringOutput& delimiterTemplate,
+                                  int startTokenIndex, const StringOutput* delimiterTemplate,
                                   GeneratorOutput& output);
 
 // Returns whether all references were resolved successfully

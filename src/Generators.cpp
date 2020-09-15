@@ -611,10 +611,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	bodyContext.scope = EvaluatorScope_Body;
 	bodyContext.definitionName = &nameToken;
 	// The statements will need to handle their ;
-	// TODO Remove this, we don't need it any more
-	StringOutput bodyDelimiterTemplate = {};
 	int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
-	                                              bodyDelimiterTemplate, output);
+	                                              /*delimiterTemplate=*/nullptr, output);
 	if (numErrors)
 		return false;
 
@@ -652,7 +650,7 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
 	argumentDelimiterTemplate.modifiers = StringOutMod_ListSeparator;
 	int numErrors =
 	    EvaluateGenerateAll_Recursive(environment, functionInvokeContext, tokens, startArgsIndex,
-	                                  argumentDelimiterTemplate, output);
+	                                  &argumentDelimiterTemplate, output);
 	if (numErrors)
 		return false;
 
@@ -895,11 +893,9 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	// Let the reference required propagation step handle this
 	macroBodyContext.isRequired = false;
 	macroBodyContext.definitionName = &nameToken;
-	// TODO Remove this, we don't need it any more
-	StringOutput bodyDelimiterTemplate = {};
 	int numErrors =
 	    EvaluateGenerateAll_Recursive(environment, macroBodyContext, tokens, startBodyIndex,
-	                                  bodyDelimiterTemplate, *compTimeOutput);
+	                                  /*delimiterTemplate=*/nullptr, *compTimeOutput);
 	if (numErrors)
 	{
 		delete compTimeOutput;
@@ -984,11 +980,9 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	// Let the reference required propagation step handle this
 	generatorBodyContext.isRequired = false;
 	generatorBodyContext.definitionName = &nameToken;
-	// TODO Remove this, we don't need it any more
-	StringOutput bodyDelimiterTemplate = {};
 	int numErrors =
 	    EvaluateGenerateAll_Recursive(environment, generatorBodyContext, tokens, startBodyIndex,
-	                                  bodyDelimiterTemplate, *compTimeOutput);
+	                                  /*delimiterTemplate=*/nullptr, *compTimeOutput);
 	if (numErrors)
 	{
 		delete compTimeOutput;
@@ -1294,7 +1288,7 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				}
 				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
 				                                              startSpliceListIndex,
-				                                              spliceDelimiterTemplate, output);
+				                                              &spliceDelimiterTemplate, output);
 				if (numErrors)
 					return false;
 				break;
@@ -1358,7 +1352,7 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				listDelimiterTemplate.modifiers = StringOutMod_ListSeparator;
 
 				if (EvaluateGenerateAll_Recursive(environment, expressionContext, tokens,
-				                                  startExpressionIndex, listDelimiterTemplate,
+				                                  startExpressionIndex, &listDelimiterTemplate,
 				                                  output) != 0)
 					return false;
 				break;
@@ -1377,11 +1371,9 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				EvaluatorContext bodyContext = context;
 				bodyContext.scope = EvaluatorScope_Body;
 				// The statements will need to handle their ;
-				// TODO Remove delimiter, we don't need it
-				StringOutput bodyDelimiterTemplate = {};
 				int numErrors =
 				    EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
-				                                  bodyDelimiterTemplate, output);
+				                                  /*delimiterTemplate=*/nullptr, output);
 				if (numErrors)
 					return false;
 				break;

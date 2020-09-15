@@ -230,8 +230,9 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		environment.macroExpansions.push_back(macroOutputTokens);
 
 		// Note that macros always inherit the current context, whereas bodies change it
-		int result = EvaluateGenerate_Recursive(environment, context, *macroOutputTokens,
-		                                        /*startTokenIndex=*/0, output);
+		int result = EvaluateGenerateAll_Recursive(environment, context, *macroOutputTokens,
+		                                           /*startTokenIndex=*/0,
+		                                           /*delimiterTemplate=*/nullptr, output);
 		if (result != 0)
 		{
 			NoteAtToken(invocationStart,
@@ -381,7 +382,7 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 // Delimiter template will be inserted between the outputs
 int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
-                                  int startTokenIndex, const StringOutput& delimiterTemplate,
+                                  int startTokenIndex, const StringOutput* delimiterTemplate,
                                   GeneratorOutput& output)
 {
 	// Note that in most cases, we will continue evaluation in order to turn up more errors
@@ -398,9 +399,9 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 		}
 
 		// Starting a new argument to evaluate
-		if (currentTokenIndex != startTokenIndex)
+		if (delimiterTemplate && currentTokenIndex != startTokenIndex)
 		{
-			StringOutput delimiter = delimiterTemplate;
+			StringOutput delimiter = *delimiterTemplate;
 			delimiter.startToken = &tokens[currentTokenIndex];
 			// TODO: Controlling source vs. header output?
 			output.source.push_back(std::move(delimiter));
@@ -717,7 +718,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		// TODO: Get arguments all the way from the top
 		// TODO: Memory leak
 		// If not null terminated, the call will fail
-		char* arguments[] = {fileToExec,       strdup("-c"),    sourceOutputName,
+		char* arguments[] = {fileToExec,       strdup("-g"),    strdup("-c"), sourceOutputName,
 		                     strdup("-Isrc/"), strdup("-fPIC"), nullptr};
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = fileToExec;

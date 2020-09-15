@@ -1,0 +1,10 @@
+#+TITLE:Cakelisp Language
+
+This document aspires to be one page of everything you need to know to learn the Cakelisp language. I liked how [[https://ziglang.org/documentation/master/][Zig]] is all on one page, so I'm going to emulate that here. This doesn't cover the internal workings of the Cakelisp transpiler.
+
+* Modules
+* Includes
+* Functions
+* Expressions and Statements
+* Macros
+* Generators
