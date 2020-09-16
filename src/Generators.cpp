@@ -1131,6 +1131,27 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	if (outputIndex == -1)
 		return false;
 
+	// Start off with a good token to refer back to in case of problems. In this case, use
+	// "tokenize-push" which will tell the reader outputEvalHandle is created by the invocation
+	// TODO: This token can't actually be referred to later. Rather than passing a token, take a
+	// std::string instead?
+	Token evaluateOutputTempVar = tokens[startTokenIndex + 1];
+	MakeUniqueSymbolName(environment, "outputEvalHandle", &evaluateOutputTempVar);
+	// Evaluate output variable
+	{
+		addStringOutput(output.source, "std::vector<Token>&", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex + 1]);
+		addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex + 1]);
+		addStringOutput(output.source, "=", StringOutMod_SpaceAfter, &tokens[startTokenIndex + 1]);
+		EvaluatorContext expressionContext = context;
+		expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, outputIndex,
+		                               output) != 0)
+			return false;
+		addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startTokenIndex + 1]);
+	}
+
 	// This is odd: convert tokens in the macro invocation into string, then the generated C++ will
 	// use that string to create tokens...
 	char tokenToStringBuffer[1024] = {0};
@@ -1153,9 +1174,9 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 			if (tokenToStringWrite != tokenToStringBuffer)
 			{
 				*tokenToStringWrite = '\0';
-				// TODO: Get output var from a gensym'd ref to given output
-				tokenizeGenerateStringTokenize("output", *tokenToStringStartToken,
-				                               tokenToStringBuffer, output);
+				tokenizeGenerateStringTokenize(evaluateOutputTempVar.contents.c_str(),
+				                               *tokenToStringStartToken, tokenToStringBuffer,
+				                               output);
 				tokenToStringWrite = tokenToStringBuffer;
 				tokenToStringStartToken = nullptr;
 			}
@@ -1170,17 +1191,15 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 				                isArray ? "PushBackAll(" : "PushBackTokenExpression(",
 				                StringOutMod_None, &tokens[spliceArg]);
 
-				// Evaluate output variable
-				// TODO: Don't evaluate more than once!
-				EvaluatorContext expressionContext = context;
-				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, outputIndex,
-				                               output) != 0)
-					return false;
+				// Write output argument
+				addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_None,
+				                &tokens[spliceArg]);
 
 				addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[spliceArg]);
 
 				// Evaluate token to start output expression
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
 				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, spliceArg,
 				                               output) != 0)
 					return false;
@@ -1208,9 +1227,8 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	if (tokenToStringWrite != tokenToStringBuffer)
 	{
 		*tokenToStringWrite = '\0';
-		// TODO: Use output gensym var name
-		tokenizeGenerateStringTokenize("output", *tokenToStringStartToken, tokenToStringBuffer,
-		                               output);
+		tokenizeGenerateStringTokenize(evaluateOutputTempVar.contents.c_str(),
+		                               *tokenToStringStartToken, tokenToStringBuffer, output);
 		// We don't really need to reset it, but we will
 		tokenToStringWrite = tokenToStringBuffer;
 		tokenToStringStartToken = nullptr;

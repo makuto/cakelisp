@@ -187,6 +187,8 @@ struct EvaluatorEnvironment
 
 	// Used to ensure unique filenames for compile-time artifacts
 	int nextFreeBuildId;
+	// Ensure unique macro variable names, for example
+	int nextFreeUniqueSymbolNum;
 
 	// If this is null, it means other Cakelisp files will not be imported (which could be desired)
 	ModuleManager* moduleManager;

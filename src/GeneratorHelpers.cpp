@@ -191,6 +191,19 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
 	return nextArgStart;
 }
 
+void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
+                          Token* tokenToChange)
+{
+	char symbolNameBuffer[64] = {0};
+	PrintfBuffer(symbolNameBuffer, "%s_%d", prefix, environment.nextFreeUniqueSymbolNum);
+
+	tokenToChange->type = TokenType_Symbol;
+	tokenToChange->contents = symbolNameBuffer;
+	// TODO: If generated files are being checked in, it would be nice to have it be stable based on
+	// file name or something
+	environment.nextFreeUniqueSymbolNum++;
+}
+
 //
 // Token list manipulation
 //

@@ -8,6 +8,7 @@
 
 struct Token;
 struct EvaluatorContext;
+struct EvaluatorEnvironment;
 struct GeneratorOutput;
 struct StringOutput;
 
@@ -42,6 +43,12 @@ bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int e
 int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
                     int endArrayTokenIndex);
 
+// Similar to Lisp's gensym, make a globally unique symbol for e.g. macro variables. Use prefix so
+// it is still documented as to what it represents. Make sure your generated tokenToChange is
+// allocated such that it won't go away until environmentDestroyInvalidateTokens() is called (i.e.
+// NOT stack allocated)
+void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
+                          Token* tokenToChange);
 void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
 
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
