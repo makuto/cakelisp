@@ -1,10 +1,106 @@
 #+TITLE:Cakelisp Language
 
-This document aspires to be one page of everything you need to know to learn the Cakelisp language. I liked how [[https://ziglang.org/documentation/master/][Zig]] is all on one page, so I'm going to emulate that here. This doesn't cover the internal workings of the Cakelisp transpiler.
+This document aspires to be one page of everything you need to know to learn the Cakelisp language. I liked how [[https://ziglang.org/documentation/master/][Zig]] is all on one page, so I'm going to emulate that here.
 
+This doesn't cover the internal workings of the Cakelisp transpiler.
+
+* What is Cakelisp?
+Cakelisp is not intended to be an easy language for beginners. You should already have a strong grasp of either C or C++, because many functions and idioms used are actually straight from C/C++. Cakelisp is intended for people who already know C/C++ but want more features on top of the language.
+
+Additionally, Lisp users may be disappointed by Cakelisp's relative impurity. I took ideas I liked and left out a lot of core Lisp concepts. For example, functions only return a value with an explicit ~return~ statement. Any sort of immutability or non-sequential assumptions are also out (though you can use C/C++ ~const~). You should think about Cakelisp more as "C with parentheses" than "Lisp that outputs to C". Of course, it's more than just added parentheses (macros are the primary addition), but you get the point.
+
+This means that except in the case of macros, reading /The C Programming Language/ is going to help you learn Cakelisp better than reading /Practical Common Lisp/.
 * Modules
+Cakelisp projects are organized into /modules/. Modules are usually associated with a single file. For example, I could have a module ~Math.cake~ which holds my math functions. When I say "module", I'm not referring to C++20's ~modules~, which Cakelisp does not use.
+
+Modules serve as a powerful organization mechanism. It's easy to see how a project all in one gigantic file will be harder to read and navigate than modules with suitable names. I like creating modules for features, not for concepts like "one class per file", which I think is actually /counter/ to good organization.
+
+Modules automatically provide both the interface and implementation files necessary. This means appropriate ~.h~ or ~.hpp~ header files are generated for the given generated ~.c~ or ~.cpp~ file.
+
+The ~local~ keyword or suffix is typically relative to module scope. It tells Cakelisp that this function/variable/struct definition/etc. is not intended to be used outside the current module. Declaring module-local variables is a particularly clean way to let modules manage their own memory, without having to pass the module's data around to all its functions and all its callers. See /Code Complete/, 1st Edition, p. 128 "Module data mistaken for global data".
 * Includes
 * Functions
+Functions are defined with ~defun~. ~defun~ provides some variants via different invocations:
+- ~defun~: Define a function which is intended to be public, i.e. exported in the header file
+- ~defun-local~: Define a module-local function. This will add the ~static~ keyword to the definition in the final C/C++. Local functions are only callable in the same module
+
+Here is an example:
+#+BEGIN_SRC lisp
+  (defun add-ints (a int b int &return int)
+    (return (+ a b)))
+#+END_SRC
+
+This function will become the following C code:
+#+BEGIN_SRC C
+  int add_ints(int a, int b)
+  {
+    return a + b;
+  }
+#+END_SRC
+
+The function's signature will also be added to the header file so that it can be called by other Cakelisp modules as well as external C/C++ code.
+* Variables
+- global
+- static
+- local
 * Expressions and Statements
+* Tokens
+Tokens are what Cakelisp becomes after the tokenizer processes the text. The Evaluator then reads Tokens in order to decide what to do. Only generators and macros interact with Tokens.
+
+Unlike Lisp, Tokens are stored in flat, resizable arrays. This helps with CPU cache locality while processing Tokens. It does mean, however, that there is no abstract syntax tree. Functions like ~getArgument()~ and ~FindCloseParenTokenIndex()~ help with interacting with these arrays.
+
+Once some text has been parsed into Tokens, the Token array should be kept around for the lifetime of the environment, and should not be resized. Other things in the Evaluator will refer to Tokens by pointers, so they must not be moved.
 * Macros
+Macros are defined via ~defmacro~. The macro function signature is implicitly added by ~defmacro~. This means that any arguments passed to ~MacroFunc~ are in the scope of ~defmacro~. The signature is as follows:
+#+BEGIN_SRC C++
+typedef bool (*MacroFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          std::vector<Token>& output);
+#+END_SRC
+
+The purpose of macros is to take inputs from ~tokens~ starting at ~startTokenIndex~ (the open parenthesis of this macro's invocation) and create new tokens in ~output~ which will replace the macro's invocation.
+
+Macros must return ~true~ or ~false~ to denote whether the expansion was successful. The more validation a macro has early on, the fewer compilation errors the user will have to deal with if the macro output is erroneous.
+
+** ~tokenize-push~
+~tokenize-push~ is the main "quoting" function. The first argument is the output variable. ~output~ is passed in to ~defmacro~ automatically, but you can define other token arrays like so:
+#+BEGIN_SRC lisp
+  (var my-tokens (<> std::vector Token))
+#+END_SRC
+
+~tokenize-push~ treats all tokens as strings until it reaches one of the ~token*~ functions. These functions tell the tokenizer to unpack and insert the tokens in the variables rather than the symbol which is the variable name.
+- ~token-splice~: Given a token's address, insert a copy of that token. If the token is an open parenthesis, insert the whole expression (go until the closing parenthesis is found)
+- ~token-splice-array~: Given an array of tokens, insert a copy of all tokens in the array
+
+The following is an example of ~tokenize-push~:
+#+BEGIN_SRC lisp
+  (tokenize-push output
+                 (defstruct (token-splice (addr struct-name))
+                   (token-splice-array member-tokens)))
+#+END_SRC
+
+Where ~struct-name~ is a ~Token~ and ~member-tokens~ is a array of tokens.
+
+The output would look like this:
+#+BEGIN_SRC lisp
+(defstruct my-struct a int b int)
+#+END_SRC
 * Generators
+Generators output C/C++ source code to both header and source files. All Cakelisp code eventually becomes generator invocations, because only C/C++ code can actually perform work. If this were a true machine-code compiler, you could imagine generators as functions which take language statements and turn them into machine code instructions. In Cakelisp's case, it turns them into C/C++ expressions.
+
+Generators are defined via ~defgenerator~. The generator function signature is implicitly added by ~defgenerator~. This means that any arguments passed to ~GeneratorFunc~ are in the scope of ~defgenerator~. The signature is as follows:
+#+BEGIN_SRC C++
+typedef bool (*GeneratorFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                              const std::vector<Token>& tokens, int startTokenIndex,
+                              GeneratorOutput& output);
+#+END_SRC
+
+Given input starting at ~tokens[startTokenIndex]~, output relevant C/C++ code to ~output~.
+
+Generators must return ~true~ or ~false~ to denote whether the output was successful.
+
+See [[file:../src/GeneratorHelpers.hpp][GeneratorHelpers.hpp]]. All of these functions are available to Generator definitions. Of particular relevance are the ~add*Output~ functions. These allow you to directly output C/C++ source code.
+
+Additionally, the ~Expect~ functions are quick ways to validate your inputs. They will write an error if the expectation isn't met.
+
+[[file:../src/Generators.cpp][Generators.cpp]] serves as a good reference to how generators are written. However, they are rather verbose because they don't use any macros and have extensive validation. Generators written in Cakelisp can be much more compact thanks to macros.
