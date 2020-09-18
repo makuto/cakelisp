@@ -1,0 +1,10 @@
+# Cannot build from root because our files won't exist yet, and cakelisp needs to be built first.
+# This could be fixed via a custom dependency which would wait for Cakelisp to be built, then
+# generate our files. HotReloadingTest would also have a dependency on that. However, even this
+# might not work because Jam might need to process the includes right away, and the files still
+# don't exist. So, it's complicated, but doing the easy way is fine and doesn't bother me too much
+SubDir . ;
+
+Main HotReloadingTest : TestMain.cake.cpp
+HotReloading.cake.cpp
+;

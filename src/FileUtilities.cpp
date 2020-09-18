@@ -6,8 +6,8 @@
 #include <string.h>
 
 #ifdef UNIX
-#include <sys/stat.h>
 #include <libgen.h>
+#include <sys/stat.h>
 #else
 #error Need to implement file utilities for this platform
 #endif
@@ -54,6 +54,18 @@ void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize)
 	SafeSnprinf(bufferOut, bufferSize, "%s", dirName);
 	free(pathCopy);
 #else
-#error Need to be able to strip file from path to get directory
+#error Need to be able to strip file from path to get directory on this platform
+#endif
+}
+
+void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize)
+{
+#ifdef UNIX
+	char* pathCopy = strdup(path);
+	const char* fileName = basename(pathCopy);
+	SafeSnprinf(bufferOut, bufferSize, "%s", fileName);
+	free(pathCopy);
+#else
+#error Need to be able to strip path to get filename on this platform
 #endif
 }

@@ -24,17 +24,51 @@ Modules serve as a powerful organization mechanism. It's easy to see how a proje
 Modules automatically provide both the interface and implementation files necessary. This means appropriate ~.h~ or ~.hpp~ header files are generated for the given generated ~.c~ or ~.cpp~ file.
 
 The ~local~ keyword or suffix is typically relative to module scope. It tells Cakelisp that this function/variable/struct definition/etc. is not intended to be used outside the current module. Declaring module-local variables is a particularly clean way to let modules manage their own memory, without having to pass the module's data around to all its functions and all its callers. See /Code Complete/, 1st Edition, p. 128 "Module data mistaken for global data".
-* Includes
+
+** Importing modules
+The ~import~ function adds the specified file to the environment:
+#+BEGIN_SRC lisp
+(import "MyFile.cake" "AnotherFile.cake")
+
+;; Include MyForwardDeclares.cake's generated header in the current module's generated header
+;; You might need to do this if you have non-module-local types/signatures which rely on other types
+(import &with-decls "MyForwardDeclares.cake")
+
+;; Do not include in any generated code. This is essential for comptime-only modules, which won't
+;; even generate headers
+(import &comptime-only "Macros.cake")
+#+END_SRC
+
+By default, ~&with-defs~ is specified, meaning the generated header will be included in the generated source file only.
+
+Files are evaluated the instant they are imported. If a file has already imported, it will not be evaluated again. 
+
+Circular imports are allowed because C/C++ generated headers will make it possible to build the generated code. Circular references are not allowed in macros or generators, because they cannot be built without having built the other.
+* C/C++ Imports
 Thanks to speculative compilation, *any* C or C++ header may be included in Cakelisp files, and the header's functions and types may be used freely. This is in stark contrast to many other languages which require bindings, FFIs, etc. in order to call C code. It works just as well as a native C file. This eliminates any additional work needed to integrate C/C++ libraries. It also means there is no need to create a Cakelisp standard library, because you already have easy access to the entire C and C++ standard libraries!
 
 This also means that adding Cakelisp to an existing C/C++ project should be virtually effortless. All of your existing code is ready to be used. Additionally, Cakelisp code compiles down to regular C/C++ code, so calling a Cakelisp function is as easy as calling a native C/C++ function. There's no boxing/unboxing, marshalling, type conversions, etc. necessary.
 
-Here are some example includes:
+Here are some example imports:
 #+BEGIN_SRC lisp
-(include "<vector>") ;; now just e.g. (var my-vec (<> std::vector int) (array 1 2 3))
-(include "<cstdio.h>") ;; (printf "Hello %s!\n" "Cakelisp")
-(include "MyHeader.hpp") ;; (on-call myGlobalVar updateState 0.016)
+(c-import "<vector>") ;; now just e.g. (var my-vec (<> std::vector int) (array 1 2 3))
+(c-import "<cstdio.h>") ;; (printf "Hello %s!\n" "Cakelisp")
+(c-import "MyHeader.hpp") ;; (on-call myGlobalVar updateState 0.016)
+
+;; Multiple imports are allowed per call:
+(c-import "<vector>" "<map>")
 #+END_SRC
+
+The destination of imports may be specified:
+#+BEGIN_SRC lisp
+(c-import &with-decls "<vector>") ;; Make sure the header file (declarations) includes vector
+
+;; Go back and forth between destinations freely:
+(c-import &with-decls "toHeader.hpp" "anotherHeaderHeader.hpp"
+          &with-defs "toSource.cpp")
+#+END_SRC
+
+By default, ~&with-defs~ is specified.
 
 You shouldn't expect Cakelisp features to work with external C/C++ code. Features like hot-reloading or introspection aren't available to external code because Cakelisp does not parse any C/C++ headers. This doesn't mean you cannot call C/C++ code from a hot-reloaded Cakelisp function, it just means you cannot magically hot-reload the C/C++ code you're calling.
 * Functions

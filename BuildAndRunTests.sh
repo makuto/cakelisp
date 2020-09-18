@@ -3,4 +3,6 @@
 # jam -j4 && ./bin/cakelisp test/Macros.cake
 # jam -j4 && ./bin/cakelisp test/Dependencies.cake
 # jam -j4 && ./bin/cakelisp test/Basic.cake
-jam -j4 && ./bin/cakelisp runtime/HotReloading.cake
+
+# Build Cakelisp itself, generate the runtime, build the runtime, then run the test
+jam -j4 && ./bin/cakelisp runtime/TestMain.cake && cd runtime && jam -j4 && ./HotReloadingTest

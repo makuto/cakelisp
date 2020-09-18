@@ -9,33 +9,34 @@
 
 #include <string.h>
 
-enum CImportState
+enum ImportState
 {
 	WithDefinitions,
-	WithDeclarations
+	WithDeclarations,
+	CompTimeOnly
 };
 
-// These need to be simple in order to make it easy for external build tools to parse them
-// This version supports multiple includes per invocation, different export destinations, etc.
-bool PowerfulCImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                              const std::vector<Token>& tokens, int startTokenIndex,
-                              GeneratorOutput& output)
+bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                     const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
 {
-	if (!ExpectEvaluatorScope("C/C++ include", tokens[startTokenIndex], context,
-	                          EvaluatorScope_Module))
+	if (!ExpectEvaluatorScope("import", tokens[startTokenIndex], context, EvaluatorScope_Module))
 		return false;
 
 	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 	// Generators receive the entire invocation. We'll ignore it in this case
-	StripInvocation(startTokenIndex, endTokenIndex);
-	if (!ExpectInInvocation("expected path(s) to include", tokens, startTokenIndex,
-	                        endTokenIndex + 1))
+	int startNameTokenIndex = startTokenIndex;
+	int endArgsIndex = endTokenIndex;
+	StripInvocation(startNameTokenIndex, endArgsIndex);
+	if (!ExpectInInvocation("expected path(s) to modules to import", tokens, startNameTokenIndex,
+	                        endTokenIndex))
 		return false;
 
-	CImportState state = WithDefinitions;
+	// C/C++ imports are "c-import"
+	bool isCakeImport = tokens[startTokenIndex + 1].contents.compare("import") == 0;
 
-	// No macros/tomfoolery allowed - these need to be easy to parse by external tools
-	for (int i = startTokenIndex; i <= endTokenIndex; ++i)
+	ImportState state = WithDefinitions;
+
+	for (int i = startNameTokenIndex; i <= endArgsIndex; ++i)
 	{
 		const Token& currentToken = tokens[i];
 
@@ -45,6 +46,15 @@ bool PowerfulCImportGenerator(EvaluatorEnvironment& environment, const Evaluator
 				state = WithDefinitions;
 			else if (currentToken.contents.compare("&with-decls") == 0)
 				state = WithDeclarations;
+			else if (currentToken.contents.compare("&comptime-only") == 0)
+			{
+				if (!isCakeImport)
+				{
+					ErrorAtToken(currentToken, "&comptime-only not supported on C/C++ imports");
+					return false;
+				}
+				state = CompTimeOnly;
+			}
 			else
 			{
 				ErrorAtToken(currentToken, "Unrecognized sentinel symbol");
@@ -53,148 +63,73 @@ bool PowerfulCImportGenerator(EvaluatorEnvironment& environment, const Evaluator
 
 			continue;
 		}
-		else if (!ExpectTokenType("C/C++ include", currentToken, TokenType_String) ||
+		else if (!ExpectTokenType("import file", currentToken, TokenType_String) ||
 		         currentToken.contents.empty())
 			continue;
 
-		// TODO: Convert to StringOutputs?
-		char includeBuffer[MAX_PATH_LENGTH] = {0};
-		// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
-		if (currentToken.contents[0] == '<')
+		if (isCakeImport)
 		{
-			PrintfBuffer(includeBuffer, "#include %s", currentToken.contents.c_str());
-		}
-		else
-		{
-			PrintfBuffer(includeBuffer, "#include \"%s\"", currentToken.contents.c_str());
-		}
-
-		if (state == WithDefinitions)
-			addStringOutput(output.source, std::string(includeBuffer), StringOutMod_NewlineAfter,
-			                &currentToken);
-		else if (state == WithDeclarations)
-			addStringOutput(output.header, std::string(includeBuffer), StringOutMod_NewlineAfter,
-			                &currentToken);
-
-		output.imports.push_back({currentToken.contents, ImportLanguage_C, &currentToken});
-	}
-
-	return true;
-}
-
-// The hampered version of PowerfulCImportGenerator, done so for easy external tool parsing
-// No macros/tomfoolery allowed - these need to be easy to parse by external tools
-bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                       const std::vector<Token>& tokens, int startTokenIndex,
-                       GeneratorOutput& output)
-{
-	if (!ExpectEvaluatorScope("C/C++ include", tokens[startTokenIndex], context,
-	                          EvaluatorScope_Module))
-		return false;
-
-	CImportState state = WithDefinitions;
-
-	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
-	int startArgsIndex = startTokenIndex;
-	int endArgsIndex = endInvocationIndex;
-	// Generators receive the entire invocation. We'll ignore it in this case
-	StripInvocation(startArgsIndex, endArgsIndex);
-	if (!ExpectInInvocation("expected path to include", tokens, startArgsIndex, endArgsIndex + 1))
-		return false;
-
-	const Token& pathToken = tokens[startArgsIndex];
-
-	if (!ExpectTokenType("C/C++ include", pathToken, TokenType_String) ||
-	    pathToken.contents.empty())
-		return false;
-
-	int destinationIndex = startArgsIndex + 1;
-	if (destinationIndex != endInvocationIndex)
-	{
-		const Token& destinationToken = tokens[destinationIndex];
-		if (destinationToken.type == TokenType_Symbol && isSpecialSymbol(destinationToken))
-		{
-			if (destinationToken.contents.compare(":with-defs") == 0)
-				state = WithDefinitions;
-			else if (destinationToken.contents.compare(":with-decls") == 0)
-				state = WithDeclarations;
-			else
-			{
-				ErrorAtToken(destinationToken,
-				             "unrecognized sentinel symbol. Expected :with-defs or :with-decls");
-				return false;
-			}
-		}
-		else
-		{
-			ErrorAtToken(destinationToken, "unexpected symbol. Expected :with-defs or :with-decls");
-			return false;
-		}
-	}
-
-	bool isCakeImport = false;
-	// TODO: Convert to StringOutputs?
-	char includeBuffer[MAX_PATH_LENGTH] = {0};
-	// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
-	if (pathToken.contents[0] == '<')
-	{
-		PrintfBuffer(includeBuffer, "#include %s", pathToken.contents.c_str());
-	}
-	else
-	{
-		// Anything ending with .cake is a Cakelisp include
-		// It is necessary to have both Cakelisp and C/C++ includes share the same keyword so some
-		// build systems can handle them (though those build systems need to check for .cake too)
-		int pathLength = pathToken.contents.size();
-		const std::string cakeSuffix = ".cake";
-		if (pathToken.contents.substr(pathLength - cakeSuffix.size(), pathLength)
-		        .compare(cakeSuffix) == 0)
-		{
-			isCakeImport = true;
-			// TODO Only include the cakelisp file if it is actually needed. For example, macro-only
-			// .cake files will not have a header output at all
-			// TODO Make .hpp optional for C-only support
-			PrintfBuffer(includeBuffer, "#include \"%s.hpp\"", pathToken.contents.c_str());
-
 			if (!environment.moduleManager)
 			{
-				ErrorAtToken(pathToken,
+				ErrorAtToken(currentToken,
 				             "importing Cakelisp modules is disabled in this environment");
 				return false;
 			}
 			else
 			{
 				char relativePathBuffer[MAX_PATH_LENGTH] = {0};
-				getDirectoryFromPath(pathToken.source, relativePathBuffer,
+				getDirectoryFromPath(currentToken.source, relativePathBuffer,
 				                     sizeof(relativePathBuffer));
 				strcat(relativePathBuffer, "/");
-				strcat(relativePathBuffer, pathToken.contents.c_str());
+				strcat(relativePathBuffer, currentToken.contents.c_str());
 
 				// Evaluate the import!
-				if (!moduleManagerAddEvaluateFile(*environment.moduleManager,
-				                                  relativePathBuffer))
+				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, relativePathBuffer))
 				{
-					ErrorAtToken(pathToken, "failed to import Cakelisp module");
+					ErrorAtToken(currentToken, "failed to import Cakelisp module");
 					return false;
 				}
 			}
 		}
-		else
+
+		// Comptime only means no includes in the generated file
+		if (state != CompTimeOnly)
 		{
-			PrintfBuffer(includeBuffer, "#include \"%s\"", pathToken.contents.c_str());
+			std::vector<StringOutput>& outputDestination =
+			    state == WithDefinitions ? output.source : output.header;
+
+			addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter, &currentToken);
+
+			// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
+			if (currentToken.contents[0] == '<')
+			{
+				addStringOutput(outputDestination, currentToken.contents, StringOutMod_None,
+				                &currentToken);
+			}
+			else
+			{
+				if (isCakeImport)
+				{
+					char cakelispExtensionBuffer[MAX_PATH_LENGTH] = {0};
+					// TODO: .h vs. .hpp
+					PrintfBuffer(cakelispExtensionBuffer, "%s.hpp", currentToken.contents.c_str());
+					addStringOutput(outputDestination, cakelispExtensionBuffer,
+					                StringOutMod_SurroundWithQuotes, &currentToken);
+				}
+				else
+				{
+					addStringOutput(outputDestination, currentToken.contents,
+					                StringOutMod_SurroundWithQuotes, &currentToken);
+				}
+			}
+
+			addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
 		}
+
+		output.imports.push_back({currentToken.contents,
+		                          isCakeImport ? ImportLanguage_Cakelisp : ImportLanguage_C,
+		                          &currentToken});
 	}
-
-	if (state == WithDefinitions)
-		addStringOutput(output.source, std::string(includeBuffer), StringOutMod_NewlineAfter,
-		                &pathToken);
-	else if (state == WithDeclarations)
-		addStringOutput(output.header, std::string(includeBuffer), StringOutMod_NewlineAfter,
-		                &pathToken);
-
-	output.imports.push_back({pathToken.contents,
-	                          isCakeImport ? ImportLanguage_Cakelisp : ImportLanguage_C,
-	                          &pathToken});
 
 	return true;
 }
@@ -1681,7 +1616,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	// I wanted to use c-import, but I encountered problems writing a regex for Jam which can
 	// handle both include and c-import. Anyways, this way C programmers have one less change to
 	// remember
-	environment.generators["include"] = CIncludeGenerator;
+	environment.generators["c-import"] = ImportGenerator;
+	environment.generators["import"] = ImportGenerator;
 
 	environment.generators["defun"] = DefunGenerator;
 	environment.generators["defun-local"] = DefunGenerator;

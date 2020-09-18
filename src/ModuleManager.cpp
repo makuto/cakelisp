@@ -196,10 +196,12 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		WriterOutputSettings outputSettings;
 		outputSettings.sourceCakelispFilename = module.filename.c_str();
 
-		char sourceHeadingBuffer[1024] = {0};
 		// TODO: hpp to h support
-		// TODO: Strip path from filename
-		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", module.filename.c_str(),
+		char relativeIncludeBuffer[MAX_PATH_LENGTH];
+		getFilenameFromPath(module.filename.c_str(), relativeIncludeBuffer,
+		                    sizeof(relativeIncludeBuffer));
+		char sourceHeadingBuffer[1024] = {0};
+		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", relativeIncludeBuffer,
 		             generatedSourceHeading ? generatedSourceHeading : "");
 		outputSettings.sourceHeading = sourceHeadingBuffer;
 		outputSettings.sourceFooter = generatedSourceFooter;

@@ -1,7 +1,5 @@
-(include "Macros.cake")
-
-(include "<unordered_map>")
-(include "<vector>")
+(import &comptime-only "Macros.cake")
+(c-import "<unordered_map>" "<vector>")
 
 ;; The first significant generator written in Cakelisp!
 (defgenerator def-type-alias ()

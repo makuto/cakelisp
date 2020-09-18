@@ -1,5 +1,5 @@
-(include "DepOfDep.hpp")
-(include "<stdio.h>")
+(c-import "DepOfDep.hpp")
+(c-import "<stdio.h>")
 
 (defun the-answer (&return int)
   (printf "\nCalculating...\n")

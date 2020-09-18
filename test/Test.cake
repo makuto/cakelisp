@@ -1,4 +1,4 @@
-(include "<stdio.h>")
+(c-import "<stdio.h>")
 ; This is a file to test the tokenizer
 (printf "This is a test 0")
 ;(printf "This is a test 1")

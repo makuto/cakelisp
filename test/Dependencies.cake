@@ -1,5 +1,5 @@
-(include "<stdio.h>")
-(include "DependenciesModule.cake")
+(c-import "<stdio.h>")
+(import "DependenciesModule.cake")
 
 (defun main (&return int)
   (printf "%s\n" (hello-from-comptime))
