@@ -228,7 +228,11 @@ void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken
 			if (currentToken->type == TokenType_OpenParen)
 				++depth;
 			else if (currentToken->type == TokenType_CloseParen)
+			{
 				--depth;
+				if (depth < 0)
+					break;
+			}
 
 			output.push_back(*currentToken);
 		}

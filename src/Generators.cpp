@@ -363,6 +363,29 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			                                        /*allowArray=*/true, typeOutput,
 			                                        afterNameOutput);
 		}
+		// else if (typeInvocation.contents.compare("::") == 0)
+		else if (typeInvocation.contents.compare("in") == 0)
+		{
+			int firstScopeIndex =
+			    getExpectedArgument("expected scope", tokens, startTokenIndex, 1, endTokenIndex);
+			if (firstScopeIndex == -1)
+				return false;
+
+			for (int startScopeIndex = firstScopeIndex; startScopeIndex < endTokenIndex;
+			     startScopeIndex = getNextArgument(tokens, startScopeIndex, endTokenIndex))
+			{
+				// Override allowArray for subsequent parsing, because otherwise, the array args
+				// will be appended to the wrong buffer, and you cannot declare arrays in scope
+				// parameters anyways (as far as I can tell)
+				if (!tokenizedCTypeToString_Recursive(tokens, startScopeIndex,
+				                                      /*allowArray=*/false, typeOutput,
+				                                      afterNameOutput))
+					return false;
+
+				if (!isLastArgument(tokens, startScopeIndex, endTokenIndex))
+					addStringOutput(typeOutput, "::", StringOutMod_None, &tokens[startScopeIndex]);
+			}
+		}
 		else
 		{
 			ErrorAtToken(typeInvocation, "unknown C/C++ type specifier");
@@ -1673,9 +1696,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
 	    "while",
-		"return",
-		"continue",
-		"break",
+	    "return",
+	    "continue",
+	    "break",
 	    "when",
 	    "array",
 	    "set",
@@ -1683,8 +1706,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Pointers
 	    "deref",
 	    "addr",
-		"field",
-		"on-call",
+	    "field",
+	    "on-call",
 	    // Boolean
 	    "or",
 	    "and",

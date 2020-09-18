@@ -6,6 +6,7 @@ const char* macroSourceHeading =
     "\n#include \"EvaluatorEnums.hpp\""
     "\n#include \"Tokenizer.hpp\""
 	"\n#include \"GeneratorHelpers.hpp\""
+	"\n#include \"Generators.hpp\""
 	"\n#include \"Utilities.hpp\""
 	"\nextern \"C\"\n{\n";
 // Close extern "C" block
@@ -17,6 +18,7 @@ const char* generatorSourceHeading =
     "\n#include \"EvaluatorEnums.hpp\""
 	"\n#include \"Tokenizer.hpp\""
 	"\n#include \"GeneratorHelpers.hpp\""
+	"\n#include \"Generators.hpp\""
 	"\n#include \"Utilities.hpp\""
     "\nextern \"C\"\n{\n";
 // Close extern "C" block

@@ -2,7 +2,7 @@
 
 [[file:images/CakeLisp_gradient_128.png]]
 
-This is a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it too]]. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance. I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme on their modern titles.
+This is a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it too]]. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance. I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme (on their modern titles).
 
 The goal is a metaprogrammable, hot-reloadable, non-garbage-collected language ideal for high performance, iteratively-developed programs (especially games).
 
@@ -78,7 +78,7 @@ See [[file:doc/Debugging.org][doc/Debugging.org]]. Cakelisp doesn't really have 
 
 Mapping files will make it possible to step through code in the Cakelisp language (i.e. not in the generated language). This is similar to how debuggers allow you to step through code in C files, when under the hood it's actually stepping through machine code. It will require building support into your editor in order to properly jump to the right Cakelisp file and line (among other things).
 * Why Lisp?
-The primary benefit of using a Lisp S-expression-style dialect is its ease of extensibility. The tokenizer is extremely simple, and parsing S-expressions is also simple. This consistent syntax makes it easy to write macros, which generate more S-expressions. 
+The primary benefit of using a Lisp S-expression-style dialect is its ease of extensibility. The tokenizer is extremely simple, and parsing S-expressions is also simple. This consistent syntax makes it easy to write macros, which generate more S-expressions.
 
 Additionally, S-expressions are good for representing data, which means writing domain-specific languages is easier, because you can have the built-in tokenizer do most of the work.
 
@@ -123,7 +123,7 @@ The "guessing" part of the resolving references stage is something I think is un
 
 The drawback to speculative compilation is costly failed compilations, but they can be minimized if hints are added. Additionally, it is only necessary during clean builds - partial builds will use definitions which have already been compiled. In this way, compile-time code execution can be imagined as extensions to the Cakelisp transpiler, written inline with "shipping" code.
 * Similar applications/languages
-In Naughty Dog's /Uncharted/ (and possibly other titles), Scheme is used to generate C structure definitions (and do various other things). See Jason Gregory's /Game Engine Architecture/, p. 257.
+In Naughty Dog's /Uncharted/ (and possibly other titles), Scheme is used to generate C structure definitions (and do various other things). See Jason Gregory's /Game Engine Architecture/, p. 257. See also: [[https://www.youtube.com/watch?v=oSmqbnhHp1c][Dan Liebgold - Racket on the Playstation 3? It's Not What you Think!]]
 
 Some Lisp-family languages with active development which transpile to C:
 - [[http://www.call-cc.org/][Chicken scheme]]: Transpiles to C. Has heavyweight C function bindings, garbage collection

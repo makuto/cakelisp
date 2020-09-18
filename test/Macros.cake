@@ -32,8 +32,8 @@
   (return true))
 
 (defmacro def-serialize-struct ()
-  (destructure-arguments name-index first-member-index)
   (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
+  (destructure-arguments name-index first-member-index)
   (quick-token-at struct-name name-index)
 
   (var member-tokens (<> std::vector Token))
@@ -62,6 +62,13 @@
                    (token-splice-array member-tokens)))
 
   ;; Make the function which will load our struct!
+  ;; In a real serializer, I would want the following features:
+  ;; - Serialize to plain text. This is useful both for runtime printing and for saving data to version control
+  ;; - Serialize entire struct to binary, when possible. If all members are plain old data, read/write
+  ;;   the bytes in one shot
+  ;; - Be smart about serializing things like enums, which should include text/CRC of the enum name
+  ;; - For use-cases where the data needs to be discarded on struct change, store a CRC of the struct definition
+  ;; - Callbacks for special types (e.g. fill in external pointer), custom serializers, etc.
   (var func-name ([] 256 char) (array 0))
   (PrintfBuffer func-name "%s-load" (on-call (field struct-name contents) c_str))
   (var struct-serialize-func-name Token (array TokenType_Symbol func-name

@@ -10,6 +10,12 @@ Cakelisp is not intended to be an easy language for beginners. You should alread
 Additionally, Lisp users may be disappointed by Cakelisp's relative impurity. I took ideas I liked and left out a lot of core Lisp concepts. For example, functions only return a value with an explicit ~return~ statement. Any sort of immutability or non-sequential assumptions are also out (though you can use C/C++ ~const~). You should think about Cakelisp more as "C with parentheses" than "Lisp that outputs to C". Of course, it's more than just added parentheses (macros are the primary addition), but you get the point.
 
 This means that except in the case of macros, reading /The C Programming Language/ is going to help you learn Cakelisp better than reading /Practical Common Lisp/.
+** A note on the name
+I thought of the name because the idiom "you can't have your cake and eat it too" was in my head while researching Lisp languages. It is about having both the power of Lisp languages (having cake) /and/ high performance (eating it too).
+
+The combination is pronounced the same as the individual words one after another, i.e. "cake lisp", not "cakel isp", "cak e-lisp" or anything like that. Someone who uses Cakelisp is a "Cakelisp user", not a "caker", nor "baker", nor "Cakelisper".
+
+It's my personal preference that puns off of "cake" when naming programming things don't become a thing. Please don't name your thing something cleverly cake- or baking-related. Name it what it is or what it does. Of course, I'm a hypocrite for not naming Cakelisp "Lisp-to-C-Transpiler (with a bunch of other features)".
 * Modules
 Cakelisp projects are organized into /modules/. Modules are usually associated with a single file. For example, I could have a module ~Math.cake~ which holds my math functions. When I say "module", I'm not referring to C++20's ~modules~, which Cakelisp does not use.
 
@@ -19,6 +25,18 @@ Modules automatically provide both the interface and implementation files necess
 
 The ~local~ keyword or suffix is typically relative to module scope. It tells Cakelisp that this function/variable/struct definition/etc. is not intended to be used outside the current module. Declaring module-local variables is a particularly clean way to let modules manage their own memory, without having to pass the module's data around to all its functions and all its callers. See /Code Complete/, 1st Edition, p. 128 "Module data mistaken for global data".
 * Includes
+Thanks to speculative compilation, *any* C or C++ header may be included in Cakelisp files, and the header's functions and types may be used freely. This is in stark contrast to many other languages which require bindings, FFIs, etc. in order to call C code. It works just as well as a native C file. This eliminates any additional work needed to integrate C/C++ libraries. It also means there is no need to create a Cakelisp standard library, because you already have easy access to the entire C and C++ standard libraries!
+
+This also means that adding Cakelisp to an existing C/C++ project should be virtually effortless. All of your existing code is ready to be used. Additionally, Cakelisp code compiles down to regular C/C++ code, so calling a Cakelisp function is as easy as calling a native C/C++ function. There's no boxing/unboxing, marshalling, type conversions, etc. necessary.
+
+Here are some example includes:
+#+BEGIN_SRC lisp
+(include "<vector>") ;; now just e.g. (var my-vec (<> std::vector int) (array 1 2 3))
+(include "<cstdio.h>") ;; (printf "Hello %s!\n" "Cakelisp")
+(include "MyHeader.hpp") ;; (on-call myGlobalVar updateState 0.016)
+#+END_SRC
+
+You shouldn't expect Cakelisp features to work with external C/C++ code. Features like hot-reloading or introspection aren't available to external code because Cakelisp does not parse any C/C++ headers. This doesn't mean you cannot call C/C++ code from a hot-reloaded Cakelisp function, it just means you cannot magically hot-reload the C/C++ code you're calling.
 * Functions
 Functions are defined with ~defun~. ~defun~ provides some variants via different invocations:
 - ~defun~: Define a function which is intended to be public, i.e. exported in the header file
