@@ -30,7 +30,6 @@
 TAGS
 
 # Ignore executable
-cakelisp
 src/dynamicLoadTest
 src/runProcessTest
 src/dependencyTest
@@ -38,7 +37,8 @@ src/dependencyTest
 *.cake.cpp
 *.cake.hpp
 
-*CakelispCompileTime*
+libcomptime*
+comptime_*
 
 bin/
 lib/

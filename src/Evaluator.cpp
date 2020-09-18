@@ -2,6 +2,7 @@
 
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
+#include "FileUtilities.hpp"
 #include "GeneratorHelpers.hpp"
 #include "Generators.hpp"
 #include "OutputPreambles.hpp"
@@ -676,9 +677,13 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		if (verboseBuildProcess)
 			printf("Build %s\n", definition->name->contents.c_str());
 
+		char convertedNameBuffer[MAX_NAME_LENGTH] = {0};
+		lispNameStyleToCNameStyle(NameStyleMode_Underscores, definition->name->contents.c_str(),
+		                          convertedNameBuffer, sizeof(convertedNameBuffer),
+		                          *definition->name);
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
 		// Writer will append the appropriate file extension
-		PrintfBuffer(sourceOutputName, "CakelispCompileTime_%d", buildObject.buildId);
+		PrintfBuffer(sourceOutputName, "comptime_%s", convertedNameBuffer);
 		buildObject.artifactsFilePath = sourceOutputName;
 
 		// Output definition to a file our compiler will be happy with
@@ -713,7 +718,21 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		// The evaluator is written in C++, so all generators and macros need to support the C++
 		// features used (e.g. their signatures have std::vector<>)
+		// TODO: Get this filename from writeGeneratorOutput()
 		PrintfBuffer(sourceOutputName, "%s.cpp", buildObject.artifactsFilePath.c_str());
+
+		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(dynamicLibraryOut, "lib%s.so", buildObject.artifactsFilePath.c_str());
+		buildObject.dynamicLibraryPath = dynamicLibraryOut;
+
+		if (!fileIsMoreRecentlyModified(sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
+		{
+			printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
+			// Skip straight to linking, which immediately becomes loading
+			buildObject.stage = BuildStage_Linking;
+			buildObject.status = 0;
+			continue;
+		}
 
 		// TODO: Get arguments all the way from the top
 		// TODO: Memory leak
@@ -767,13 +786,11 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		// TODO Store this on the build object
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(buildObjectName, "%s.o", buildObject.artifactsFilePath.c_str());
-		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(dynamicLibraryOut, "lib%s.so", buildObject.artifactsFilePath.c_str());
-		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
 		// TODO: Memory leak
-		char* arguments[] = {linkerExecutable,  strdup("-shared"), strdup("-o"),
-		                     dynamicLibraryOut, buildObjectName,   nullptr};
+		char* arguments[] = {linkerExecutable, strdup("-shared"),
+		                     strdup("-o"),     strdup(buildObject.dynamicLibraryPath.c_str()),
+		                     buildObjectName,  nullptr};
 		RunProcessArguments linkArguments = {};
 		linkArguments.fileToExecute = linkerExecutable;
 		linkArguments.arguments = arguments;
