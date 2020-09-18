@@ -2,6 +2,7 @@
 
 #include "Converters.hpp"
 #include "Evaluator.hpp"
+#include "FileUtilities.hpp"
 #include "Generators.hpp"
 #include "OutputPreambles.hpp"
 #include "RunProcess.hpp"
@@ -31,6 +32,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 	}
 
 	manager.environment.moduleManager = &manager;
+
+	makeDirectory(cakelispWorkingDir);
 }
 
 void moduleManagerDestroy(ModuleManager& manager)

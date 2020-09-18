@@ -5,7 +5,7 @@
 #ifdef UNIX
 #include <sys/stat.h>
 #else
-#error Need to implement way to get file's last modified time for this platform
+#error Need to implement file utilities for this platform
 #endif
 
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
@@ -30,4 +30,14 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 	// block should prevent this from ever being compiled anyways
 	return true;
 #endif
+}
+
+void makeDirectory(const char* path)
+{
+	#ifdef UNIX
+	if (mkdir(path, 0755) == -1)
+		perror("makeDirectory: ");
+	#else
+	#error Need to be able to make directories on this platform
+	#endif
 }

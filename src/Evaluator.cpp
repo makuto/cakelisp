@@ -20,6 +20,7 @@
 //
 
 const char* moduleDefinitionName = "<global>";
+const char* cakelispWorkingDir = "cakelisp_cache";
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {

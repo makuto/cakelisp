@@ -4,3 +4,5 @@
 // is always used to check whether it is necessary to e.g. build something if the source is newer
 // than the previous build (or the source has never been built)
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference);
+
+void makeDirectory(const char* path);
