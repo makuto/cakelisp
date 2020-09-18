@@ -1,4 +1,4 @@
-(include "runtime/Macros.cake")
+(include "Macros.cake")
 
 (include "<unordered_map>")
 (include "<vector>")

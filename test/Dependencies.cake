@@ -1,6 +1,5 @@
 (include "<stdio.h>")
-;; TODO: Add relative path support
-(include "test/DependenciesModule.cake")
+(include "DependenciesModule.cake")
 
 (defun main (&return int)
   (printf "%s\n" (hello-from-comptime))

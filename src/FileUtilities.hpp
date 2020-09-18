@@ -6,3 +6,5 @@
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference);
 
 void makeDirectory(const char* path);
+
+void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize);

@@ -1,10 +1,13 @@
 #include "Generators.hpp"
 
 #include "Evaluator.hpp"
+#include "FileUtilities.hpp"
 #include "GeneratorHelpers.hpp"
 #include "ModuleManager.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
+
+#include <string.h>
 
 enum CImportState
 {
@@ -153,7 +156,6 @@ bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 			// TODO Make .hpp optional for C-only support
 			PrintfBuffer(includeBuffer, "#include \"%s.hpp\"", pathToken.contents.c_str());
 
-			// Evaluate the import!
 			if (!environment.moduleManager)
 			{
 				ErrorAtToken(pathToken,
@@ -162,8 +164,15 @@ bool CIncludeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 			}
 			else
 			{
+				char relativePathBuffer[MAX_PATH_LENGTH] = {0};
+				getDirectoryFromPath(pathToken.source, relativePathBuffer,
+				                     sizeof(relativePathBuffer));
+				strcat(relativePathBuffer, "/");
+				strcat(relativePathBuffer, pathToken.contents.c_str());
+
+				// Evaluate the import!
 				if (!moduleManagerAddEvaluateFile(*environment.moduleManager,
-				                                  pathToken.contents.c_str()))
+				                                  relativePathBuffer))
 				{
 					ErrorAtToken(pathToken, "failed to import Cakelisp module");
 					return false;
