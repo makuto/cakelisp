@@ -10,7 +10,7 @@
 
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 {
-	#ifdef UNIX
+#ifdef UNIX
 	struct stat fileStat;
 	struct stat referenceStat;
 	if (stat(filename, &fileStat) == -1)

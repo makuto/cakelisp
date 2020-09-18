@@ -38,6 +38,7 @@ Currently, Cakelisp has no dependencies other than:
 - C++ STL and runtime: These are normally included in your toolset
 - Child-process creation: On Linux, ~unistd.h~. On Windows, ~windows.h~
 - Dynamic loading: On Linux, ~libdl~. On Windows, ~windows.h~
+- File modification times: On Linux, ~sys/stat.h~
 - C++ compiler toolchain: Cakelisp needs a C++ compiler and linker to support compile-time code execution, which is used for macros and generators
 
 I'm going to try to keep it very lightweight. It should make it straightforward to port Cakelisp to other platforms.

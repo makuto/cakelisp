@@ -718,7 +718,6 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		// The evaluator is written in C++, so all generators and macros need to support the C++
 		// features used (e.g. their signatures have std::vector<>)
-		// TODO: Get this filename from writeGeneratorOutput()
 		PrintfBuffer(sourceOutputName, "%s.cpp", buildObject.artifactsFilePath.c_str());
 
 		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
