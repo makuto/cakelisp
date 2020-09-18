@@ -21,7 +21,6 @@
     (++ num-destructured-args)
     (set current-arg-index
          (getNextArgument tokens current-arg-index end-invocation-index)))
-  (printTokens output)
   (return true))
 
 ;; Assumes tokens is the array of tokens

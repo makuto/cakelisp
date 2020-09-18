@@ -16,7 +16,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 	// Create module definition for top-level references to attach to
 	// The token isn't actually tied to one file
 	manager.globalPseudoInvocationName = {
-	    TokenType_Symbol, "<global>", "global_pseudotarget", 1, 0, 1};
+	    TokenType_Symbol, globalDefinitionName, "global_pseudotarget", 1, 0, 1};
 	{
 		ObjectDefinition moduleDefinition = {};
 		moduleDefinition.name = &manager.globalPseudoInvocationName;
@@ -34,6 +34,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 	manager.environment.moduleManager = &manager;
 
 	makeDirectory(cakelispWorkingDir);
+	printf("Using cache at %s\n", cakelispWorkingDir);
 }
 
 void moduleManagerDestroy(ModuleManager& manager)

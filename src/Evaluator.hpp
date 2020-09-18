@@ -220,5 +220,5 @@ const char* evaluatorScopeToString(EvaluatorScope expectedScope);
 
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition);
 
-extern const char* moduleDefinitionName;
+extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

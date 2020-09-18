@@ -19,7 +19,7 @@
 // Environment
 //
 
-const char* moduleDefinitionName = "<global>";
+const char* globalDefinitionName = "<global>";
 const char* cakelispWorkingDir = "cakelisp_cache";
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
@@ -70,7 +70,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 	bool verbose = false;
 
 	// Default to the module requiring the reference, for top-level references
-	std::string definitionName = moduleDefinitionName;
+	std::string definitionName = globalDefinitionName;
 	if (!reference.context.definitionName && reference.context.scope != EvaluatorScope_Module)
 		printf("error: addObjectReference() expects a definitionName\n");
 
@@ -88,7 +88,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 	ObjectDefinitionMap::iterator findDefinition = environment.definitions.find(definitionName);
 	if (findDefinition == environment.definitions.end())
 	{
-		if (definitionName.compare(moduleDefinitionName) != 0)
+		if (definitionName.compare(globalDefinitionName) != 0)
 		{
 			printf("error: expected definition %s to already exist. Things will break\n",
 			       definitionName.c_str());
@@ -97,7 +97,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 		{
 			ErrorAtTokenf(referenceNameToken,
 			              "error: expected %s definition to exist as a top-level catch-all",
-			              moduleDefinitionName);
+			              globalDefinitionName);
 		}
 	}
 	else
@@ -501,8 +501,9 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		int buildId = -1;
 		int status = -1;
 		BuildStage stage = BuildStage_None;
-		std::string artifactsFilePath;
+		std::string artifactsName;
 		std::string dynamicLibraryPath;
+		std::string buildObjectName;
 		ObjectDefinition* definition = nullptr;
 	};
 
@@ -682,10 +683,14 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		lispNameStyleToCNameStyle(NameStyleMode_Underscores, definition->name->contents.c_str(),
 		                          convertedNameBuffer, sizeof(convertedNameBuffer),
 		                          *definition->name);
-		char sourceOutputName[MAX_PATH_LENGTH] = {0};
-		// Writer will append the appropriate file extension
-		PrintfBuffer(sourceOutputName, "comptime_%s", convertedNameBuffer);
-		buildObject.artifactsFilePath = sourceOutputName;
+		char artifactsName[MAX_PATH_LENGTH] = {0};
+		// Various stages will append the appropriate file extension
+		PrintfBuffer(artifactsName, "comptime_%s", convertedNameBuffer);
+		buildObject.artifactsName = artifactsName;
+		char fileOutputName[MAX_PATH_LENGTH] = {0};
+		// Writer will append the appropriate file extensions
+		PrintfBuffer(fileOutputName, "%s/%s", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
 
 		// Output definition to a file our compiler will be happy with
 		// TODO: Make these come from the top
@@ -702,7 +707,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			outputSettings.sourceHeading = macroSourceHeading;
 			outputSettings.sourceFooter = macroSourceFooter;
 		}
-		outputSettings.sourceCakelispFilename = sourceOutputName;
+		outputSettings.sourceCakelispFilename = fileOutputName;
 		// Use the separate output prepared specifically for this compile-time object
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
 		                          outputSettings))
@@ -719,15 +724,24 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		// The evaluator is written in C++, so all generators and macros need to support the C++
 		// features used (e.g. their signatures have std::vector<>)
-		PrintfBuffer(sourceOutputName, "%s.cpp", buildObject.artifactsFilePath.c_str());
+		char sourceOutputName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(sourceOutputName, "%s/%s.cpp", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
+
+		char buildObjectName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(buildObjectName, "%s/%s.o", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
+		buildObject.buildObjectName = buildObjectName;
 
 		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(dynamicLibraryOut, "lib%s.so", buildObject.artifactsFilePath.c_str());
+		PrintfBuffer(dynamicLibraryOut, "%s/lib%s.so", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
 		if (!fileIsMoreRecentlyModified(sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
 		{
-			printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
+			if (verboseBuildProcess)
+				printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
 			// Skip straight to linking, which immediately becomes loading
 			buildObject.stage = BuildStage_Linking;
 			buildObject.status = 0;
@@ -737,7 +751,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		// TODO: Get arguments all the way from the top
 		// TODO: Memory leak
 		// If not null terminated, the call will fail
-		char* arguments[] = {fileToExec,       strdup("-g"),    strdup("-c"), sourceOutputName,
+		char* arguments[] = {fileToExec,       strdup("-g"),    strdup("-c"),
+		                     sourceOutputName, strdup("-o"),    buildObjectName,
 		                     strdup("-Isrc/"), strdup("-fPIC"), nullptr};
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = fileToExec;
@@ -783,14 +798,13 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		char linkerExecutable[MAX_PATH_LENGTH] = {0};
 		PrintBuffer(linkerExecutable, "/usr/bin/clang++");
 
-		// TODO Store this on the build object
-		char buildObjectName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(buildObjectName, "%s.o", buildObject.artifactsFilePath.c_str());
-
 		// TODO: Memory leak
-		char* arguments[] = {linkerExecutable, strdup("-shared"),
-		                     strdup("-o"),     strdup(buildObject.dynamicLibraryPath.c_str()),
-		                     buildObjectName,  nullptr};
+		char* arguments[] = {linkerExecutable,
+		                     strdup("-shared"),
+		                     strdup("-o"),
+		                     strdup(buildObject.dynamicLibraryPath.c_str()),
+		                     strdup(buildObject.buildObjectName.c_str()),
+		                     nullptr};
 		RunProcessArguments linkArguments = {};
 		linkArguments.fileToExecute = linkerExecutable;
 		linkArguments.arguments = arguments;
