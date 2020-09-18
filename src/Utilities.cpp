@@ -1,4 +1,5 @@
 #include "Utilities.hpp"
+#include "Logging.hpp"
 
 #include <stdio.h>
 
@@ -12,8 +13,6 @@ void printIndentToDepth(int depth)
 
 FILE* fileOpen(const char* filename, const char* mode)
 {
-	bool verbose = false;
-
 	FILE* file = nullptr;
 	file = fopen(filename, mode);
 	if (!file)
@@ -23,7 +22,7 @@ FILE* fileOpen(const char* filename, const char* mode)
 	}
 	else
 	{
-		if (verbose)
+		if (log.fileSystem)
 			printf("Opened %s\n", filename);
 	}
 	return file;

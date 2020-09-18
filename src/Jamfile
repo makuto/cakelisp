@@ -15,7 +15,8 @@ GeneratorHelpers.cpp
 RunProcess.cpp
 OutputPreambles.cpp
 DynamicLoader.cpp
-ModuleManager.cpp ;
+ModuleManager.cpp
+Logging.cpp ;
 
 MakeLocate cakelisp$(SUFEXE) : bin ;
 MakeLocate libCakelisp.a : lib ;

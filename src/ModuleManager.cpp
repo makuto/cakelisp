@@ -4,6 +4,7 @@
 #include "Evaluator.hpp"
 #include "FileUtilities.hpp"
 #include "Generators.hpp"
+#include "Logging.hpp"
 #include "OutputPreambles.hpp"
 #include "RunProcess.hpp"
 #include "Tokenizer.hpp"
@@ -50,8 +51,6 @@ void moduleManagerDestroy(ModuleManager& manager)
 
 bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>** tokensOut)
 {
-	bool verbose = false;
-
 	*tokensOut = nullptr;
 
 	FILE* file = fileOpen(filename, "r");
@@ -67,7 +66,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		std::vector<Token>* tokens_CREATIONONLY = new std::vector<Token>;
 		while (fgets(lineBuffer, sizeof(lineBuffer), file))
 		{
-			if (verbose)
+			if (log.tokenization)
 				printf("%s", lineBuffer);
 
 			const char* error =
@@ -87,7 +86,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		tokens = tokens_CREATIONONLY;
 	}
 
-	if (verbose)
+	if (log.tokenization)
 		printf("Tokenized %d lines\n", lineNumber - 1);
 
 	if (!validateParentheses(*tokens))
@@ -96,7 +95,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		return false;
 	}
 
-	if (verbose)
+	if (log.tokenization)
 	{
 		printf("\nResult:\n");
 

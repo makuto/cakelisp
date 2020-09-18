@@ -2,6 +2,7 @@
 
 #include "Converters.hpp"
 #include "Evaluator.hpp"
+#include "Logging.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
@@ -24,7 +25,8 @@ bool moveFile(const char* srcFilename, const char* destFilename)
 	fclose(srcFile);
 	fclose(destFile);
 
-	printf("Wrote %s\n", destFilename);
+	if (log.fileSystem)
+		printf("Wrote %s\n", destFilename);
 
 	if (remove(srcFilename) != 0)
 	{
@@ -37,7 +39,6 @@ bool moveFile(const char* srcFilename, const char* destFilename)
 
 bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 {
-	bool verbose = false;
 	// Read temporary file and destination file and compare
 	FILE* newFile = fopen(tempFilename, "r");
 	if (!newFile)
@@ -49,14 +50,14 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 	if (!oldFile)
 	{
 		// Write new and remove temp
-		if (verbose)
+		if (log.fileSystem)
 			printf("Destination file didn't exist. Writing\n");
 
 		return moveFile(tempFilename, outputFilename);
 	}
 	else
 	{
-		if (verbose)
+		if (log.fileSystem)
 			printf("Destination file exists. Comparing\n");
 
 		char newBuffer[1024] = {0};
@@ -82,7 +83,7 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 
 		if (identical)
 		{
-			if (verbose)
+			if (log.fileSystem)
 				printf("Files are identical. Skipping\n");
 
 			fclose(newFile);
@@ -95,7 +96,7 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 			return true;
 		}
 
-		if (verbose)
+		if (log.fileSystem)
 			printf("File changed. writing\n");
 
 		fclose(newFile);
@@ -350,8 +351,6 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSettings& formatSettings,
                   const WriterOutputSettings& outputSettings, const GeneratorOutput& outputToWrite)
 {
-	bool verbose = false;
-
 	char sourceOutputName[MAX_PATH_LENGTH] = {0};
 	PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
 	char headerOutputName[MAX_PATH_LENGTH] = {0};
@@ -421,7 +420,7 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		if (outputs[i].outputState.numCharsOutput ==
 		    outputs[i].stateBeforeOutputWrite.numCharsOutput)
 		{
-			if (verbose)
+			if (log.fileSystem)
 				printf("%s had no meaningful output\n", outputs[i].tempFilename);
 
 			fclose(outputs[i].outputState.fileOut);
@@ -464,13 +463,11 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings)
 {
-	bool verbose = false;
-
 	if (!writeOutputs(nameSettings, formatSettings, outputSettings, generatedOutput))
 		return false;
 
 	// TODO: Write mapping and metadata
-	if (verbose)
+	if (log.metadata)
 	{
 		// Metadata
 		printf("\n\tImports:\n");

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <cctype>
 
+#include "Logging.hpp"
 #include "Utilities.hpp"
 
 static const char commentCharacter = ';';
@@ -18,7 +19,6 @@ enum TokenizeState
 const char* tokenizeLine(const char* inputLine, const char* source, unsigned int lineNumber,
                          std::vector<Token>& tokensOut)
 {
-	bool verbose = false;
 	const char* A_OK = nullptr;
 
 	TokenizeState tokenizeState = TokenizeState_Normal;
@@ -93,7 +93,7 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				// Finished the symbol
 				if (std::isspace(*currentChar) || *currentChar == '\n' || isParenthesis)
 				{
-					if (verbose)
+					if (log.tokenization)
 						printf("%s\n", contentsBuffer);
 					Token symbol = {TokenType_Symbol, EmptyString, source,
 					                lineNumber,       columnStart, currentColumn};

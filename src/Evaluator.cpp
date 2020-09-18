@@ -5,6 +5,7 @@
 #include "FileUtilities.hpp"
 #include "GeneratorHelpers.hpp"
 #include "Generators.hpp"
+#include "Logging.hpp"
 #include "OutputPreambles.hpp"
 #include "RunProcess.hpp"
 #include "Tokenizer.hpp"
@@ -67,8 +68,6 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
                                                 const Token& referenceNameToken,
                                                 ObjectReference& reference)
 {
-	bool verbose = false;
-
 	// Default to the module requiring the reference, for top-level references
 	std::string definitionName = globalDefinitionName;
 	if (!reference.context.definitionName && reference.context.scope != EvaluatorScope_Module)
@@ -80,7 +79,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 	}
 
 	const char* defName = definitionName.c_str();
-	if (verbose)
+	if (log.references)
 		printf("Adding reference %s to %s\n", referenceNameToken.contents.c_str(), defName);
 
 	// Add the reference requirement to the definition it occurred in
@@ -428,8 +427,6 @@ const char* objectTypeToString(ObjectType type);
 // TODO This can be made faster. I did the most naive version first, for now
 void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 {
-	bool verbose = false;
-
 	// Figure out what is required
 	// This needs to loop so long as it doesn't recurse to references
 	int numRequiresStatusChanged = 0;
@@ -441,14 +438,14 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 			ObjectDefinition& definition = definitionPair.second;
 			const char* status = definition.isRequired ? "(required)" : "(not required)";
 
-			if (verbose)
+			if (log.dependencyPropagation)
 				printf("Define %s %s\n", definition.name->contents.c_str(), status);
 
 			for (ObjectReferenceStatusPair& reference : definition.references)
 			{
 				ObjectReferenceStatus& referenceStatus = reference.second;
 
-				if (verbose)
+				if (log.dependencyPropagation)
 					printf("\tRefers to %s\n", referenceStatus.name->contents.c_str());
 
 				if (definition.isRequired)
@@ -457,7 +454,7 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 					    environment.definitions.find(referenceStatus.name->contents);
 					if (findIt != environment.definitions.end() && !findIt->second.isRequired)
 					{
-						if (verbose)
+						if (log.dependencyPropagation)
 							printf("\t Infecting %s with required due to %s\n",
 							       referenceStatus.name->contents.c_str(),
 							       definition.name->contents.c_str());
@@ -478,9 +475,6 @@ void OnCompileProcessOutput(const char* output)
 
 int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
 {
-	bool verbose = true;
-	bool verboseBuildProcess = true;
-
 	int numReferencesResolved = 0;
 
 	enum BuildStage
@@ -532,7 +526,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		ObjectDefinition& definition = *definitionPointer;
 		const char* defName = definition.name->contents.c_str();
 
-		if (verbose)
+		if (log.buildReasons)
 			printf("Checking to build %s\n", defName);
 
 		// Can it be built in the current environment?
@@ -572,7 +566,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 							// incorrectly that this was a C call
 							if (referenceStatus.guessState != GuessState_Resolved)
 							{
-								if (verbose)
+								if (log.buildReasons)
 									printf("\tRequired code has been loaded\n");
 
 								hasRelevantChangeOccurred = true;
@@ -584,7 +578,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 						{
 							// If we know we are missing a compile time function, we won't try to
 							// guess
-							if (verbose)
+							if (log.buildReasons)
 								printf("\tCannot build until %s is loaded\n",
 								       referenceStatus.name->contents.c_str());
 
@@ -617,7 +611,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 				{
 					if (referenceStatus.guessState == GuessState_None)
 					{
-						if (verbose)
+						if (log.buildReasons)
 							printf("\tCannot build until %s is guessed. Guessing now\n",
 							       referenceStatus.name->contents.c_str());
 
@@ -676,7 +670,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 	{
 		ObjectDefinition* definition = buildObject.definition;
 
-		if (verboseBuildProcess)
+		if (log.buildProcess)
 			printf("Build %s\n", definition->name->contents.c_str());
 
 		char convertedNameBuffer[MAX_NAME_LENGTH] = {0};
@@ -740,7 +734,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		if (!fileIsMoreRecentlyModified(sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
 		{
-			if (verboseBuildProcess)
+			if (log.buildProcess)
 				printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
 			// Skip straight to linking, which immediately becomes loading
 			buildObject.stage = BuildStage_Linking;
@@ -792,7 +786,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		buildObject.stage = BuildStage_Linking;
 
-		if (verboseBuildProcess)
+		if (log.buildProcess)
 			printf("Compiled %s successfully\n", buildObject.definition->name->contents.c_str());
 
 		char linkerExecutable[MAX_PATH_LENGTH] = {0};
@@ -830,7 +824,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		buildObject.stage = BuildStage_Loading;
 
-		if (verboseBuildProcess)
+		if (log.buildProcess)
 			printf("Linked %s successfully\n", buildObject.definition->name->contents.c_str());
 
 		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
@@ -889,7 +883,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			// function, clear that invocation output
 			resetGeneratorOutput(*reference.spliceOutput);
 
-			if (verbose)
+			if (log.buildProcess)
 				NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
 
 			// Evaluate from that reference
@@ -906,7 +900,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			++numReferencesResolved;
 		}
 
-		if (verbose)
+		if (log.buildProcess)
 			printf("Resolved %d references\n", numReferencesResolved);
 
 		// Remove need to build
@@ -914,7 +908,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		buildObject.stage = BuildStage_Finished;
 
-		if (verboseBuildProcess)
+		if (log.buildProcess)
 			printf("Successfully built, loaded, and executed %s\n",
 			       buildObject.definition->name->contents.c_str());
 	}
@@ -925,8 +919,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 {
 	// Print state
-	bool verbose = false;
-	if (verbose)
+	if (log.references)
 	{
 		for (ObjectDefinitionPair& definitionPair : environment.definitions)
 		{

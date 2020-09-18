@@ -12,6 +12,7 @@
 #error Platform support is needed for running subprocesses
 #endif
 
+#include "Logging.hpp"
 #include "Utilities.hpp"
 
 #ifdef UNIX
@@ -54,12 +55,15 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
 {
 #ifdef UNIX
-	printf("RunProcess command: ");
-	for (char** arg = arguments.arguments; *arg != nullptr; ++arg)
+	if (log.processes)
 	{
-		printf("%s ", *arg);
+		printf("RunProcess command: ");
+		for (char** arg = arguments.arguments; *arg != nullptr; ++arg)
+		{
+			printf("%s ", *arg);
+		}
+		printf("\n");
 	}
-	printf("\n");
 
 	int pipeFileDescriptors[2] = {0};
 	const int PipeRead = 0;
