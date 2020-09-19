@@ -1071,6 +1071,95 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 	return true;
 }
 
+bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                 const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("if", tokens[startTokenIndex], context, EvaluatorScope_Body))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int conditionIndex =
+	    getExpectedArgument("expected condition", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (conditionIndex == -1)
+		return false;
+
+	int blockIndex =
+	    getExpectedArgument("expected true block", tokens, startTokenIndex, 2, endInvocationIndex);
+	if (blockIndex == -1)
+		return false;
+
+	addStringOutput(output.source, "if", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+
+	// Condition
+	{
+		addLangTokenOutput(output.source, StringOutMod_OpenParen, &tokens[conditionIndex]);
+		EvaluatorContext expressionContext = context;
+		expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, conditionIndex,
+		                               output) != 0)
+			return false;
+		addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[blockIndex - 1]);
+	}
+
+	// True block
+	{
+		int scopedBlockIndex = blockAbsorbScope(tokens, blockIndex);
+
+		addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[scopedBlockIndex]);
+		EvaluatorContext trueBlockBodyContext = context;
+		trueBlockBodyContext.scope = EvaluatorScope_Body;
+		int numErrors = 0;
+		if (scopedBlockIndex != blockIndex)
+			numErrors = EvaluateGenerateAll_Recursive(environment, trueBlockBodyContext, tokens,
+			                                          scopedBlockIndex,
+			                                          /*delimiterTemplate=*/nullptr, output);
+		else
+			numErrors = EvaluateGenerate_Recursive(environment, trueBlockBodyContext, tokens,
+			                                       scopedBlockIndex, output);
+		if (numErrors)
+			return false;
+		addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[scopedBlockIndex + 1]);
+	}
+
+	// Optional false block
+	int falseBlockIndex = getNextArgument(tokens, blockIndex, endInvocationIndex);
+	if (falseBlockIndex < endInvocationIndex)
+	{
+		int scopedFalseBlockIndex = blockAbsorbScope(tokens, falseBlockIndex);
+
+		addStringOutput(output.source, "else", StringOutMod_None, &tokens[falseBlockIndex]);
+
+		addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[falseBlockIndex]);
+		EvaluatorContext falseBlockBodyContext = context;
+		falseBlockBodyContext.scope = EvaluatorScope_Body;
+		int numErrors = 0;
+		if (scopedFalseBlockIndex != falseBlockIndex)
+			numErrors = EvaluateGenerateAll_Recursive(environment, falseBlockBodyContext, tokens,
+			                                          scopedFalseBlockIndex,
+			                                          /*delimiterTemplate=*/nullptr, output);
+		else
+			numErrors = EvaluateGenerate_Recursive(environment, falseBlockBodyContext, tokens,
+			                                       scopedFalseBlockIndex, output);
+		if (numErrors)
+			return false;
+		addLangTokenOutput(output.source, StringOutMod_CloseBlock,
+		                   &tokens[falseBlockIndex + 1]);
+	}
+
+	int extraArgument = getNextArgument(tokens, falseBlockIndex, endInvocationIndex);
+	if (extraArgument < endInvocationIndex)
+	{
+		ErrorAtToken(
+		    tokens[extraArgument],
+		    "if expects up to two blocks. If you want to have more than one statement in a block, "
+		    "surround the statements in (scope), or use cond instead of if (etc.)");
+		return false;
+	}
+
+	return true;
+}
+
 // I'm not too happy with this
 static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
                                            const char* stringToTokenize, GeneratorOutput& output)
@@ -1406,6 +1495,11 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {Keyword, "if", -1},       {OpenParen, nullptr, -1}, {Expression, nullptr, 1},
 	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
 	    {CloseBlock, nullptr, -1}};
+	const CStatementOperation unlessStatement[] = {
+	    {Keyword, "if", -1},       {OpenParen, nullptr, -1}, {KeywordNoSpace, "!", -1},
+	    {OpenParen, nullptr, -1},  {Expression, nullptr, 1}, {CloseParen, nullptr, -1},
+	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
+	    {CloseBlock, nullptr, -1}};
 
 	// Misc.
 	const CStatementOperation returnStatement[] = {
@@ -1425,6 +1519,11 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	                                                   {Expression, nullptr, 2},
 	                                                   {SmartEndStatement, nullptr, -1}};
 
+	const CStatementOperation ternaryOperatorStatement[] = {
+	    {Expression /*Name*/, nullptr, 1}, {Keyword, "?", -1},
+	    {Expression, nullptr, 2},          {Keyword, ":", -1},
+	    {Expression, nullptr, 3},          {SmartEndStatement, nullptr, -1}};
+
 	const CStatementOperation dereference[] = {{KeywordNoSpace, "*", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation addressOf[] = {{KeywordNoSpace, "&", -1}, {Expression, nullptr, 1}};
 
@@ -1435,6 +1534,15 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {Expression, nullptr, 1},        {KeywordNoSpace, ".", -1},    {Expression, nullptr, 2},
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
 	    {SmartEndStatement, nullptr, -1}};
+
+	// Useful in the case of calling functions in namespaces. Shouldn't be used otherwise
+	const CStatementOperation callFunctionInvocation[] = {{Expression, nullptr, 1},
+	                                                      {OpenParen, nullptr, -1},
+	                                                      {ExpressionList, nullptr, 2},
+	                                                      {CloseParen, nullptr, -1},
+	                                                      {SmartEndStatement, nullptr, -1}};
+
+	const CStatementOperation scopeResolution[] = {{SpliceNoSpace, "::", 1}};
 
 	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
 	// barriers or anything). It's useful both for making arbitrary scopes and for making if
@@ -1501,16 +1609,20 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"continue", continueStatement, ArraySize(continueStatement)},
 	    {"break", breakStatement, ArraySize(breakStatement)},
 	    {"when", whenStatement, ArraySize(whenStatement)},
+	    {"unless", unlessStatement, ArraySize(unlessStatement)},
 	    {"array", initializerList, ArraySize(initializerList)},
 	    {"set", assignmentStatement, ArraySize(assignmentStatement)},
 	    // Calling it scope so Emacs will auto-format correctly
 	    // TODO: I like "block" better. How do I change the formatter to not be confusing?
 	    {"scope", blockStatement, ArraySize(blockStatement)},
+	    {"?", ternaryOperatorStatement, ArraySize(ternaryOperatorStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
 	    {"addr", addressOf, ArraySize(addressOf)},
 	    {"field", field, ArraySize(field)},
-		{"on-call", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
+	    {"on-call", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
+	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
+	    {"in", scopeResolution, ArraySize(scopeResolution)},
 	    // Expressions
 	    {"or", booleanOr, ArraySize(booleanOr)},
 	    {"and", booleanAnd, ArraySize(booleanAnd)},
@@ -1613,9 +1725,6 @@ bool SquareMacro(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 //
 void importFundamentalGenerators(EvaluatorEnvironment& environment)
 {
-	// I wanted to use c-import, but I encountered problems writing a regex for Jam which can
-	// handle both include and c-import. Anyways, this way C programmers have one less change to
-	// remember
 	environment.generators["c-import"] = ImportGenerator;
 	environment.generators["import"] = ImportGenerator;
 
@@ -1634,6 +1743,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["at"] = ArrayAccessGenerator;
 	environment.generators["nth"] = ArrayAccessGenerator;
+	
+	environment.generators["if"] = IfGenerator;
 
 	// Token manipulation
 	environment.generators["tokenize-push"] = TokenizePushGenerator;
@@ -1645,14 +1756,19 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    "continue",
 	    "break",
 	    "when",
+	    "unless",
 	    "array",
 	    "set",
 	    "scope",
+	    "?",
 	    // Pointers
 	    "deref",
 	    "addr",
 	    "field",
+	    // C++ support: calling members, calling namespace functions, scope resolution operator
 	    "on-call",
+	    "call",
+	    "in",
 	    // Boolean
 	    "or",
 	    "and",

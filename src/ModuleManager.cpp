@@ -11,6 +11,8 @@
 #include "Utilities.hpp"
 #include "Writer.hpp"
 
+#include <string.h>
+
 void moduleManagerInitialize(ModuleManager& manager)
 {
 	importFundamentalGenerators(manager.environment);
@@ -45,6 +47,7 @@ void moduleManagerDestroy(ModuleManager& manager)
 	{
 		delete module.tokens;
 		delete module.generatedOutput;
+		free((void*)module.filename);
 	}
 	manager.modules.clear();
 }
@@ -142,18 +145,18 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 {
 	for (Module& module : manager.modules)
 	{
-		if (module.filename.compare(filename) == 0)
+		if (strcmp(module.filename, filename) == 0)
 		{
 			printf("Already loaded %s\n", filename);
 			return true;
 		}
 	}
 
-	// TODO: Add relative path support
 	Module newModule = {};
-	newModule.filename = filename;
+	// We need to keep this memory around for the lifetime of the token, regardless of relocation
+	newModule.filename = strdup(filename);
 	// This stage cleans up after itself if it fails
-	if (!moduleLoadTokenizeValidate(filename, &newModule.tokens))
+	if (!moduleLoadTokenizeValidate(newModule.filename, &newModule.tokens))
 		return false;
 
 	newModule.generatedOutput = new GeneratorOutput;
@@ -177,7 +180,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 	if (numErrors)
 		return false;
 
-	printf("Loaded %s\n", filename);
+	printf("Loaded %s\n", newModule.filename);
 	return true;
 }
 
@@ -194,12 +197,11 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	for (Module& module : manager.modules)
 	{
 		WriterOutputSettings outputSettings;
-		outputSettings.sourceCakelispFilename = module.filename.c_str();
+		outputSettings.sourceCakelispFilename = module.filename;
 
 		// TODO: hpp to h support
 		char relativeIncludeBuffer[MAX_PATH_LENGTH];
-		getFilenameFromPath(module.filename.c_str(), relativeIncludeBuffer,
-		                    sizeof(relativeIncludeBuffer));
+		getFilenameFromPath(module.filename, relativeIncludeBuffer, sizeof(relativeIncludeBuffer));
 		char sourceHeadingBuffer[1024] = {0};
 		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", relativeIncludeBuffer,
 		             generatedSourceHeading ? generatedSourceHeading : "");

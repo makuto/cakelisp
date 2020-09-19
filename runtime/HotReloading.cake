@@ -29,7 +29,8 @@
   (addLangTokenOutput (field output source) StringOutMod_EndStatement (addr invocation-token))
   (return true))
 
-(def-type-alias FunctionReferenceMap (<> std::unordered_map std::string (<> std::vector (* (* void)))))
+(def-type-alias FunctionReferenceArray (<> std::vector (* (* void))))
+(def-type-alias FunctionReferenceMap (<> std::unordered_map std::string FunctionReferenceArray))
 (def-type-alias FunctionReferenceMapIterator (in FunctionReferenceMap iterator))
 
 (var registered-functions FunctionReferenceMap)
@@ -40,5 +41,9 @@
        (on-call registered-functions find function-name))
   ;; TODO: Add if statement
   (if (= findIt (on-call registered-functions end))
-      (set (at function-name registered-functions) function-pointer)
+      (scope
+       (var new-function-pointer-array FunctionReferenceArray)
+       (on-call new-function-pointer-array push_back function-pointer)
+       (set (at function-name registered-functions)
+            (call (in std move) new-function-pointer-array)))
       (on-call (field findIt second) push_back function-pointer)))

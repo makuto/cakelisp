@@ -191,6 +191,16 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
 	return nextArgStart;
 }
 
+// If the current token is a scope, skip it. This is useful when a generator has already opened a
+// block, so it knows the scope comes from the generator invocation
+int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex)
+{
+	if (tokens[startBlockIndex].type == TokenType_OpenParen &&
+	    tokens[startBlockIndex + 1].contents.compare("scope") == 0)
+		return startBlockIndex + 2;
+	return startBlockIndex;
+}
+
 void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
                           Token* tokenToChange)
 {

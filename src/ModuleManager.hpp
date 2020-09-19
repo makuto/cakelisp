@@ -8,7 +8,7 @@
 // A module is typically associated with a single file. Keywords like local mean in-module only
 struct Module
 {
-	std::string filename;
+	const char* filename;
 	const std::vector<Token>* tokens;
 	GeneratorOutput* generatedOutput;
 };
