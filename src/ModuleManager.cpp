@@ -210,7 +210,8 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		outputSettings.headerHeading = generatedHeaderHeading;
 		outputSettings.headerFooter = generatedHeaderFooter;
 
-		if (!writeGeneratorOutput(*module.generatedOutput, nameSettings, formatSettings, outputSettings))
+		if (!writeGeneratorOutput(*module.generatedOutput, nameSettings, formatSettings,
+		                          outputSettings))
 			return false;
 	}
 

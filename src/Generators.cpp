@@ -1143,8 +1143,7 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 			                                       scopedFalseBlockIndex, output);
 		if (numErrors)
 			return false;
-		addLangTokenOutput(output.source, StringOutMod_CloseBlock,
-		                   &tokens[falseBlockIndex + 1]);
+		addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[falseBlockIndex + 1]);
 	}
 
 	int extraArgument = getNextArgument(tokens, falseBlockIndex, endInvocationIndex);
@@ -1153,8 +1152,67 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 		ErrorAtToken(
 		    tokens[extraArgument],
 		    "if expects up to two blocks. If you want to have more than one statement in a block, "
-		    "surround the statements in (scope), or use cond instead of if (etc.)");
+		    "surround the statements in (block) or (scope), or use cond instead of if (etc.)");
 		return false;
+	}
+
+	return true;
+}
+
+bool ObjectPathGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                         const std::vector<Token>& tokens, int startTokenIndex,
+                         GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int startPathIndex = getExpectedArgument("expected object to path", tokens, startTokenIndex, 1,
+	                                         endInvocationIndex);
+	if (startPathIndex == -1)
+		return false;
+
+	enum
+	{
+		Object,
+		PathType
+	} state = Object;
+
+	for (int i = startPathIndex; i < endInvocationIndex;
+	     i = getNextArgument(tokens, i, endInvocationIndex))
+	{
+		if (state == PathType)
+		{
+			if (!ExpectTokenType("path type", tokens[i], TokenType_Symbol))
+				return false;
+
+			switch (tokens[i].contents[0])
+			{
+				case '>':
+					addStringOutput(output.source, "->", StringOutMod_None, &tokens[i]);
+					break;
+				case '.':
+					addStringOutput(output.source, ".", StringOutMod_None, &tokens[i]);
+					break;
+				case ':':
+					addStringOutput(output.source, "::", StringOutMod_None, &tokens[i]);
+					break;
+				default:
+					ErrorAtToken(tokens[i], "unknown path operation. Expected >, ., or :");
+					return false;
+			}
+
+			state = Object;
+		}
+		else if (state == Object)
+		{
+			EvaluatorContext expressionContext = context;
+			expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+			int numErrors =
+			    EvaluateGenerate_Recursive(environment, expressionContext, tokens, i, output);
+			if (numErrors)
+				return false;
+
+			state = PathType;
+		}
 	}
 
 	return true;
@@ -1167,8 +1225,7 @@ static void tokenizeGenerateStringTokenize(const char* outputVarName, const Toke
 	// TODO Need to gensym error, or replace with a function call
 	char tokenizeLineBuffer[2048] = {0};
 	PrintfBuffer(tokenizeLineBuffer,
-	             "{\n\tconst char* _error = tokenizeLine(\"%s\", \"%s\", %d, %s);\n\tif (_error != "
-	             "nullptr)\n\t{\n\t\tprintf(\"error: %%s\\n\", _error); \t\treturn false;\n\t}\n}\n",
+	             "if (!tokenizeLinePrintError(\"%s\", \"%s\", %d, %s)) {return false;}\n",
 	             stringToTokenize, triggerToken.source, triggerToken.lineNumber, outputVarName);
 	addStringOutput(output.source, tokenizeLineBuffer, StringOutMod_None, &triggerToken);
 }
@@ -1612,9 +1669,10 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"unless", unlessStatement, ArraySize(unlessStatement)},
 	    {"array", initializerList, ArraySize(initializerList)},
 	    {"set", assignmentStatement, ArraySize(assignmentStatement)},
-	    // Calling it scope so Emacs will auto-format correctly
-	    // TODO: I like "block" better. How do I change the formatter to not be confusing?
+	    // Alias of block, in case you want to be explicit. For example, creating a scope to reduce
+	    // scope of variables vs. creating a block to have more than one statement in an (if) body
 	    {"scope", blockStatement, ArraySize(blockStatement)},
+	    {"block", blockStatement, ArraySize(blockStatement)},
 	    {"?", ternaryOperatorStatement, ArraySize(ternaryOperatorStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
@@ -1743,8 +1801,11 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["at"] = ArrayAccessGenerator;
 	environment.generators["nth"] = ArrayAccessGenerator;
-	
+
 	environment.generators["if"] = IfGenerator;
+
+	// Handle complex pathing, e.g. a->b.c->d.e
+	environment.generators["path"] = ObjectPathGenerator;
 
 	// Token manipulation
 	environment.generators["tokenize-push"] = TokenizePushGenerator;
@@ -1760,6 +1821,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    "array",
 	    "set",
 	    "scope",
+	    "block",
 	    "?",
 	    // Pointers
 	    "deref",

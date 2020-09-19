@@ -33,6 +33,7 @@ TAGS
 src/dynamicLoadTest
 src/runProcessTest
 src/dependencyTest
+runtime/HotReloadingTest
 
 *.cake.cpp
 *.cake.hpp

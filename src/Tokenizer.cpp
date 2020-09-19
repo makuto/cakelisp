@@ -312,3 +312,15 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 
 	return true;
 }
+
+bool tokenizeLinePrintError(const char* inputLine, const char* source, unsigned int lineNumber,
+                            std::vector<Token>& tokensOut)
+{
+	const char* error = tokenizeLine(inputLine, source, lineNumber, tokensOut);
+	if (error != nullptr)
+	{
+		printf("error: %s\n", error);
+		return false;
+	}
+	return true;
+}

@@ -69,7 +69,8 @@ int main(int numArguments, char* arguments[])
 		}
 		else if (arguments[i][0] != '-')
 		{
-			startFiles = i;
+			if (startFiles == numArguments)
+				startFiles = i;
 		}
 		else
 		{

@@ -39,11 +39,12 @@
                                   function-name (* (const char)))
   (var findIt FunctionReferenceMapIterator
        (on-call registered-functions find function-name))
-  ;; TODO: Add if statement
   (if (= findIt (on-call registered-functions end))
-      (scope
+      (block
        (var new-function-pointer-array FunctionReferenceArray)
        (on-call new-function-pointer-array push_back function-pointer)
        (set (at function-name registered-functions)
+            ;; This could also be written as (std::move new-function-pointer-array)
+            ;; I'm not sure how I want it to work
             (call (in std move) new-function-pointer-array)))
-      (on-call (field findIt second) push_back function-pointer)))
+      (on-call (path findIt > second) push_back function-pointer)))
