@@ -52,6 +52,16 @@ bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& de
 	ObjectDefinitionMap::iterator findIt = environment.definitions.find(definition.name->contents);
 	if (findIt == environment.definitions.end())
 	{
+		if (findGenerator(environment, definition.name->contents.c_str()) ||
+		    findMacro(environment, definition.name->contents.c_str()))
+		{
+			ErrorAtTokenf(*definition.name,
+			              "multiple definitions of %s. Name may be conflicting with built-in macro "
+			              "or generator",
+			              definition.name->contents.c_str());
+			return false;
+		}
+
 		environment.definitions[definition.name->contents] = definition;
 		return true;
 	}
@@ -945,6 +955,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	} while (numReferencesResolved);
 
 	// Check whether everything is resolved
+	printf("\nResult:\n");
 	int errors = 0;
 	for (const ObjectDefinitionPair& definitionPair : environment.definitions)
 	{

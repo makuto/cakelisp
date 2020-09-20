@@ -237,14 +237,13 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	return true;
 }
 
-// TODO: Reduce duplication caused by isModuleLocal
 bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
                                    const EvaluatorContext& context,
                                    const std::vector<Token>& tokens, int startTokenIndex,
                                    GeneratorOutput& output)
 {
-	if (!ExpectEvaluatorScope("def-function-signature", tokens[startTokenIndex], context,
-	                          EvaluatorScope_Module))
+	if (IsForbiddenEvaluatorScope("def-function-signature", tokens[startTokenIndex], context,
+	                              EvaluatorScope_ExpressionsOnly))
 		return false;
 
 	int endInvocationTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
@@ -267,6 +266,9 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 
 	bool isModuleLocal =
 	    tokens[startTokenIndex + 1].contents.compare("def-function-signature-local") == 0;
+
+	if (context.scope != EvaluatorScope_Module && isModuleLocal)
+		NoteAtToken(tokens[startTokenIndex + 1], "no need to specify local if in body scope");
 
 	std::vector<StringOutput>& outputDest = isModuleLocal ? output.source : output.header;
 
@@ -1272,6 +1274,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
 	    {CloseBlock, nullptr, -1}};
 
+	const CStatementOperation rangeBasedFor[] = {
+	    {Keyword, "for", -1},     {OpenParen, nullptr, -1},  {TypeNoArray, nullptr, 2},
+	    {Keyword, " ", -1},       {Expression, nullptr, 1},  {Keyword, ":", -1},
+	    {Expression, nullptr, 3}, {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1},
+	    {Body, nullptr, 4},       {CloseBlock, nullptr, -1}};
+
 	// Conditionals
 	const CStatementOperation whenStatement[] = {
 	    {Keyword, "if", -1},       {OpenParen, nullptr, -1}, {Expression, nullptr, 1},
@@ -1394,6 +1402,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 		int numOperations;
 	} statementOperators[] = {
 	    {"while", whileStatement, ArraySize(whileStatement)},
+	    {"for-in", rangeBasedFor, ArraySize(rangeBasedFor)},
 	    {"return", returnStatement, ArraySize(returnStatement)},
 	    {"continue", continueStatement, ArraySize(continueStatement)},
 	    {"break", breakStatement, ArraySize(breakStatement)},
@@ -1441,6 +1450,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"mod", modulus, ArraySize(modulus)},
 	    {"++", increment, ArraySize(increment)},
 	    {"--", decrement, ArraySize(decrement)},
+	    {"incr", increment, ArraySize(increment)},
+	    {"decr", decrement, ArraySize(decrement)},
 	};
 
 	for (unsigned int i = 0; i < ArraySize(statementOperators); ++i)
@@ -1548,56 +1559,20 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
-	    "while",
-	    "return",
-	    "continue",
-	    "break",
-	    "when",
-	    "unless",
-	    "array",
-	    "set",
-	    "scope",
-	    "block",
-	    "?",
+	    "while", "for-in", "return", "continue", "break", "when", "unless", "array", "set", "scope",
+	    "block", "?",
 	    // Pointers
-	    "deref",
-	    "addr",
-	    "field",
+	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
-	    "on-call",
-	    "call",
-	    "in",
-	    "type-cast",
+	    "on-call", "call", "in", "type-cast",
 	    // Boolean
-	    "or",
-	    "and",
-	    "not",
+	    "or", "and", "not",
 	    // Bitwise
-	    "bit-or",
-	    "bit-and",
-	    "bit-xor",
-	    "bit-ones-complement",
-	    "bit-<<",
-	    "bit->>",
+	    "bit-or", "bit-and", "bit-xor", "bit-ones-complement", "bit-<<", "bit->>",
 	    // Relational
-	    "=",
-	    "!=",
-	    "eq",
-	    "neq",
-	    "<=",
-	    ">=",
-	    "<",
-	    ">",
+	    "=", "!=", "eq", "neq", "<=", ">=", "<", ">",
 	    // Arithmetic
-	    "+",
-	    "-",
-	    "*",
-	    "/",
-	    "%",
-	    "mod",
-	    "++",
-	    "--",
-	};
+	    "+", "-", "*", "/", "%", "mod", "++", "--", "incr", "decr"};
 	for (size_t i = 0; i < ArraySize(cStatementKeywords); ++i)
 	{
 		environment.generators[cStatementKeywords[i]] = CStatementGenerator;
