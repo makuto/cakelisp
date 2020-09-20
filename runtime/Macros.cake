@@ -110,8 +110,3 @@
   (addLangTokenOutput (field output source) StringOutMod_CloseBlock (addr invocation-token))
 
   (return true))
-
-(defgenerator function-pointer-cast ()
-  ;; TODO: The return type etc. should match cakelisp &return format
-  (destructure-arguments variable-index return-type-index arg-types-index)
-  (return true))

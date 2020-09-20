@@ -14,7 +14,3 @@ bool FunctionInvocationGenerator(EvaluatorEnvironment& environment, const Evalua
                                  GeneratorOutput& output);
 
 void importFundamentalGenerators(EvaluatorEnvironment& environment);
-
-bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
-                                      bool allowArray, std::vector<StringOutput>& typeOutput,
-                                      std::vector<StringOutput>& afterNameOutput);
