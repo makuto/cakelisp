@@ -31,13 +31,13 @@ struct Subprocess
 static std::vector<Subprocess> s_subprocesses;
 
 // Never returns, if success
-void systemExecute(const RunProcessArguments& arguments)
+void systemExecute(const char* fileToExecute, char** arguments)
 {
 #ifdef UNIX
 	// pid_t pid;
-	execvp(arguments.fileToExecute, arguments.arguments);
+	execvp(fileToExecute, arguments);
 	perror("RunProcess execvp() error: ");
-	printf("Failed to execute %s\n", arguments.fileToExecute);
+	printf("Failed to execute %s\n", fileToExecute);
 #endif
 }
 
@@ -58,7 +58,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	if (log.processes)
 	{
 		printf("RunProcess command: ");
-		for (char** arg = arguments.arguments; *arg != nullptr; ++arg)
+		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
 		{
 			printf("%s ", *arg);
 		}
@@ -83,6 +83,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	// Child
 	else if (pid == 0)
 	{
+		// Redirect std out and err to the pipes instead
 		if (dup2(pipeFileDescriptors[PipeWrite], STDOUT_FILENO) == -1 ||
 		    dup2(pipeFileDescriptors[PipeWrite], STDERR_FILENO) == -1)
 		{
@@ -91,7 +92,33 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		}
 		// Only write
 		close(pipeFileDescriptors[PipeRead]);
-		systemExecute(arguments);
+
+		char** nonConstArguments = nullptr;
+		{
+			int numArgs = 0;
+			for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
+				++numArgs;
+
+			// Add one for null sentinel
+			nonConstArguments = new char*[numArgs + 1];
+			int i = 0;
+			for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
+			{
+				nonConstArguments[i] = strdup(*arg);
+				++i;
+			}
+
+			// Null sentinel
+			nonConstArguments[numArgs] = nullptr;
+		}
+
+		systemExecute(arguments.fileToExecute, nonConstArguments);
+
+		// This shouldn't happen unless the execution failed or soemthing
+		for (char** arg = nonConstArguments; *arg != nullptr; ++arg)
+			delete *arg;
+		delete[] nonConstArguments;
+
 		// A failed child should not flush parent files
 		_exit(EXIT_FAILURE); /*  */
 	}
@@ -100,7 +127,10 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	{
 		// Only read
 		close(pipeFileDescriptors[PipeWrite]);
-		// printf("Created child process %d\n", pid);
+
+		if (log.processes)
+			printf("Created child process %d\n", pid);
+
 		s_subprocesses.push_back({statusOut, pid, pipeFileDescriptors[PipeRead]});
 	}
 

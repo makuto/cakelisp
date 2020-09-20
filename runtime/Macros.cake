@@ -47,7 +47,7 @@
   ;; Make sure the type is valid before outputting anything
   (var type-output (<> std::vector StringOutput))
   (var type-after-name-output (<> std::vector StringOutput))
-  (when (not (tokenizedCTypeToString_Recursive tokens type-index true type-output type-after-name-output))
+  (unless (tokenizedCTypeToString_Recursive tokens type-index true type-output type-after-name-output)
     (return false))
   (addModifierToStringOutput (on-call type-output back) StringOutMod_SpaceAfter)
 
@@ -58,7 +58,7 @@
   ;; Evaluate name
   (var expressionContext EvaluatorContext context)
   (set (field expressionContext scope) EvaluatorScope_ExpressionsOnly)
-  (when (not (= 0 (EvaluateGenerate_Recursive environment expressionContext tokens name-index output)))
+  (unless (= 0 (EvaluateGenerate_Recursive environment expressionContext tokens name-index output))
     (return false))
 
   ;; Yep, believe it or not, C typedefs have the length of the array after the new type name
@@ -103,9 +103,9 @@
   (addLangTokenOutput (field output source) StringOutMod_OpenBlock (addr invocation-token))
   (var bodyContext EvaluatorContext context)
   (set (field bodyContext scope) EvaluatorScope_Body)
-  (when (not (= 0 (EvaluateGenerateAll_Recursive
+  (unless (= 0 (EvaluateGenerateAll_Recursive
                    environment bodyContext tokens start-body-index
-                   nullptr output)))
+                   nullptr output))
     (return false))
   (addLangTokenOutput (field output source) StringOutMod_CloseBlock (addr invocation-token))
 

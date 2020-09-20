@@ -743,11 +743,9 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		}
 
 		// TODO: Get arguments all the way from the top
-		// TODO: Memory leak
 		// If not null terminated, the call will fail
-		char* arguments[] = {fileToExec,       strdup("-g"),    strdup("-c"),
-		                     sourceOutputName, strdup("-o"),    buildObjectName,
-		                     strdup("-Isrc/"), strdup("-fPIC"), nullptr};
+		const char* arguments[] = {fileToExec,      "-g",     "-c",    sourceOutputName, "-o",
+		                           buildObjectName, "-Isrc/", "-fPIC", nullptr};
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = fileToExec;
 		compileArguments.arguments = arguments;
@@ -792,13 +790,12 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		char linkerExecutable[MAX_PATH_LENGTH] = {0};
 		PrintBuffer(linkerExecutable, "/usr/bin/clang++");
 
-		// TODO: Memory leak
-		char* arguments[] = {linkerExecutable,
-		                     strdup("-shared"),
-		                     strdup("-o"),
-		                     strdup(buildObject.dynamicLibraryPath.c_str()),
-		                     strdup(buildObject.buildObjectName.c_str()),
-		                     nullptr};
+		const char* arguments[] = {linkerExecutable,
+		                           "-shared",
+		                           "-o",
+		                           buildObject.dynamicLibraryPath.c_str(),
+		                           buildObject.buildObjectName.c_str(),
+		                           nullptr};
 		RunProcessArguments linkArguments = {};
 		linkArguments.fileToExecute = linkerExecutable;
 		linkArguments.arguments = arguments;
