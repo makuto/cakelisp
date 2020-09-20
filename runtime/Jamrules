@@ -52,6 +52,8 @@ C++FLAGS = -std=c++11 -Wall -Wextra -Wno-unused-parameter
 -fPIC
 
 $(OS_DEPENDENT_C++FLAGS)
+
+-I../src
 ;
 
 # TODO: Make base hold all this weirdness?

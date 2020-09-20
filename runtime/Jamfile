@@ -7,4 +7,8 @@ SubDir . ;
 
 Main HotReloadingTest : TestMain.cake.cpp
 HotReloading.cake.cpp
+# TODO: Move this out of Cakelisp src and into a utilities folder?
+../src/DynamicLoader.cpp
 ;
+
+Library TextAdventure : TextAdventure.cake.cpp ;

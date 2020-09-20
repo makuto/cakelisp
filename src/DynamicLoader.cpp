@@ -1,6 +1,8 @@
 #include "DynamicLoader.hpp"
 
 #include <stdio.h>
+#include <string>
+#include <unordered_map>
 
 #ifdef UNIX
 #include <dlfcn.h>
@@ -10,6 +12,14 @@
 #else
 #error Platform support is needed for dynamic loading
 #endif
+
+struct DynamicLibrary
+{
+	DynamicLibHandle handle;
+};
+
+typedef std::unordered_map<std::string, DynamicLibrary> DynamicLibraryMap;
+static  DynamicLibraryMap dynamicLibraries;
 
 DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 {
@@ -30,6 +40,7 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 	libHandle = LoadLibrary(libraryPath);
 #endif
 
+	dynamicLibraries[libraryPath] = {libHandle};
 	return libHandle;
 }
 
@@ -67,5 +78,40 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 	return procedure;
 #else
 	return nullptr;
+#endif
+}
+
+void closeAllDynamicLibraries()
+{
+	for (std::pair<const std::string, DynamicLibrary>& libraryPair : dynamicLibraries)
+	{
+#ifdef UNIX
+		dlclose(libraryPair.second.handle);
+#endif
+	}
+}
+
+void closeDynamicLibrary(DynamicLibHandle handleToClose)
+{
+	DynamicLibHandle libHandle = nullptr;
+	for (DynamicLibraryMap::iterator libraryIt = dynamicLibraries.begin();
+	     libraryIt != dynamicLibraries.end(); ++libraryIt)
+	{
+		if (handleToClose == libraryIt->second.handle)
+		{
+			libHandle = libraryIt->second.handle;
+			dynamicLibraries.erase(libraryIt);
+			break;
+		}
+	}
+
+	if (!libHandle)
+	{
+		printf("warning: closing library which wasn't in the list of loaded libraries\n");
+		libHandle = handleToClose;
+	}
+
+#ifdef UNIX
+	dlclose(libHandle);
 #endif
 }

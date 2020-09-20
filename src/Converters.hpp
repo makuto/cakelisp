@@ -15,7 +15,9 @@ struct NameStyleSettings
 	NameStyleMode typeNameMode = NameStyleMode_PascalCaseIfLispy;
 	// Using a different mode than your C/C++ conventions helps to distinguish Cakelisp functions
 	// from C/C++ functions, if you want that
-	NameStyleMode functionNameMode = NameStyleMode_Underscores;
+	// These will need to match if you use function pointers as variables, though
+	// TODO: Remove the choice of doing different styles
+	NameStyleMode functionNameMode = NameStyleMode_CamelCase;
 	NameStyleMode argumentNameMode = NameStyleMode_CamelCase;
 	NameStyleMode variableNameMode = NameStyleMode_CamelCase;
 };

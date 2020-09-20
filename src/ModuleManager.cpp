@@ -1,6 +1,7 @@
 #include "ModuleManager.hpp"
 
 #include "Converters.hpp"
+#include "DynamicLoader.hpp"
 #include "Evaluator.hpp"
 #include "FileUtilities.hpp"
 #include "Generators.hpp"
@@ -50,6 +51,7 @@ void moduleManagerDestroy(ModuleManager& manager)
 		free((void*)module.filename);
 	}
 	manager.modules.clear();
+	closeAllDynamicLibraries();
 }
 
 bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>** tokensOut)
