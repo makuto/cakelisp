@@ -17,22 +17,27 @@ struct CommandLineOption
 void printHelp(const CommandLineOption* options, int numOptions)
 {
 	const char* helpString =
-	    "OVERVIEW: Cakelisp transpiler\n"
-		"Cakelisp is a transpiler which generates C/C++ from a Lisp dialect.\n"
-		"Created by Macoy Madson <macoy@macoy.me>.\nhttps://macoy.me/code/macoy/cakelisp\n\n"
+	    "OVERVIEW: Cakelisp transpiler\n\n"
+	    "Cakelisp is a transpiler which generates C/C++ from a Lisp dialect.\n"
+	    "Created by Macoy Madson <macoy@macoy.me>.\nhttps://macoy.me/code/macoy/cakelisp\n\n"
 	    "USAGE: cakelisp [options] <input .cake files>\nAll options must precede .cake files.\n\n"
 	    "OPTIONS:\n";
 	printf("%s", helpString);
 
 	for (int optionIndex = 0; optionIndex < numOptions; ++optionIndex)
 	{
-		printf("%s\n\t%s\n", options[optionIndex].handle, options[optionIndex].help);
+		printf("  %s\n    %s\n\n", options[optionIndex].handle, options[optionIndex].help);
 	}
 }
 
 int main(int numArguments, char* arguments[])
 {
+	bool enableHotReloading = false;
+
 	const CommandLineOption options[] = {
+	    {"--enable-hot-reloading", &enableHotReloading,
+	     "Generate code so that objects defined in Cakelisp can be reloaded at runtime"},
+	    // Logging
 	    {"--verbose-tokenization", &log.tokenization,
 	     "Output details about the conversion from file text to tokens"},
 	    {"--verbose-references", &log.references,
@@ -44,8 +49,8 @@ int main(int numArguments, char* arguments[])
 	    {"--verbose-build-process", &log.buildProcess,
 	     "Output object statuses as they move through the compile-time pipeline"},
 	    {"--verbose-processes", &log.processes,
-	     "Output full command lines of all child processes created during the compile-time build "
-	     "process"},
+	     "Output full command lines and other information about all child processes created during "
+	     "the compile-time build process"},
 	    {"--verbose-file-system", &log.fileSystem,
 	     "Output why files are being written, the status of comparing files, etc."},
 	    {"--verbose-metadata", &log.metadata, "Output generated metadata"},
@@ -81,11 +86,23 @@ int main(int numArguments, char* arguments[])
 				return 1;
 			}
 
+			bool foundOption = false;
 			for (int optionIndex = 0; (unsigned long)optionIndex < ArraySize(options);
 			     ++optionIndex)
 			{
 				if (strcmp(arguments[i], options[optionIndex].handle) == 0)
+				{
 					*options[optionIndex].toggleOnOut = true;
+					foundOption = true;
+					break;
+				}
+			}
+
+			if (!foundOption)
+			{
+				printf("Error: Unrecognized argument %s\n\n", arguments[i]);
+				printHelp(options, ArraySize(options));
+				return 1;
 			}
 		}
 	}
@@ -103,6 +120,9 @@ int main(int numArguments, char* arguments[])
 
 	ModuleManager moduleManager = {};
 	moduleManagerInitialize(moduleManager);
+
+	if (enableHotReloading)
+		moduleManager.environment.enableHotReloading = true;
 
 	for (const char* filename : filesToEvaluate)
 	{

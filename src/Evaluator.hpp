@@ -190,8 +190,12 @@ struct EvaluatorEnvironment
 	// Ensure unique macro variable names, for example
 	int nextFreeUniqueSymbolNum;
 
+	// Used to load other files into the environment
 	// If this is null, it means other Cakelisp files will not be imported (which could be desired)
 	ModuleManager* moduleManager;
+
+	// Generate code so that objects defined in Cakelisp can be reloaded at runtime
+	bool enableHotReloading;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();

@@ -65,3 +65,13 @@
   (PushBackAll (field output source) type-after-name-output)
   (addLangTokenOutput (field output source) StringOutMod_EndStatement (addr invocation-token))
   (return true))
+
+(defmacro array-size ()
+  (destructure-arguments array-index)
+  (quick-token-at array-token array-index)
+  ;; This should evaluate its argument, but I'm just hacking it in right now anyways
+  (unless (ExpectTokenType "array-size" array-token TokenType_Symbol)
+    (return false))
+  (tokenize-push output (/ (sizeof (token-splice (addr array-token)))
+                           (sizeof (at 0 (token-splice (addr array-token))))))
+  (return true))

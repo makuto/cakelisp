@@ -164,6 +164,12 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
 		return false;
 
+	if (environment.enableHotReloading)
+	{
+		addStringOutput(isModuleLocal ? output.source : output.header, "extern \"C\"",
+		                StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+	}
+
 	// TODO: Hot-reloading functions shouldn't be declared static, right?
 	if (isModuleLocal)
 		addStringOutput(output.source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
