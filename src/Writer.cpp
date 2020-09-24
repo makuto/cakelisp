@@ -304,8 +304,6 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 			Writer_Writef(state, ";\n");
 			++state.currentLine;
 		}
-
-		// printIndentation(/*isCloseBlockLine=*/false, formatSettings, state);
 	}
 	else if (outputOperation.modifiers & StringOutMod_ListSeparator)
 		Writer_Writef(state, ", ");
