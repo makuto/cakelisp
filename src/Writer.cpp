@@ -165,6 +165,7 @@ struct StringOutputState
 	// For determining character offsets to pass to e.g. Emacs' goto-char
 	int numCharsOutput;
 	int currentLine;
+	int lastLineIndented;
 	FILE* fileOut;
 };
 
@@ -186,8 +187,13 @@ static void Writer_Writef(StringOutputState& state, const char* format, ...)
 
 static void printIndentation(const WriterFormatSettings& formatSettings, StringOutputState& state)
 {
-	// TODO: Good indentation
-	return;
+	// Only indent at beginning of line. This will of course break if there are newlines added in
+	// strings being output
+	if (state.currentLine == state.lastLineIndented)
+		return;
+
+	state.lastLineIndented = state.currentLine;
+
 	if (formatSettings.indentStyle == WriterFormatIndentType_Tabs)
 	{
 		for (int i = 0; i < state.blockDepth; ++i)
@@ -205,12 +211,9 @@ static void printIndentation(const WriterFormatSettings& formatSettings, StringO
 	}
 }
 
-static void writeStringOutput(const NameStyleSettings& nameSettings,
-                              const WriterFormatSettings& formatSettings,
-                              const StringOutput& outputOperation, StringOutputState& state)
+static void updateDepthDoIndentation(const WriterFormatSettings& formatSettings,
+                                     const StringOutput& outputOperation, StringOutputState& state)
 {
-	// First, handle indentation
-	printIndentation(formatSettings, state);
 	if (outputOperation.modifiers & StringOutMod_OpenBlock)
 	{
 		state.blockDepth++;
@@ -224,6 +227,15 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 			             "Evaluation resulted in mismatching curly braces");
 		}
 	}
+
+	printIndentation(formatSettings, state);
+}
+
+static void writeStringOutput(const NameStyleSettings& nameSettings,
+                              const WriterFormatSettings& formatSettings,
+                              const StringOutput& outputOperation, StringOutputState& state)
+{
+	updateDepthDoIndentation(formatSettings, outputOperation, state);
 
 	if (outputOperation.modifiers & StringOutMod_SpaceBefore)
 		Writer_Writef(state, " ");
@@ -246,12 +258,22 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 			Writer_Writef(state, "{");
 		else if (formatSettings.braceStyle == WriterFormatBraceStyle_Allman)
 		{
-			Writer_Writef(state, "\n{\n");
-			state.currentLine += 2;
+			Writer_Writef(state, "\n");
+			state.currentLine += 1;
+
+			// Allman brackets are not as deep as their contents, but this bracket was already
+			// counted by updateDepthDoIndentation() above. Take it back one so indentation is
+			// correct for the bracket, then go back to the proper block indentation
+			state.blockDepth -= 1;
+			printIndentation(formatSettings, state);
+			state.blockDepth += 1;
+
+			Writer_Writef(state, "{\n");
+			state.currentLine += 1;
 		}
 		else if (formatSettings.braceStyle == WriterFormatBraceStyle_KandR_1TBS)
 		{
-			Writer_Writef(state, "{\n");
+			Writer_Writef(state, " {\n");
 			state.currentLine += 1;
 		}
 	}
@@ -283,7 +305,7 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 			++state.currentLine;
 		}
 
-		printIndentation(formatSettings, state);
+		// printIndentation(/*isCloseBlockLine=*/false, formatSettings, state);
 	}
 	else if (outputOperation.modifiers & StringOutMod_ListSeparator)
 		Writer_Writef(state, ", ");

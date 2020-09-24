@@ -934,9 +934,9 @@ static void tokenizeGenerateStringTokenize(const char* outputVarName, const Toke
 	// TODO Need to gensym error, or replace with a function call
 	char tokenizeLineBuffer[2048] = {0};
 	PrintfBuffer(tokenizeLineBuffer,
-	             "if (!tokenizeLinePrintError(\"%s\", \"%s\", %d, %s)) {return false;}\n",
+	             "if (!tokenizeLinePrintError(\"%s\", \"%s\", %d, %s)) {return false;}",
 	             stringToTokenize, triggerToken.source, triggerToken.lineNumber, outputVarName);
-	addStringOutput(output.source, tokenizeLineBuffer, StringOutMod_None, &triggerToken);
+	addStringOutput(output.source, tokenizeLineBuffer, StringOutMod_NewlineAfter, &triggerToken);
 }
 
 bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,

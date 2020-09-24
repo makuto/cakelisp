@@ -34,12 +34,13 @@
   (unless current-lib
     (return false))
 
-  (for-in function-referent-it FunctionReferenceMapPair registered-functions
+  (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions
           (var loaded-symbol (* void)
                (getSymbolFromDynamicLibrary current-lib
                                             (on-call (path function-referent-it . first) c_str)))
           (unless loaded-symbol
             (return false))
+          ;; TODO: What will happen once modules are unloaded? We can't store pointers to their static memory
           (for-in function-pointer (* (* void)) (path function-referent-it . second)
                   (set (deref function-pointer) loaded-symbol)))
   (return true))
