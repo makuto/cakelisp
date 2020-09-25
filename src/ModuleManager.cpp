@@ -48,6 +48,7 @@ void moduleManagerDestroy(ModuleManager& manager)
 	{
 		delete module.tokens;
 		delete module.generatedOutput;
+		delete module.moduleEnvironment;
 		free((void*)module.filename);
 	}
 	manager.modules.clear();
@@ -162,6 +163,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 		return false;
 
 	newModule.generatedOutput = new GeneratorOutput;
+	newModule.moduleEnvironment = new ModuleEnvironment;
 
 	manager.modules.push_back(newModule);
 
@@ -171,9 +173,12 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 	// Module always requires all its functions
 	// TODO: Local functions can be left out if not referenced (in fact, they may warn in C if not)
 	moduleContext.isRequired = true;
+	moduleContext.moduleEnvironment = newModule.moduleEnvironment;
+
 	// A delimiter isn't strictly necessary here, but it is nice to space out things
 	StringOutput bodyDelimiterTemplate = {};
 	bodyDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
+
 	int numErrors = EvaluateGenerateAll_Recursive(
 	    manager.environment, moduleContext, *newModule.tokens,
 	    /*startTokenIndex=*/0, &bodyDelimiterTemplate, *newModule.generatedOutput);

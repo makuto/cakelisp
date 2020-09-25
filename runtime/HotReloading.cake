@@ -65,7 +65,8 @@
        (type-cast (getSymbolFromDynamicLibrary current-lib hot-reload-lib-init-symbol-name)
                   library-initialization-function-signature))
   (unless library-init-function
-    (printf "error: Library missing intialization function. This is required for state variable support\n")
+    (printf
+     "error: Library missing initialization function. This is required for state variable support\n")
     (return false))
   (library-init-function)
 

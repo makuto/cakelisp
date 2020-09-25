@@ -71,6 +71,21 @@ struct GeneratorOutput
 // Add members to this as necessary
 void resetGeneratorOutput(GeneratorOutput& output);
 
+struct StateVariable
+{
+	const Token* variableName;
+	const Token* startType;
+};
+
+typedef std::unordered_map<std::string, StateVariable> StateVariableTable;
+typedef StateVariableTable::iterator StateVariableIterator;
+
+struct ModuleEnvironment
+{
+	// Variables which should persist state even after hot-reloading a module
+	StateVariableTable stateVariables;
+};
+
 // This is frequently copied, so keep it small
 struct EvaluatorContext
 {
@@ -82,27 +97,11 @@ struct EvaluatorContext
 	bool isRequired;
 	// Associate all unknown references with this definition
 	const Token* definitionName;
+
+	// Pointer because contexts are copied to change scope, but module environment needs to be
+	// shared amoung all contexts in the module
+	ModuleEnvironment* moduleEnvironment;
 };
-
-struct EvaluatorEnvironment;
-
-// Generators output C/C++ code
-typedef bool (*GeneratorFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                              const std::vector<Token>& tokens, int startTokenIndex,
-                              GeneratorOutput& output);
-
-// Macros output tokens only
-// Note that this is for the macro invocation/signature; defining macros is actually done via a
-// generator, because macros themselves are implemented in Cakelisp/C++
-typedef bool (*MacroFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                          const std::vector<Token>& tokens, int startTokenIndex,
-                          std::vector<Token>& output);
-
-// TODO: Replace with fast hash table implementation
-typedef std::unordered_map<std::string, MacroFunc> MacroTable;
-typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
-typedef MacroTable::iterator MacroIterator;
-typedef GeneratorTable::iterator GeneratorIterator;
 
 struct ObjectReference
 {
@@ -116,7 +115,6 @@ struct ObjectReference
 	bool isResolved;
 };
 
-// TODO Need to add insertion points for later fixing
 struct ObjectReferenceStatus
 {
 	const Token* name;
@@ -167,6 +165,26 @@ typedef std::pair<const std::string, ObjectDefinition> ObjectDefinitionPair;
 typedef std::unordered_map<std::string, ObjectReferencePool> ObjectReferencePoolMap;
 typedef std::pair<const std::string, ObjectReferencePool> ObjectReferencePoolPair;
 
+struct EvaluatorEnvironment;
+
+// Generators output C/C++ code
+typedef bool (*GeneratorFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                              const std::vector<Token>& tokens, int startTokenIndex,
+                              GeneratorOutput& output);
+
+// Macros output tokens only
+// Note that this is for the macro invocation/signature; defining macros is actually done via a
+// generator, because macros themselves are implemented in Cakelisp/C++
+typedef bool (*MacroFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          std::vector<Token>& output);
+
+// TODO: Replace with fast hash table implementation
+typedef std::unordered_map<std::string, MacroFunc> MacroTable;
+typedef MacroTable::iterator MacroIterator;
+typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
+typedef GeneratorTable::iterator GeneratorIterator;
+
 // Unlike context, which can't be changed, environment can be changed.
 // Use care when modifying the environment. Only add things once you know things have succeeded.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -182,6 +200,7 @@ struct EvaluatorEnvironment
 	// invalid. The const here is to protect from that. You can change the token contents, however
 	std::vector<const std::vector<Token>*> macroExpansions;
 
+	// Used for tracking build state and resolving ambiguous references, among other things
 	ObjectDefinitionMap definitions;
 	ObjectReferencePoolMap referencePools;
 

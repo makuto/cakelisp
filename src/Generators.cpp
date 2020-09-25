@@ -164,6 +164,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
 		return false;
 
+	// Note: environment.enableHotReloading may have to override making the function static to
+	// support partial reloading
 	if (environment.enableHotReloading && !isModuleLocal)
 	{
 		addStringOutput(isModuleLocal ? output.source : output.header, "extern \"C\"",
@@ -365,10 +367,20 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 		return false;
 
 	// Only necessary for static variables declared inside a function
-	bool isStatic = funcNameToken.contents.compare("static-var") == 0;
-	if (isStatic && !ExpectEvaluatorScope("static variable declaration", tokens[startTokenIndex],
-	                                      context, EvaluatorScope_Body))
+	bool isStaticFunctionVar = funcNameToken.contents.compare("static-var") == 0;
+	if (isStaticFunctionVar &&
+	    !ExpectEvaluatorScope("static variable declaration", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Body))
 		return false;
+
+	// TODO: Eventually, static function variables could be automatically promoted to module scope
+	if (environment.enableHotReloading && isStaticFunctionVar &&
+	    context.scope == EvaluatorScope_Body)
+	{
+		NoteAtToken(funcNameToken,
+		            "static variables are not persisted across hot-reloads. Move the variable to "
+		            "module scope if it should be persisted");
+	}
 
 	int varNameIndex = getExpectedArgument("expected variable name", tokens, startTokenIndex, 1,
 	                                       endInvocationIndex);
@@ -394,7 +406,7 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 		addStringOutput(output.header, "extern", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 	// else because no variable may be declared extern while also being static
 	// Automatically make module-declared variables static, reserving "static-var" for functions
-	else if (isStatic || context.scope == EvaluatorScope_Module)
+	else if (isStaticFunctionVar || context.scope == EvaluatorScope_Module)
 		addStringOutput(output.source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	// Type
@@ -434,10 +446,32 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	if (isGlobal)
 		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 
-	if (environment.enableHotReloading)
+	bool isStateVariable = context.scope == EvaluatorScope_Module;
+	if (environment.enableHotReloading && isStateVariable)
 	{
-		// Output code which uses the existing state if it exists, or creates the new state and
-		// initializes it
+		if (!context.moduleEnvironment)
+		{
+			printf(
+			    "error: context had no module environment set. This is required for hot-reloading. "
+			    "This is an internal error, not an error with the evaluated code\n");
+			return false;
+		}
+
+		StateVariableTable& stateVariables = context.moduleEnvironment->stateVariables;
+		StateVariableIterator findIt = stateVariables.find(tokens[varNameIndex].contents);
+		if (findIt != stateVariables.end())
+		{
+			const Token* firstDefinedNameToken = findIt->second.variableName;
+			ErrorAtTokenf(tokens[varNameIndex], "multiple definitions of state variable '%s'",
+			              firstDefinedNameToken->contents.c_str());
+			NoteAtToken((*firstDefinedNameToken), "first defined here");
+			return false;
+		}
+
+		StateVariable newStateVariable = {};
+		newStateVariable.variableName = &tokens[varNameIndex];
+		newStateVariable.startType = &tokens[typeIndex];
+		stateVariables[tokens[varNameIndex].contents] = newStateVariable;
 	}
 
 	return true;

@@ -11,6 +11,7 @@ struct Module
 	const char* filename;
 	const std::vector<Token>* tokens;
 	GeneratorOutput* generatedOutput;
+	ModuleEnvironment* moduleEnvironment;
 };
 
 struct ModuleManager
