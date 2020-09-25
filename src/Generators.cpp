@@ -164,7 +164,7 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
 		return false;
 
-	if (environment.enableHotReloading)
+	if (environment.enableHotReloading && !isModuleLocal)
 	{
 		addStringOutput(isModuleLocal ? output.source : output.header, "extern \"C\"",
 		                StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
@@ -271,10 +271,8 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 		return false;
 
 	bool isModuleLocal =
+	    context.scope == EvaluatorScope_Body ||
 	    tokens[startTokenIndex + 1].contents.compare("def-function-signature-local") == 0;
-
-	if (context.scope != EvaluatorScope_Module && isModuleLocal)
-		NoteAtToken(tokens[startTokenIndex + 1], "no need to specify local if in body scope");
 
 	std::vector<StringOutput>& outputDest = isModuleLocal ? output.source : output.header;
 
@@ -435,6 +433,12 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 	if (isGlobal)
 		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
+
+	if (environment.enableHotReloading)
+	{
+		// Output code which uses the existing state if it exists, or creates the new state and
+		// initializes it
+	}
 
 	return true;
 }

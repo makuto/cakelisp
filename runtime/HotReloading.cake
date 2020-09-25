@@ -2,6 +2,9 @@
 (c-import "<unordered_map>" "<vector>")
 (c-import "DynamicLoader.hpp")
 
+;;
+;; Code management
+;;
 (def-type-alias FunctionReferenceArray (<> std::vector (* (* void))))
 (def-type-alias FunctionReferenceMap (<> std::unordered_map std::string FunctionReferenceArray))
 (def-type-alias FunctionReferenceMapIterator (in FunctionReferenceMap iterator))
@@ -9,9 +12,20 @@
 
 (var registered-functions FunctionReferenceMap)
 
-(var current-lib DynamicLibHandle nullptr)
+;;
+;; Data/state management
+;;
+(def-type-alias StateVariableMap (<> std::unordered_map std::string (* void)))
+(def-type-alias StateVariableMapIterator (in StateVariableMap iterator))
 
+(var registered-state-variables StateVariableMap)
+
+;;
+;; Library management
+;;
 (var hot-reload-lib-path (* (const char)) "libGeneratedCakelisp.so")
+(var hot-reload-lib-init-symbol-name (* (const char)) "libGeneratedCakelisp_initialize")
+(var current-lib DynamicLibHandle nullptr)
 
 (defun register-function-pointer (function-pointer (* (* void))
                                   function-name (* (const char)))
@@ -27,12 +41,33 @@
              (call (in std move) new-function-pointer-array)))
       (on-call (path findIt > second) push_back function-pointer)))
 
+(defun hot-reload-find-variable (name (* (const char)) variable-address-out (* (* void)) &return bool)
+  (var find-it StateVariableMapIterator (on-call registered-state-variables find name))
+  (unless (!= find-it (on-call registered-state-variables end))
+    (set variable-address-out nullptr)
+    (return false))
+  (set (deref variable-address-out) (path find-it > second))
+  (return true))
+
+(defun hot-reload-register-variable (name (* (const char)) variable-address (* void))
+  (set (at name registered-state-variables) variable-address))
+
 (defun do-hot-reload (&return bool)
   (when current-lib
     (closeDynamicLibrary current-lib))
   (set current-lib (loadDynamicLibrary hot-reload-lib-path))
   (unless current-lib
     (return false))
+
+  ;; Set up state variables. Each library knows about its own state variables
+  (def-function-signature library-initialization-function-signature ())
+  (var library-init-function library-initialization-function-signature
+       (type-cast (getSymbolFromDynamicLibrary current-lib hot-reload-lib-init-symbol-name)
+                  library-initialization-function-signature))
+  (unless library-init-function
+    (printf "error: Library missing intialization function. This is required for state variable support\n")
+    (return false))
+  (library-init-function)
 
   (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions
           (var loaded-symbol (* void)

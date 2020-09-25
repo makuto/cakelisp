@@ -2,7 +2,7 @@
 ;; This is meant to be a dead simple "game" which you can modify while it is running.
 ;; This is to test hot-reloading
 
-;; (import &comptime-only "Macros.cake")
+(import "HotReloading.cake")
 
 (c-import "<stdio.h>"
           "cctype" ;; For isdigit
@@ -20,6 +20,27 @@
              (array (array
                      "inside home" "Surprise! Your home is filled with cake. You look at your hands. You are cake."
                      (array))))))
+
+;; This won't work because you must assign a value, but no function except a fancy template
+;; function could return any value. Additionally, it may be unwise to rely on static initialization
+;; (var static-init-test int (register-init-callback static-init-test-init))
+;; The original declaration
+;; (var static-init-test int 0)
+;; The modified declaration
+(var static-init-test (* int) 0)
+
+;; The following two functions will be auto-generated
+(defun-local static-init-test-init()
+  (var existing-value (* void) nullptr)
+  (if (hot-reload-find-variable "static-init-test" (addr existing-value))
+      (set static-init-test (type-cast existing-value (* int)))
+      (block
+          ;; C can have an easier time with plain old malloc and cast
+          (set static-init-test (new int))
+          (set (deref static-init-test) 0)
+          (hot-reload-register-variable "static-init-test" static-init-test))))
+(defun libGeneratedCakelisp_initialize ()
+  (static-init-test-init))
 
 (defun print-help ()
   (printf "At any point, enter 'r' to reload the code, 'h' for help, or 'q' to quit\n")
@@ -40,6 +61,10 @@
 (defun reloadable-entry-point (&return bool)
   (printf "CAKE ADVENTURE\n\n")
   (print-help)
+
+  (var static-init-test-ref (& int) (deref static-init-test))
+  (printf "Num times reloaded: %d\n" static-init-test-ref)
+  (++ static-init-test-ref)
 
   (var current-room (* (const room)) (addr (at 0 rooms)))
   (print-room current-room)
