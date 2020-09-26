@@ -544,6 +544,55 @@ bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 	return true;
 }
 
+bool NewArrayGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                       const std::vector<Token>& tokens, int startTokenIndex,
+                       GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("new-array", tokens[startTokenIndex], context,
+	                          EvaluatorScope_ExpressionsOnly))
+		return false;
+
+	int nameTokenIndex = startTokenIndex + 1;
+	const Token& funcNameToken = tokens[nameTokenIndex];
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int firstDimensionIndex = getExpectedArgument("expected array dimension", tokens, startTokenIndex, 1,
+	                                       endInvocationIndex);
+	if (firstDimensionIndex == -1)
+		return false;
+
+	int typeIndex =
+	    getExpectedArgument("expected type", tokens, startTokenIndex, 2, endInvocationIndex);
+	if (typeIndex == -1)
+		return false;
+
+	std::vector<StringOutput> typeOutput;
+	std::vector<StringOutput> typeAfterNameOutput;
+	// The user must figure out how big of a 1D array they want, so no array
+	if (!tokenizedCTypeToString_Recursive(tokens, typeIndex,
+	                                      /*allowArray=*/false, typeOutput, typeAfterNameOutput))
+		return false;
+
+	addStringOutput(output.source, "new", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+
+	// Type
+	PushBackAll(output.source, typeOutput);
+
+	// Size
+	addStringOutput(output.source, "[", StringOutMod_None, &tokens[startTokenIndex]);
+
+	EvaluatorContext expressionContext = context;
+	expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+	if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, firstDimensionIndex,
+	                               output) != 0)
+		return false;
+
+	addStringOutput(output.source, "]", StringOutMod_None, &tokens[startTokenIndex]);
+
+	return true;
+}
+
 // TODO Consider merging with defgenerator?
 bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                        const std::vector<Token>& tokens, int startTokenIndex,
@@ -1358,7 +1407,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	                                                   {Expression, nullptr, 2},
 	                                                   {SmartEndStatement, nullptr, -1}};
 
-	const CStatementOperation dereference[] = {{KeywordNoSpace, "*", -1}, {Expression, nullptr, 1}};
+	// Dereference requires parentheses in some cases, so we'll do it all the time to remove all
+	// ambiguity which may occur. It also makes it easier to read in my opinion
+	const CStatementOperation dereference[] = {{OpenParen, nullptr, -1},
+	                                           {KeywordNoSpace, "*", -1},
+	                                           {Expression, nullptr, 1},
+	                                           {CloseParen, nullptr, -1}};
 	const CStatementOperation addressOf[] = {{KeywordNoSpace, "&", -1}, {Expression, nullptr, 1}};
 
 	// TODO: Pathing is going to need a fancier generator for mixed pointers/member access
@@ -1384,6 +1438,13 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	                                             {CloseParen, nullptr, -1}};
 
 	const CStatementOperation scopeResolution[] = {{SpliceNoSpace, "::", 1}};
+
+	const CStatementOperation newStatement[] = {
+	    {Keyword, "new", -1}, {TypeNoArray, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
+	const CStatementOperation deleteStatement[] = {
+	    {Keyword, "delete", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
+	const CStatementOperation deleteArrayStatement[] = {
+	    {Keyword, "delete[]", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
 
 	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
 	// barriers or anything). It's useful both for making arbitrary scopes and for making if
@@ -1467,6 +1528,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
 	    {"in", scopeResolution, ArraySize(scopeResolution)},
 	    {"type-cast", castStatement, ArraySize(castStatement)},
+		{"new", newStatement, ArraySize(newStatement)},
+		{"delete", deleteStatement, ArraySize(deleteStatement)},
+		{"delete-array", deleteArrayStatement, ArraySize(deleteArrayStatement)},
 	    // Expressions
 	    {"or", booleanOr, ArraySize(booleanOr)},
 	    {"and", booleanAnd, ArraySize(booleanAnd)},
@@ -1593,6 +1657,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["at"] = ArrayAccessGenerator;
 	environment.generators["nth"] = ArrayAccessGenerator;
 
+	environment.generators["new-array"] = NewArrayGenerator;
+
 	environment.generators["if"] = IfGenerator;
 
 	// Handle complex pathing, e.g. a->b.c->d.e
@@ -1609,6 +1675,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
 	    "on-call", "call", "in", "type-cast",
+		"new", "delete", "delete-array",
 	    // Boolean
 	    "or", "and", "not",
 	    // Bitwise
