@@ -35,11 +35,8 @@ src/runProcessTest
 src/dependencyTest
 runtime/HotReloadingTest
 
-*.cake.cpp
-*.cake.hpp
-
-libcomptime*
-comptime_*
+*.cake.*
+cakelisp_cache/
 
 bin/
 lib/

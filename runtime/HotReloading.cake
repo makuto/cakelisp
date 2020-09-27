@@ -88,25 +88,32 @@
                   (set (deref function-pointer) loaded-symbol)))
   (return true))
 
+(defmacro state-variable-initializer-preamble ()
+  (tokenize-push
+   output
+   (destructure-arguments name-index type-index assignment-index)
+   (quick-token-at name name-index)
+   (quick-token-at type type-index)
+   (quick-token-at assignment assignment-index)
+
+   (var init-function-name Token name)
+   (var string-var-name Token name)
+   (scope
+    (var converted-name-buffer ([] 64 char) (array 0))
+    ;; TODO: Need to pass this in somehow
+    (var name-style NameStyleSettings)
+    (lispNameStyleToCNameStyle (field name-style variableNameMode) (on-call (field name contents) c_str)
+                               converted-name-buffer (sizeof converted-name-buffer) name)
+
+    (var init-function-name-buffer ([] 256 char) (array 0))
+    (PrintfBuffer init-function-name-buffer "%sInitialize" converted-name-buffer)
+    (set (field init-function-name contents) init-function-name-buffer)
+
+    (set (field string-var-name type) TokenType_String)))
+  (return true))
+
 (defmacro hot-reload-make-state-variable-initializer ()
-  (destructure-arguments name-index type-index assignment-index)
-  (quick-token-at name name-index)
-  (quick-token-at type type-index)
-  (quick-token-at assignment assignment-index)
-
-  (var converted-name-buffer ([] 64 char) (array 0))
-  ;; TODO: Need to pass this in somehow
-  (var name-style NameStyleSettings)
-  (lispNameStyleToCNameStyle (field name-style variableNameMode) (on-call (field name contents) c_str)
-                             converted-name-buffer (sizeof converted-name-buffer) name)
-
-  (var init-function-name Token name)
-  (var init-function-name-buffer ([] 256 char) (array 0))
-  (PrintfBuffer init-function-name-buffer "%sInitialize" converted-name-buffer)
-  (set (field init-function-name contents) init-function-name-buffer)
-
-  (var string-var-name Token name)
-  (set (field string-var-name type) TokenType_String)
+  (state-variable-initializer-preamble)
 
   (tokenize-push
    output
@@ -122,10 +129,58 @@
                                          (no-eval-var (token-splice-ref name)))))))
   (return true))
 
-;; (defun-local currentRoomInitialize ()
-;;   (var existing-value (* void )nullptr )
-;;   (if (hot-reload-find-variable "current-room" (addr existing-value ))
-;;       (set (no-eval-var current-room ) (type-cast existing-value (* (* (const room ))nullptr )))
-;;       (block (set (no-eval-var current-room )(new (* (const room ))nullptr ))
-;;         (set current-room 0 )
-;;         (hot-reload-register-variable "current-room" (no-eval-var current-room )))))
+;; Arrays must be handled specially because we need to know how big the array is to allocate it on
+;; the heap. We also need to declare a way to get the array size (we don't know with the heap array)
+(defmacro hot-reload-make-state-variable-array-initializer ()
+  (state-variable-initializer-preamble)
+
+  (unless (ExpectTokenType "hot-reload-make-state-variable-array-initializer"
+                          type TokenType_OpenParen)
+          (return false))
+
+  (unless (= 0 (on-call (field (at (+ 1 type-index) tokens) contents) compare "[]"))
+    (ErrorAtToken (at (+ 1 type-index) tokens)
+                  "expected array type. Use hot-reload-make-state-variable-initializer instead")
+    (return false))
+
+  (var end-type-index int (FindCloseParenTokenIndex tokens type-index))
+  (var last-argument-arg-index int (- (getNumArguments tokens type-index end-type-index) 1))
+  (var last-argument-token-index int (getExpectedArgument "expected type"
+                                      tokens type-index last-argument-arg-index end-type-index))
+  (when (= -1 last-argument-token-index)
+    (return false))
+  (var type-strip-array (& (const Token)) (at last-argument-token-index tokens))
+
+  (var array-length-name Token name)
+  (var array-length-name-buffer ([] 256 char) (array 0))
+  (PrintfBuffer array-length-name-buffer "%s-length" (on-call (field name contents) c_str))
+  (set (field array-length-name contents) array-length-name-buffer)
+
+  (var array-length-token Token assignment)
+  (set (field array-length-token type) TokenType_Symbol)
+  (var array-length int (- (getNumArguments tokens assignment-index
+                                            (FindCloseParenTokenIndex tokens assignment-index))
+                           1))
+  (set (field array-length-token contents) (call (in std to_string) array-length))
+
+  (tokenize-push
+   output
+   (var-noreload (token-splice-ref array-length-name) (const int) (token-splice-ref array-length-token))
+   (defun-local (token-splice-ref init-function-name) ()
+     (var existing-value (* void) nullptr)
+     (if (hot-reload-find-variable (token-splice-ref string-var-name) (addr existing-value))
+         (set (no-eval-var (token-splice-ref name)) (type-cast existing-value (* (token-splice-ref type-strip-array))))
+         (block
+             ;; C can have an easier time with plain old malloc and cast
+             (set (no-eval-var (token-splice-ref name)) (new-array (token-splice-ref array-length-name)
+                                                                   (token-splice-ref type-strip-array)))
+           (var static-intializer-full-array (const (token-splice-ref type)) (token-splice-ref assignment))
+           ;; Have to handle array initialization ourselves, because the state variable is just a pointer now
+           (var current-elem int 0)
+           (while (< current-elem (token-splice-ref array-length-name))
+             (set (at current-elem (no-eval-var (token-splice-ref name)))
+                  (at current-elem static-intializer-full-array))
+             (incr current-elem))
+           (hot-reload-register-variable (token-splice-ref string-var-name)
+                                         (no-eval-var (token-splice-ref name)))))))
+  (return true))

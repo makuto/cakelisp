@@ -278,6 +278,24 @@ void printTokens(const std::vector<Token>& tokens)
 	printf("\n");
 }
 
+// TODO: Actually make it pretty
+void prettyPrintTokens(const std::vector<Token>& tokens)
+{
+	// Note that token parens could be invalid, so we shouldn't do things which rely on validity
+	const Token* previousToken = nullptr;
+	for (const Token& token : tokens)
+	{
+		if (previousToken && previousToken->type == TokenType_CloseParen &&
+		    token.type == TokenType_OpenParen)
+			printf("\n");
+
+		printFormattedToken(token);
+
+		previousToken = &token;
+	}
+	printf("\n");
+}
+
 bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize, const Token& token)
 {
 	**at = c;

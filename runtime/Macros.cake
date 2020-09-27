@@ -71,6 +71,7 @@
   (quick-token-at array-token array-index)
   ;; This should evaluate its argument, but I'm just hacking it in right now anyways
   (unless (ExpectTokenType "array-size" array-token TokenType_Symbol)
+    (ErrorAtToken array-token "if you're seeing this, you should update array-size to evaluate its argument")
     (return false))
   (tokenize-push output (/ (sizeof (token-splice (addr array-token)))
                            (sizeof (at 0 (token-splice (addr array-token))))))

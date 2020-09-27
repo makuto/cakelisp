@@ -72,6 +72,14 @@ Open ~.cake~ files in ~lisp-mode~:
 #+BEGIN_SRC lisp
 (add-to-list 'auto-mode-alist '("\\.cake?\\'" . lisp-mode))
 #+END_SRC
+** ~.gitignore~
+Add the following:
+#+BEGIN_SRC sh
+*.cake.*
+cakelisp_cache/
+#+END_SRC
+
+That will ignore your project's generated files as well as files generated for compile-time execution.
 ** Build systems
 A build system will work fine with Cakelisp, because Cakelisp outputs C/C++ source/header files. Note that Cakelisp is expected to be run before your regular build system runs, or in a stage where Cakelisp can create and add files to the build. This is because Cakelisp handles its own modules such that adding support to an existing build system would be challenging.
 ** Debugging

@@ -373,7 +373,7 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	                          EvaluatorScope_Body))
 		return false;
 
-	bool hotReloadAllowed = funcNameToken.contents.compare("var-noreload") != 0;
+	bool hotReloadAllowed = !strstr(funcNameToken.contents.c_str(), "noreload");
 
 	// TODO: Eventually, static function variables could be automatically promoted to module scope
 	if (hotReloadAllowed && environment.enableHotReloading && isStaticFunctionVar &&
@@ -1710,6 +1710,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["global-var"] = VariableDeclarationGenerator;
 	environment.generators["static-var"] = VariableDeclarationGenerator;
 	environment.generators["var-noreload"] = VariableDeclarationGenerator;
+	environment.generators["global-var-noreload"] = VariableDeclarationGenerator;
 
 	// Special case: Output the symbol without doing any additionall processing (e.g. StateVariable)
 	// This is only necessary for writing code internal to hot-reloading, or if you're going to do
