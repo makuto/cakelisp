@@ -373,8 +373,10 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	                          EvaluatorScope_Body))
 		return false;
 
+	bool hotReloadAllowed = funcNameToken.contents.compare("var-noreload") != 0;
+
 	// TODO: Eventually, static function variables could be automatically promoted to module scope
-	if (environment.enableHotReloading && isStaticFunctionVar &&
+	if (hotReloadAllowed && environment.enableHotReloading && isStaticFunctionVar &&
 	    context.scope == EvaluatorScope_Body)
 	{
 		NoteAtToken(funcNameToken,
@@ -394,10 +396,47 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 
 	std::vector<StringOutput> typeOutput;
 	std::vector<StringOutput> typeAfterNameOutput;
-	// Arrays cannot be return types, they must be * instead
 	if (!tokenizedCTypeToString_Recursive(tokens, typeIndex,
 	                                      /*allowArray=*/true, typeOutput, typeAfterNameOutput))
 		return false;
+
+	bool isArray = !typeAfterNameOutput.empty();
+
+	// Decide whether we should output the variable modified for hot-reloading or not
+	bool isStateVariable = context.scope == EvaluatorScope_Module;
+	bool isCustomInitialized = false;
+	// TODO Only reject arrays for now because they need their own handling
+	if (hotReloadAllowed && environment.enableHotReloading && isStateVariable && !isArray)
+	{
+		if (!context.moduleEnvironment)
+		{
+			printf(
+			    "error: context had no module environment set. This is required for hot-reloading. "
+			    "This is an internal error, not an error with the evaluated code\n");
+			return false;
+		}
+
+		StateVariableTable& stateVariables = context.moduleEnvironment->stateVariables;
+		StateVariableIterator findIt = stateVariables.find(tokens[varNameIndex].contents);
+		if (findIt != stateVariables.end())
+		{
+			const Token* firstDefinedNameToken = findIt->second.variableName;
+			ErrorAtTokenf(tokens[varNameIndex], "multiple definitions of state variable '%s'",
+			              firstDefinedNameToken->contents.c_str());
+			NoteAtToken((*firstDefinedNameToken), "first defined here");
+			return false;
+		}
+
+		StateVariable newStateVariable = {};
+		newStateVariable.variableName = &tokens[varNameIndex];
+		newStateVariable.startType = &tokens[typeIndex];
+		stateVariables[tokens[varNameIndex].contents] = newStateVariable;
+
+		// Modify the type. All variables become pointers to the state variables stored on the heap
+		addStringOutput(typeOutput, "*", StringOutMod_None, &tokens[typeIndex]);
+
+		isCustomInitialized = true;
+	}
 
 	// At this point, we probably have a valid variable. Start outputting
 	addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
@@ -430,7 +469,15 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	int valueIndex = getNextArgument(tokens, typeIndex, endInvocationIndex);
 
 	// Initialized
-	if (valueIndex < endInvocationIndex)
+	if (isCustomInitialized)
+	{
+		// All state variables will have an initialization function executed once the module is
+		// loaded. We null out the handle here
+		addLangTokenOutput(output.source, StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(output.source, "=", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(output.source, "nullptr", StringOutMod_None, &tokens[startTokenIndex]);
+	}
+	else if (valueIndex < endInvocationIndex)
 	{
 		addLangTokenOutput(output.source, StringOutMod_SpaceAfter, &tokens[valueIndex]);
 		addStringOutput(output.source, "=", StringOutMod_SpaceAfter, &tokens[valueIndex]);
@@ -446,32 +493,16 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	if (isGlobal)
 		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 
-	bool isStateVariable = context.scope == EvaluatorScope_Module;
-	if (environment.enableHotReloading && isStateVariable)
+	// Generate initializer function
+	if (isCustomInitialized)
 	{
-		if (!context.moduleEnvironment)
-		{
-			printf(
-			    "error: context had no module environment set. This is required for hot-reloading. "
-			    "This is an internal error, not an error with the evaluated code\n");
-			return false;
-		}
-
-		StateVariableTable& stateVariables = context.moduleEnvironment->stateVariables;
-		StateVariableIterator findIt = stateVariables.find(tokens[varNameIndex].contents);
-		if (findIt != stateVariables.end())
-		{
-			const Token* firstDefinedNameToken = findIt->second.variableName;
-			ErrorAtTokenf(tokens[varNameIndex], "multiple definitions of state variable '%s'",
-			              firstDefinedNameToken->contents.c_str());
-			NoteAtToken((*firstDefinedNameToken), "first defined here");
-			return false;
-		}
-
-		StateVariable newStateVariable = {};
-		newStateVariable.variableName = &tokens[varNameIndex];
-		newStateVariable.startType = &tokens[typeIndex];
-		stateVariables[tokens[varNameIndex].contents] = newStateVariable;
+		// const char* initializerTemplate =
+		//     "static void %sInit()\n{\n\tvoid* existingValue = nullptr;\n\tif "
+		//     "(hotReloadFindVariable(\"%s\", &existingValue))\n\t{\n\t\t%s = "
+		//     "((%s)existingValue);\n\t}\n\telse\n\t{\n\t\t%s = new %s;\n\t\t(*%s)= "
+		//     "%s;\n\t\thotReloadRegisterVariable(\"%s\", %s);\n\t}\n}";
+		// char initializerBuffer[1024] = {0};
+		// PrintfBuffer(initializerBuffer, );
 	}
 
 	return true;
@@ -1014,6 +1045,24 @@ bool ObjectPathGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	return true;
 }
 
+bool NoEvalVariableGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                             const std::vector<Token>& tokens, int startTokenIndex,
+                             GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int symbolIndex = getExpectedArgument("expected variable name", tokens, startTokenIndex, 1,
+	                                      endInvocationIndex);
+	if (symbolIndex == -1 ||
+	    !ExpectTokenType("variable name", tokens[symbolIndex], TokenType_Symbol))
+		return false;
+
+	addStringOutput(output.source, tokens[symbolIndex].contents, StringOutMod_ConvertVariableName,
+	                &tokens[symbolIndex]);
+
+	return true;
+}
+
 // I'm not too happy with this
 static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
                                            const char* stringToTokenize, GeneratorOutput& output)
@@ -1075,10 +1124,12 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 		const Token& nextToken = tokens[i + 1];
 		if (currentToken.type == TokenType_OpenParen && nextToken.type == TokenType_Symbol &&
 		    (nextToken.contents.compare("token-splice") == 0 ||
+			 nextToken.contents.compare("token-splice-ref") == 0 ||
 		     nextToken.contents.compare("token-splice-array") == 0))
 		{
 			// TODO: Performance: remove extra string compare
 			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
+			bool isRef = nextToken.contents.compare("token-splice-ref") == 0;
 
 			if (tokenToStringWrite != tokenToStringBuffer)
 			{
@@ -1096,9 +1147,14 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 			for (int spliceArg = startSpliceArgs; spliceArg < endSpliceIndex;
 			     spliceArg = getNextArgument(tokens, spliceArg, endSpliceIndex))
 			{
-				addStringOutput(output.source,
-				                isArray ? "PushBackAll(" : "PushBackTokenExpression(",
-				                StringOutMod_None, &tokens[spliceArg]);
+				const char* functionToCall = "PushBackTokenExpression(";
+				if (isRef)
+					functionToCall = "PushBackTokenExpressionRef(";
+				else if (isArray)
+					functionToCall = "PushBackAll(";
+
+				addStringOutput(output.source, functionToCall, StringOutMod_None,
+				                &tokens[spliceArg]);
 
 				// Write output argument
 				addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_None,
@@ -1653,6 +1709,12 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["var"] = VariableDeclarationGenerator;
 	environment.generators["global-var"] = VariableDeclarationGenerator;
 	environment.generators["static-var"] = VariableDeclarationGenerator;
+	environment.generators["var-noreload"] = VariableDeclarationGenerator;
+
+	// Special case: Output the symbol without doing any additionall processing (e.g. StateVariable)
+	// This is only necessary for writing code internal to hot-reloading, or if you're going to do
+	// some weird stuff with state variables
+	environment.generators["no-eval-var"] = NoEvalVariableGenerator;
 
 	environment.generators["at"] = ArrayAccessGenerator;
 	environment.generators["nth"] = ArrayAccessGenerator;

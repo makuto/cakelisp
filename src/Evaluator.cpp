@@ -39,6 +39,16 @@ MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
 	return nullptr;
 }
 
+StateVariable* findModuleStateVariable(ModuleEnvironment* moduleEnvironment,
+                                       const char* stateVariableName)
+{
+	StateVariableIterator findIt =
+	    moduleEnvironment->stateVariables.find(std::string(stateVariableName));
+	if (findIt != moduleEnvironment->stateVariables.end())
+		return &findIt->second;
+	return nullptr;
+}
+
 bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
 {
 	if (definition.type == ObjectType_CompileTimeMacro)
@@ -349,7 +359,7 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 	else
 	{
 		// The remaining token types evaluate to themselves. Output them directly.
-		if (ExpectEvaluatorScope("evaluated constant", token, context,
+		if (ExpectEvaluatorScope("evaluated constant or symbol", token, context,
 		                         EvaluatorScope_ExpressionsOnly))
 		{
 			switch (token.type)
@@ -362,12 +372,32 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 					char secondChar = token.contents.size() > 1 ? token.contents[1] : 0;
 					if (firstChar == '\'' || isdigit(firstChar) ||
 					    (firstChar == '-' && (secondChar == '.' || isdigit(secondChar))))
+					{
+						// Add as-is
 						addStringOutput(output.source, token.contents, StringOutMod_None, &token);
+					}
 					else
 					{
-						// Potential lisp name. Convert
-						addStringOutput(output.source, token.contents,
-						                StringOutMod_ConvertVariableName, &token);
+						if (environment.enableHotReloading && context.moduleEnvironment &&
+						    findModuleStateVariable(context.moduleEnvironment,
+						                            token.contents.c_str()))
+						{
+							// StateVariables are automatically converted to pointers, so all
+							// accessing of them needs to happen through a dereference
+							// Use (no-eval-var my-var) if you need to get around the auto
+							// dereference (if you are e.g. writing code which sets the pointer)
+							addLangTokenOutput(output.source, StringOutMod_OpenParen, &token);
+							addStringOutput(output.source, "*", StringOutMod_None, &token);
+							addStringOutput(output.source, token.contents,
+							                StringOutMod_ConvertVariableName, &token);
+							addLangTokenOutput(output.source, StringOutMod_CloseParen, &token);
+						}
+						else
+						{
+							// Potential lisp name. Convert
+							addStringOutput(output.source, token.contents,
+							                StringOutMod_ConvertVariableName, &token);
+						}
 					}
 					break;
 				}

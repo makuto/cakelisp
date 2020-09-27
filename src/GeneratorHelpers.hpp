@@ -57,6 +57,7 @@ int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex);
 void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
                           Token* tokenToChange);
 void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
+void PushBackTokenExpressionRef(std::vector<Token>& output, const Token& startToken);
 
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
 

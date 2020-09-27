@@ -11,5 +11,5 @@ HotReloading.cake.cpp
 ../src/DynamicLoader.cpp
 ;
 
-Main libGeneratedCakelisp$(SUFSHR) : TextAdventure.cake.cpp ;
+Main libGeneratedCakelisp$(SUFSHR) : TextAdventure.cake.cpp ArrayTest.cake.cpp ;
 LINKFLAGS on libGeneratedCakelisp$(SUFSHR) = -shared ;

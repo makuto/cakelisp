@@ -2,7 +2,8 @@
 
 // Must use extern "C" for dynamic symbols, because otherwise name mangling makes things hard
 const char* macroSourceHeading =
-    "#include \"Evaluator.hpp\""
+	"#include \"Converters.hpp\""
+	"\n#include \"Evaluator.hpp\""
     "\n#include \"EvaluatorEnums.hpp\""
     "\n#include \"Tokenizer.hpp\""
 	"\n#include \"GeneratorHelpers.hpp\""
