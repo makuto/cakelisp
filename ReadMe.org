@@ -18,6 +18,17 @@ It is a transpiler which generates C/C++ from a Lisp dialect.
 - Output is human-readable C/C++ source and header files. This is so if I decide it was unsuccessful, or only useful in some scenarios (e.g. generating serialization wrappers), I can still use the output code from hand-written C/C++ code
 
 Many of these come naturally from using C as the backend. Eventually it would be cool to not have to generate C (e.g. generate LLVM bytecode instead), but that can a project for another time.
+* Current state
+/(updated as of 2020-10-06)/
+
+Cakelisp is largely working. At this point, I need to write a real program in Cakelisp in order to inform what features are missing and what changes to existing features need to be made. This will ensure I work on features which really matter when building actual applications.
+
+The following features are as of yet unimplemented:
+- Mapping files
+- Pure C output
+- Building and running the compiler on Windows
+
+Hot reloading is partially implemented, but will need some further iteration.
 * Building Cakelisp itself
 Install [[https://www.perforce.com/documentation/jam-documentation][Jam]]:
 #+BEGIN_SRC sh

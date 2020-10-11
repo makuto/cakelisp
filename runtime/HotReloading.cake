@@ -113,6 +113,10 @@
   (return true))
 
 (defmacro hot-reload-make-state-variable-initializer ()
+  ;; Code that isn't hot-reloaded should be compatible if we do nothing
+  (unless (field environment enableHotReloading)
+    (return true))
+
   (state-variable-initializer-preamble)
 
   (tokenize-push
@@ -163,24 +167,59 @@
                            1))
   (set (field array-length-token contents) (call (in std to_string) array-length))
 
+  ;; Regardless of enableHotReloading, make array length available so that non-hot-reloaded code
+  ;; still works when asking for the length
   (tokenize-push
    output
-   (var-noreload (token-splice-ref array-length-name) (const int) (token-splice-ref array-length-token))
-   (defun-local (token-splice-ref init-function-name) ()
-     (var existing-value (* void) nullptr)
-     (if (hot-reload-find-variable (token-splice-ref string-var-name) (addr existing-value))
-         (set (no-eval-var (token-splice-ref name)) (type-cast existing-value (* (token-splice-ref type-strip-array))))
-         (block
-             ;; C can have an easier time with plain old malloc and cast
-             (set (no-eval-var (token-splice-ref name)) (new-array (token-splice-ref array-length-name)
-                                                                   (token-splice-ref type-strip-array)))
-           (var static-intializer-full-array (const (token-splice-ref type)) (token-splice-ref assignment))
-           ;; Have to handle array initialization ourselves, because the state variable is just a pointer now
-           (var current-elem int 0)
-           (while (< current-elem (token-splice-ref array-length-name))
-             (set (at current-elem (no-eval-var (token-splice-ref name)))
-                  (at current-elem static-intializer-full-array))
-             (incr current-elem))
-           (hot-reload-register-variable (token-splice-ref string-var-name)
-                                         (no-eval-var (token-splice-ref name)))))))
+   (var-noreload (token-splice-ref array-length-name) (const int) (token-splice-ref array-length-token)))
+
+  (when (field environment enableHotReloading)
+    (tokenize-push
+     output
+     (defun-local (token-splice-ref init-function-name) ()
+       (var existing-value (* void) nullptr)
+       (if (hot-reload-find-variable (token-splice-ref string-var-name) (addr existing-value))
+           (set (no-eval-var (token-splice-ref name)) (type-cast existing-value (* (token-splice-ref type-strip-array))))
+           (block
+               ;; C can have an easier time with plain old malloc and cast
+               (set (no-eval-var (token-splice-ref name)) (new-array (token-splice-ref array-length-name)
+                                                                     (token-splice-ref type-strip-array)))
+             (var static-intializer-full-array (const (token-splice-ref type)) (token-splice-ref assignment))
+             ;; Have to handle array initialization ourselves, because the state variable is just a pointer now
+             (var current-elem int 0)
+             (while (< current-elem (token-splice-ref array-length-name))
+               (set (at current-elem (no-eval-var (token-splice-ref name)))
+                    (at current-elem static-intializer-full-array))
+               (incr current-elem))
+             (hot-reload-register-variable (token-splice-ref string-var-name)
+                                           (no-eval-var (token-splice-ref name))))))))
   (return true))
+
+;; TODO: LEFT OFF: Why does this break the var->pointer auto deref? Does it happen too late? If so,
+;; I must add symbol-level dependency resolution to fix
+(defmacro state-var ()
+  (destructure-arguments name-index type-index assignment-index)
+  (quick-token-at name name-index)
+  (quick-token-at type type-index)
+  (quick-token-at assignment assignment-index)
+  (tokenize-push
+   output
+   (var (token-splice-ref name) (token-splice-ref type) (token-splice-ref assignment)))
+  (when (field environment enableHotReloading)
+    (tokenize-push
+     output
+     (hot-reload-make-state-variable-initializer (token-splice-ref name) (token-splice-ref type)
+                                                 (token-splice-ref assignment))))
+  (return true))
+
+;; TODO: Add type manipulations for array version
+;; (defmacro state-var-array ()
+;;   (destructure-arguments name-index type-index assignment-index)
+;;   (quick-token-at name name-index)
+;;   (quick-token-at type type-index)
+;;   (quick-token-at assignment assignment-index)
+;;   (tokenize-push
+;;    (var (token-splice-ref name) (token-splice-ref type) (token-splice-ref assignment))
+;;    (hot-reload-make-state-variable-initializer (token-splice-ref name) (token-splice-ref type)
+;;                                                (token-splice-ref assignment)))
+;;   (return true))
