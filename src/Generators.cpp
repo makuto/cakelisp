@@ -1577,7 +1577,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
-	    "on-call", "call", "in", "type-cast",
+	    "on-call", "on-call-ptr", "call", "in", "type-cast",
 	    // Boolean
 	    "or", "and", "not",
 	    // Bitwise
