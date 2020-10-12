@@ -1331,6 +1331,11 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
 	    {SmartEndStatement, nullptr, -1}};
 
+	const CStatementOperation dereferenceMemberFunctionInvocation[] = {
+	    {Expression, nullptr, 1},        {KeywordNoSpace, "->", -1},   {Expression, nullptr, 2},
+	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
+	    {SmartEndStatement, nullptr, -1}};
+
 	// Useful in the case of calling functions in namespaces. Shouldn't be used otherwise
 	const CStatementOperation callFunctionInvocation[] = {{Expression, nullptr, 1},
 	                                                      {OpenParen, nullptr, -1},
@@ -1426,6 +1431,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"addr", addressOf, ArraySize(addressOf)},
 	    {"field", field, ArraySize(field)},
 	    {"on-call", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
+	    {"on-call-ptr", dereferenceMemberFunctionInvocation,
+	     ArraySize(dereferenceMemberFunctionInvocation)},
 	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
 	    {"in", scopeResolution, ArraySize(scopeResolution)},
 	    {"type-cast", castStatement, ArraySize(castStatement)},
