@@ -927,6 +927,50 @@ bool ObjectPathGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	return true;
 }
 
+static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, GeneratorOutput& output)
+{
+	int destrEndInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int nameIndex =
+	    getExpectedArgument("name-index", tokens, startTokenIndex, 1, destrEndInvocationIndex);
+	if (-1 == nameIndex)
+		return false;
+
+	int typeIndex =
+	    getExpectedArgument("type-index", tokens, startTokenIndex, 2, destrEndInvocationIndex);
+	if (-1 == typeIndex)
+		return false;
+
+	const Token& nameToken = tokens[nameIndex];
+	const Token& invocationToken = tokens[1 + startTokenIndex];
+
+	bool isGlobal = invocationToken.contents.compare("def-type-alias-global") == 0;
+
+	std::vector<StringOutput> typeOutput;
+	std::vector<StringOutput> typeAfterNameOutput;
+	if (!(tokenizedCTypeToString_Recursive(tokens, typeIndex, true, typeOutput,
+	                                       typeAfterNameOutput)))
+	{
+		return false;
+	}
+	addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
+
+	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
+
+	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &invocationToken);
+	PushBackAll(outputDest, typeOutput);
+	EvaluatorContext expressionContext = context;
+	expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+	int numErrors =
+	    EvaluateGenerate_Recursive(environment, expressionContext, tokens, nameIndex, output);
+	if (numErrors)
+		return false;
+	PushBackAll(outputDest, typeAfterNameOutput);
+	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &invocationToken);
+	return true;
+}
+
 // I'm not too happy with this
 static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
                                            const char* stringToTokenize, GeneratorOutput& output)
@@ -1548,6 +1592,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["def-function-signature"] = DefFunctionSignatureGenerator;
 	environment.generators["def-function-signature-local"] = DefFunctionSignatureGenerator;
+
+	environment.generators["def-type-alias"] = DefTypeAliasGenerator;
+	environment.generators["def-type-alias-global"] = DefTypeAliasGenerator;
 
 	environment.generators["defmacro"] = DefMacroGenerator;
 	environment.generators["defgenerator"] = DefGeneratorGenerator;
