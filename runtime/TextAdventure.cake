@@ -54,18 +54,21 @@
     (printf "> ")
     (set input (getchar))
 
-    (when (= input 'r')
-      (return true))
-    (when (= input 'h')
-      (print-help))
-    (when (call (in std isdigit) input)
-      (var room-request int (atoi (addr input)))
-      (var num-rooms int (on-call (path current-room > connected-rooms) size))
-      (unless (and num-rooms (< room-request num-rooms))
-        (printf "I don't know where that is. There are %d rooms\n" num-rooms)
-        (continue))
-      (printf "Going to room %d\n" room-request)
-      (set current-room (addr (at room-request
-                                  (path current-room > connected-rooms))))))
+    (cond
+      ((= input 'r')
+       (return true))
+      ((= input 'h')
+       (print-help))
+      ((call (in std isdigit) input)
+       (var room-request int (atoi (addr input)))
+       (var num-rooms int (on-call (path current-room > connected-rooms) size))
+       (unless (and num-rooms (< room-request num-rooms))
+         (printf "I don't know where that is. There are %d rooms\n" num-rooms)
+         (continue))
+       (printf "Going to room %d\n" room-request)
+       (set current-room (addr (at room-request
+                                   (path current-room > connected-rooms)))))
+      (true
+       (print-help))))
 
   (return false))

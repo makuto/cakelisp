@@ -975,8 +975,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 			if (isCompileTimeObject(definition.type))
 			{
 				// TODO: Add ready-build runtime function check
-				if (!findMacro(environment, definition.name->contents.c_str()) &&
-				    !findGenerator(environment, definition.name->contents.c_str()))
+				if (!isCompileTimeCodeLoaded(environment, definition))
 				{
 					// TODO: Add note for who required the object
 					ErrorAtToken(*definition.name, "Failed to build required object");
