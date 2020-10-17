@@ -7,6 +7,11 @@
   (printf "%s\n" (hello-from-comptime))
   (empty-macro)
   (test-generator)
+  (cond (a (return 1))
+        (b (return 2))
+        (c (return 3))
+        (true (return 4)))
+  (cond (true (return 1)))
   (return 0))
 
 (defmacro hello-from-comptime ()

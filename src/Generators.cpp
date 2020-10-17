@@ -34,6 +34,14 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 		if (!ExpectTokenType("cakelisp-src-dir", pathToken, TokenType_String))
 			return false;
 
+		if (!environment.cakelispSrcDir.empty())
+		{
+			NoteAtToken(
+			    pathToken,
+			    "ignoring cakelisp-src-dir - only the first encountered set will have an effect");
+			return true;
+		}
+
 		environment.cakelispSrcDir = pathToken.contents;
 		return true;
 	}
@@ -927,6 +935,93 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 	return true;
 }
 
+bool ConditionGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                        const std::vector<Token>& tokens, int startTokenIndex,
+                        GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("cond", tokens[startTokenIndex], context, EvaluatorScope_Body))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	bool isFirstBlock = true;
+
+	for (int currentConditionBlockIndex = startTokenIndex + 2;
+	     currentConditionBlockIndex < endInvocationIndex;
+	     currentConditionBlockIndex =
+	         getNextArgument(tokens, currentConditionBlockIndex, endInvocationIndex))
+	{
+		if (!ExpectTokenType("cond", tokens[currentConditionBlockIndex], TokenType_OpenParen))
+			return false;
+
+		int endConditionBlockIndex = FindCloseParenTokenIndex(tokens, currentConditionBlockIndex);
+		int conditionIndex = getExpectedArgument(
+		    "expected condition", tokens, currentConditionBlockIndex, 0, endConditionBlockIndex);
+		if (conditionIndex == -1)
+			return false;
+
+		if (!isFirstBlock)
+			addStringOutput(output.source, "else", StringOutMod_SpaceAfter,
+			                &tokens[conditionIndex]);
+
+		// Special case: The "default" case of cond is conventionally marked with true as the
+		// conditional. We'll support that, and not even write the if. If the cond is just (cond
+		// (true blah)), make sure to still write the if (true)
+		if (!isFirstBlock && tokens[conditionIndex].contents.compare("true") == 0)
+		{
+			if (endConditionBlockIndex + 1 != endInvocationIndex)
+			{
+				ErrorAtToken(tokens[conditionIndex],
+				             "default case should be the last case in cond; otherwise, lower cases "
+				             "will never be evaluated");
+				return false;
+			}
+		}
+		else
+		{
+			addStringOutput(output.source, "if", StringOutMod_SpaceAfter, &tokens[conditionIndex]);
+
+			// Condition
+			{
+				addLangTokenOutput(output.source, StringOutMod_OpenParen, &tokens[conditionIndex]);
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               conditionIndex, output) != 0)
+					return false;
+				addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[conditionIndex]);
+			}
+		}
+
+		// Don't require a block in the case that they want one condition to no-op and cancel
+		// subsequent conditions
+		int blockIndex = getArgument(tokens, currentConditionBlockIndex, 1, endConditionBlockIndex);
+		if (blockIndex != -1)
+		{
+			addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[blockIndex]);
+			EvaluatorContext trueBlockBodyContext = context;
+			trueBlockBodyContext.scope = EvaluatorScope_Body;
+			int numErrors =
+			    EvaluateGenerateAll_Recursive(environment, trueBlockBodyContext, tokens, blockIndex,
+			                                  /*delimiterTemplate=*/nullptr, output);
+			if (numErrors)
+				return false;
+			addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[blockIndex + 1]);
+		}
+		else
+		{
+			addLangTokenOutput(output.source, StringOutMod_OpenBlock,
+			                   &tokens[endConditionBlockIndex]);
+			addLangTokenOutput(output.source, StringOutMod_CloseBlock,
+			                   &tokens[endConditionBlockIndex]);
+		}
+
+		isFirstBlock = false;
+	}
+
+	return true;
+}
+
 bool ObjectPathGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                          const std::vector<Token>& tokens, int startTokenIndex,
                          GeneratorOutput& output)
@@ -1668,6 +1763,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["nth"] = ArrayAccessGenerator;
 
 	environment.generators["if"] = IfGenerator;
+	environment.generators["cond"] = ConditionGenerator;
 
 	// Handle complex pathing, e.g. a->b.c->d.e
 	environment.generators["path"] = ObjectPathGenerator;
