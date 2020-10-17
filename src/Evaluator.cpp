@@ -764,7 +764,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		// TODO: Get arguments all the way from the top
 		// If not null terminated, the call will fail
-		const char* arguments[] = {fileToExec,      "-g",     "-c",    sourceOutputName, "-o",
+		const char* arguments[] = {fileToExec,      "-g",          "-c",    sourceOutputName, "-o",
 		                           buildObjectName, headerInclude, "-fPIC", nullptr};
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = fileToExec;
