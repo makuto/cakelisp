@@ -54,8 +54,8 @@
 ;; Terminology notes: :thing is a keyword symbol. &thing is a symbol or marker symbol (maybe I call it a sentinel?)
 
 ;; Becomes add() once converted
-(defun + (a int b int &return int)
-  (return 0))
+;; (defun + (a int b int &return int)
+  ;; (return 0))
 
 (defun vec-+ (a int b int &return int)
   (return 0))

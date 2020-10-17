@@ -752,10 +752,20 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			continue;
 		}
 
+		char headerInclude[MAX_PATH_LENGTH] = {0};
+		if (environment.cakelispSrcDir.empty())
+		{
+			PrintBuffer(headerInclude, "-Isrc/");
+		}
+		else
+		{
+			PrintfBuffer(headerInclude, "-I%s", environment.cakelispSrcDir.c_str());
+		}
+
 		// TODO: Get arguments all the way from the top
 		// If not null terminated, the call will fail
 		const char* arguments[] = {fileToExec,      "-g",     "-c",    sourceOutputName, "-o",
-		                           buildObjectName, "-Isrc/", "-fPIC", nullptr};
+		                           buildObjectName, headerInclude, "-fPIC", nullptr};
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = fileToExec;
 		compileArguments.arguments = arguments;

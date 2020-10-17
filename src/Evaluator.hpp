@@ -197,6 +197,9 @@ struct EvaluatorEnvironment
 	// Generate code so that objects defined in Cakelisp can be reloaded at runtime
 	bool enableHotReloading;
 
+	// Added as a search directory for compile time code execution
+	std::string cakelispSrcDir;
+
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();
 };

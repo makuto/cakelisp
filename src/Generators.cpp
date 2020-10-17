@@ -9,6 +9,65 @@
 
 #include <string.h>
 
+bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                       const std::vector<Token>& tokens, int startTokenIndex,
+                       GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int optionNameIndex =
+	    getExpectedArgument("expected option name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (optionNameIndex == -1)
+		return false;
+
+	if (tokens[optionNameIndex].contents.compare("cakelisp-src-dir") == 0)
+	{
+		int pathIndex =
+		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
+		if (pathIndex == -1)
+			return false;
+
+		const Token& pathToken = tokens[pathIndex];
+
+		// This is a bit unfortunate. Because I don't have an interpreter, this must be a type we
+		// can recognize, and cannot be constructed procedurally
+		if (!ExpectTokenType("cakelisp-src-dir", pathToken, TokenType_String))
+			return false;
+
+		environment.cakelispSrcDir = pathToken.contents;
+		return true;
+	}
+
+	// This needs to be defined early, else things will only be partially supported
+	if (tokens[optionNameIndex].contents.compare("enable-hot-reloading") == 0)
+	{
+		int enableStateIndex =
+		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
+		if (enableStateIndex == -1)
+			return false;
+
+		const Token& enableStateToken = tokens[enableStateIndex];
+
+		if (!ExpectTokenType("enable-hot-reloading", enableStateToken, TokenType_Symbol))
+			return false;
+
+		if (enableStateToken.contents.compare("true") == 0)
+			environment.enableHotReloading = true;
+		else if (enableStateToken.contents.compare("false") == 0)
+			environment.enableHotReloading = false;
+		else
+		{
+			ErrorAtToken(enableStateToken, "expected true or false");
+			return false;
+		}
+
+		return true;
+	}
+
+	ErrorAtToken(tokens[optionNameIndex], "unrecognized option");
+	return false;
+}
+
 enum ImportState
 {
 	WithDefinitions,
@@ -942,7 +1001,6 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 	if (-1 == typeIndex)
 		return false;
 
-	const Token& nameToken = tokens[nameIndex];
 	const Token& invocationToken = tokens[1 + startTokenIndex];
 
 	bool isGlobal = invocationToken.contents.compare("def-type-alias-global") == 0;
@@ -1616,6 +1674,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	// Token manipulation
 	environment.generators["tokenize-push"] = TokenizePushGenerator;
+
+	// Cakelisp options
+	environment.generators["set-cakelisp-option"] = SetCakelispOption;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
