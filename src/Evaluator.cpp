@@ -782,10 +782,20 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			continue;
 		}
 
+		char headerInclude[MAX_PATH_LENGTH] = {0};
+		if (environment.cakelispSrcDir.empty())
+		{
+			PrintBuffer(headerInclude, "-Isrc/");
+		}
+		else
+		{
+			PrintfBuffer(headerInclude, "-I%s", environment.cakelispSrcDir.c_str());
+		}
+
 		// TODO: Get arguments all the way from the top
 		// If not null terminated, the call will fail
-		const char* arguments[] = {fileToExec,      "-g",     "-c",    sourceOutputName, "-o",
-		                           buildObjectName, "-Isrc/", "-fPIC", nullptr};
+		const char* arguments[] = {fileToExec,      "-g",          "-c",    sourceOutputName, "-o",
+		                           buildObjectName, headerInclude, "-fPIC", nullptr};
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = fileToExec;
 		compileArguments.arguments = arguments;
@@ -995,8 +1005,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 			if (isCompileTimeObject(definition.type))
 			{
 				// TODO: Add ready-build runtime function check
-				if (!findMacro(environment, definition.name->contents.c_str()) &&
-				    !findGenerator(environment, definition.name->contents.c_str()))
+				if (!isCompileTimeCodeLoaded(environment, definition))
 				{
 					// TODO: Add note for who required the object
 					ErrorAtToken(*definition.name, "Failed to build required object");

@@ -9,6 +9,73 @@
 
 #include <string.h>
 
+bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                       const std::vector<Token>& tokens, int startTokenIndex,
+                       GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int optionNameIndex =
+	    getExpectedArgument("expected option name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (optionNameIndex == -1)
+		return false;
+
+	if (tokens[optionNameIndex].contents.compare("cakelisp-src-dir") == 0)
+	{
+		int pathIndex =
+		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
+		if (pathIndex == -1)
+			return false;
+
+		const Token& pathToken = tokens[pathIndex];
+
+		// This is a bit unfortunate. Because I don't have an interpreter, this must be a type we
+		// can recognize, and cannot be constructed procedurally
+		if (!ExpectTokenType("cakelisp-src-dir", pathToken, TokenType_String))
+			return false;
+
+		if (!environment.cakelispSrcDir.empty())
+		{
+			NoteAtToken(
+			    pathToken,
+			    "ignoring cakelisp-src-dir - only the first encountered set will have an effect");
+			return true;
+		}
+
+		environment.cakelispSrcDir = pathToken.contents;
+		return true;
+	}
+
+	// This needs to be defined early, else things will only be partially supported
+	if (tokens[optionNameIndex].contents.compare("enable-hot-reloading") == 0)
+	{
+		int enableStateIndex =
+		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
+		if (enableStateIndex == -1)
+			return false;
+
+		const Token& enableStateToken = tokens[enableStateIndex];
+
+		if (!ExpectTokenType("enable-hot-reloading", enableStateToken, TokenType_Symbol))
+			return false;
+
+		if (enableStateToken.contents.compare("true") == 0)
+			environment.enableHotReloading = true;
+		else if (enableStateToken.contents.compare("false") == 0)
+			environment.enableHotReloading = false;
+		else
+		{
+			ErrorAtToken(enableStateToken, "expected true or false");
+			return false;
+		}
+
+		return true;
+	}
+
+	ErrorAtToken(tokens[optionNameIndex], "unrecognized option");
+	return false;
+}
+
 enum ImportState
 {
 	WithDefinitions,
@@ -986,6 +1053,93 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 	return true;
 }
 
+bool ConditionGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                        const std::vector<Token>& tokens, int startTokenIndex,
+                        GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("cond", tokens[startTokenIndex], context, EvaluatorScope_Body))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	bool isFirstBlock = true;
+
+	for (int currentConditionBlockIndex = startTokenIndex + 2;
+	     currentConditionBlockIndex < endInvocationIndex;
+	     currentConditionBlockIndex =
+	         getNextArgument(tokens, currentConditionBlockIndex, endInvocationIndex))
+	{
+		if (!ExpectTokenType("cond", tokens[currentConditionBlockIndex], TokenType_OpenParen))
+			return false;
+
+		int endConditionBlockIndex = FindCloseParenTokenIndex(tokens, currentConditionBlockIndex);
+		int conditionIndex = getExpectedArgument(
+		    "expected condition", tokens, currentConditionBlockIndex, 0, endConditionBlockIndex);
+		if (conditionIndex == -1)
+			return false;
+
+		if (!isFirstBlock)
+			addStringOutput(output.source, "else", StringOutMod_SpaceAfter,
+			                &tokens[conditionIndex]);
+
+		// Special case: The "default" case of cond is conventionally marked with true as the
+		// conditional. We'll support that, and not even write the if. If the cond is just (cond
+		// (true blah)), make sure to still write the if (true)
+		if (!isFirstBlock && tokens[conditionIndex].contents.compare("true") == 0)
+		{
+			if (endConditionBlockIndex + 1 != endInvocationIndex)
+			{
+				ErrorAtToken(tokens[conditionIndex],
+				             "default case should be the last case in cond; otherwise, lower cases "
+				             "will never be evaluated");
+				return false;
+			}
+		}
+		else
+		{
+			addStringOutput(output.source, "if", StringOutMod_SpaceAfter, &tokens[conditionIndex]);
+
+			// Condition
+			{
+				addLangTokenOutput(output.source, StringOutMod_OpenParen, &tokens[conditionIndex]);
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               conditionIndex, output) != 0)
+					return false;
+				addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[conditionIndex]);
+			}
+		}
+
+		// Don't require a block in the case that they want one condition to no-op and cancel
+		// subsequent conditions
+		int blockIndex = getArgument(tokens, currentConditionBlockIndex, 1, endConditionBlockIndex);
+		if (blockIndex != -1)
+		{
+			addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[blockIndex]);
+			EvaluatorContext trueBlockBodyContext = context;
+			trueBlockBodyContext.scope = EvaluatorScope_Body;
+			int numErrors =
+			    EvaluateGenerateAll_Recursive(environment, trueBlockBodyContext, tokens, blockIndex,
+			                                  /*delimiterTemplate=*/nullptr, output);
+			if (numErrors)
+				return false;
+			addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[blockIndex + 1]);
+		}
+		else
+		{
+			addLangTokenOutput(output.source, StringOutMod_OpenBlock,
+			                   &tokens[endConditionBlockIndex]);
+			addLangTokenOutput(output.source, StringOutMod_CloseBlock,
+			                   &tokens[endConditionBlockIndex]);
+		}
+
+		isFirstBlock = false;
+	}
+
+	return true;
+}
+
 bool ObjectPathGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                          const std::vector<Token>& tokens, int startTokenIndex,
                          GeneratorOutput& output)
@@ -1059,7 +1213,49 @@ bool NoEvalVariableGenerator(EvaluatorEnvironment& environment, const EvaluatorC
 
 	addStringOutput(output.source, tokens[symbolIndex].contents, StringOutMod_ConvertVariableName,
 	                &tokens[symbolIndex]);
+	return true;
+}
 
+static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, GeneratorOutput& output)
+{
+	int destrEndInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int nameIndex =
+	    getExpectedArgument("name-index", tokens, startTokenIndex, 1, destrEndInvocationIndex);
+	if (-1 == nameIndex)
+		return false;
+
+	int typeIndex =
+	    getExpectedArgument("type-index", tokens, startTokenIndex, 2, destrEndInvocationIndex);
+	if (-1 == typeIndex)
+		return false;
+
+	const Token& invocationToken = tokens[1 + startTokenIndex];
+
+	bool isGlobal = invocationToken.contents.compare("def-type-alias-global") == 0;
+
+	std::vector<StringOutput> typeOutput;
+	std::vector<StringOutput> typeAfterNameOutput;
+	if (!(tokenizedCTypeToString_Recursive(tokens, typeIndex, true, typeOutput,
+	                                       typeAfterNameOutput)))
+	{
+		return false;
+	}
+	addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
+
+	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
+
+	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &invocationToken);
+	PushBackAll(outputDest, typeOutput);
+	EvaluatorContext expressionContext = context;
+	expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+	int numErrors =
+	    EvaluateGenerate_Recursive(environment, expressionContext, tokens, nameIndex, output);
+	if (numErrors)
+		return false;
+	PushBackAll(outputDest, typeAfterNameOutput);
+	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &invocationToken);
 	return true;
 }
 
@@ -1479,6 +1675,11 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
 	    {SmartEndStatement, nullptr, -1}};
 
+	const CStatementOperation dereferenceMemberFunctionInvocation[] = {
+	    {Expression, nullptr, 1},        {KeywordNoSpace, "->", -1},   {Expression, nullptr, 2},
+	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
+	    {SmartEndStatement, nullptr, -1}};
+
 	// Useful in the case of calling functions in namespaces. Shouldn't be used otherwise
 	const CStatementOperation callFunctionInvocation[] = {{Expression, nullptr, 1},
 	                                                      {OpenParen, nullptr, -1},
@@ -1581,6 +1782,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"addr", addressOf, ArraySize(addressOf)},
 	    {"field", field, ArraySize(field)},
 	    {"on-call", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
+	    {"on-call-ptr", dereferenceMemberFunctionInvocation,
+	     ArraySize(dereferenceMemberFunctionInvocation)},
 	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
 	    {"in", scopeResolution, ArraySize(scopeResolution)},
 	    {"type-cast", castStatement, ArraySize(castStatement)},
@@ -1700,6 +1903,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["def-function-signature"] = DefFunctionSignatureGenerator;
 	environment.generators["def-function-signature-local"] = DefFunctionSignatureGenerator;
 
+	environment.generators["def-type-alias"] = DefTypeAliasGenerator;
+	environment.generators["def-type-alias-global"] = DefTypeAliasGenerator;
+
 	environment.generators["defmacro"] = DefMacroGenerator;
 	environment.generators["defgenerator"] = DefGeneratorGenerator;
 
@@ -1723,12 +1929,16 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["new-array"] = NewArrayGenerator;
 
 	environment.generators["if"] = IfGenerator;
+	environment.generators["cond"] = ConditionGenerator;
 
 	// Handle complex pathing, e.g. a->b.c->d.e
 	environment.generators["path"] = ObjectPathGenerator;
 
 	// Token manipulation
 	environment.generators["tokenize-push"] = TokenizePushGenerator;
+
+	// Cakelisp options
+	environment.generators["set-cakelisp-option"] = SetCakelispOption;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
@@ -1737,8 +1947,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
-	    "on-call", "call", "in", "type-cast",
-		"new", "delete", "delete-array",
+	    "on-call", "on-call-ptr", "call", "in", "type-cast", "new", "delete", "delete-array",
 	    // Boolean
 	    "or", "and", "not",
 	    // Bitwise

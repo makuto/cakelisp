@@ -39,32 +39,33 @@
   (return true))
 
 ;; The first significant generator written in Cakelisp!
-(defgenerator def-type-alias ()
-  (destructure-arguments name-index type-index)
-  (quick-token-at name-token name-index)
-  (quick-token-at invocation-token (+ 1 startTokenIndex))
+;; Now built-in
+;; (defgenerator def-type-alias ()
+;;   (destructure-arguments name-index type-index)
+;;   (quick-token-at name-token name-index)
+;;   (quick-token-at invocation-token (+ 1 startTokenIndex))
 
-  ;; Make sure the type is valid before outputting anything
-  (var type-output (<> std::vector StringOutput))
-  (var type-after-name-output (<> std::vector StringOutput))
-  (unless (tokenizedCTypeToString_Recursive tokens type-index true type-output type-after-name-output)
-    (return false))
-  (addModifierToStringOutput (on-call type-output back) StringOutMod_SpaceAfter)
+;;   ;; Make sure the type is valid before outputting anything
+;;   (var type-output (<> std::vector StringOutput))
+;;   (var type-after-name-output (<> std::vector StringOutput))
+;;   (unless (tokenizedCTypeToString_Recursive tokens type-index true type-output type-after-name-output)
+;;     (return false))
+;;   (addModifierToStringOutput (on-call type-output back) StringOutMod_SpaceAfter)
 
-  (addStringOutput (field output source) "typedef" StringOutMod_SpaceAfter (addr invocation-token))
-  ;; TODO: Add ability to define typedefs in header
-  (PushBackAll (field output source) type-output)
+;;   (addStringOutput (field output source) "typedef" StringOutMod_SpaceAfter (addr invocation-token))
+;;   ;; TODO: Add ability to define typedefs in header
+;;   (PushBackAll (field output source) type-output)
 
-  ;; Evaluate name
-  (var expressionContext EvaluatorContext context)
-  (set (field expressionContext scope) EvaluatorScope_ExpressionsOnly)
-  (unless (= 0 (EvaluateGenerate_Recursive environment expressionContext tokens name-index output))
-    (return false))
+;;   ;; Evaluate name
+;;   (var expressionContext EvaluatorContext context)
+;;   (set (field expressionContext scope) EvaluatorScope_ExpressionsOnly)
+;;   (unless (= 0 (EvaluateGenerate_Recursive environment expressionContext tokens name-index output))
+;;     (return false))
 
-  ;; Yep, believe it or not, C typedefs have the length of the array after the new type name
-  (PushBackAll (field output source) type-after-name-output)
-  (addLangTokenOutput (field output source) StringOutMod_EndStatement (addr invocation-token))
-  (return true))
+;;   ;; Yep, believe it or not, C typedefs have the length of the array after the new type name
+;;   (PushBackAll (field output source) type-after-name-output)
+;;   (addLangTokenOutput (field output source) StringOutMod_EndStatement (addr invocation-token))
+;;   (return true))
 
 (defmacro array-size ()
   (destructure-arguments array-index)
