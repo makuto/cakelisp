@@ -483,190 +483,35 @@ void OnCompileProcessOutput(const char* output)
 	// TODO C/C++ error to Cakelisp token mapper
 }
 
-int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
+enum BuildStage
+{
+	BuildStage_None,
+	BuildStage_Compiling,
+	BuildStage_Linking,
+	BuildStage_Loading,
+	BuildStage_ResolvingReferences,
+	BuildStage_Finished
+};
+
+// Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
+// iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
+// references on resize. This will need to change if the data structure changes
+struct BuildObject
+{
+	int buildId = -1;
+	int status = -1;
+	BuildStage stage = BuildStage_None;
+	std::string artifactsName;
+	std::string dynamicLibraryPath;
+	std::string buildObjectName;
+	ObjectDefinition* definition = nullptr;
+};
+
+int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
+                                     std::vector<BuildObject>& definitionsToBuild,
+                                     int& numErrorsOut)
 {
 	int numReferencesResolved = 0;
-
-	enum BuildStage
-	{
-		BuildStage_None,
-		BuildStage_Compiling,
-		BuildStage_Linking,
-		BuildStage_Loading,
-		BuildStage_ResolvingReferences,
-		BuildStage_Finished
-	};
-
-	// Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
-	// iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
-	// references on resize. This will need to change if the data structure changes
-	struct BuildObject
-	{
-		int buildId = -1;
-		int status = -1;
-		BuildStage stage = BuildStage_None;
-		std::string artifactsName;
-		std::string dynamicLibraryPath;
-		std::string buildObjectName;
-		ObjectDefinition* definition = nullptr;
-	};
-
-	std::vector<BuildObject> definitionsToBuild;
-
-	// We must copy references in case environment.definitions is modified, which would invalidate
-	// iterators, but not references
-	std::vector<ObjectDefinition*> definitionsToCheck;
-	definitionsToCheck.reserve(environment.definitions.size());
-	for (ObjectDefinitionPair& definitionPair : environment.definitions)
-	{
-		ObjectDefinition& definition = definitionPair.second;
-		// Does it need to be built?
-		if (!definition.isRequired)
-			continue;
-
-		// Is it already in the environment?
-		if (definition.isLoaded)
-			continue;
-
-		definitionsToCheck.push_back(&definition);
-	}
-
-	for (ObjectDefinition* definitionPointer : definitionsToCheck)
-	{
-		ObjectDefinition& definition = *definitionPointer;
-		const char* defName = definition.name->contents.c_str();
-
-		if (log.buildReasons)
-			printf("Checking to build %s\n", defName);
-
-		// Can it be built in the current environment?
-		bool canBuild = true;
-		bool hasRelevantChangeOccurred = false;
-		bool hasGuessedRefs = false;
-		// If there were new guesses, we will do another pass over this definition's references in
-		// case new references turned up
-		bool guessMaybeDirtiedReferences = false;
-		do
-		{
-			guessMaybeDirtiedReferences = false;
-
-			// Copy pointers to refs in case of iterator invalidation
-			std::vector<ObjectReferenceStatus*> referencesToCheck;
-			referencesToCheck.reserve(definition.references.size());
-			for (ObjectReferenceStatusPair& referencePair : definition.references)
-			{
-				referencesToCheck.push_back(&referencePair.second);
-			}
-			for (ObjectReferenceStatus* referencePointer : referencesToCheck)
-			{
-				ObjectReferenceStatus& referenceStatus = *referencePointer;
-
-				// TODO: (Performance) Add shortcut in reference
-				ObjectDefinitionMap::iterator findIt =
-				    environment.definitions.find(referenceStatus.name->contents);
-				if (findIt != environment.definitions.end())
-				{
-					if (isCompileTimeObject(findIt->second.type))
-					{
-						bool refCompileTimeCodeLoaded = findIt->second.isLoaded;
-						if (refCompileTimeCodeLoaded)
-						{
-							// The reference is ready to go. Built objects immediately resolve
-							// references. We will react to it if the last thing we did was guess
-							// incorrectly that this was a C call
-							if (referenceStatus.guessState != GuessState_Resolved)
-							{
-								if (log.buildReasons)
-									printf("\tRequired code has been loaded\n");
-
-								hasRelevantChangeOccurred = true;
-							}
-
-							referenceStatus.guessState = GuessState_Resolved;
-						}
-						else
-						{
-							// If we know we are missing a compile time function, we won't try to
-							// guess
-							if (log.buildReasons)
-								printf("\tCannot build until %s is loaded\n",
-								       referenceStatus.name->contents.c_str());
-
-							referenceStatus.guessState = GuessState_WaitingForLoad;
-							canBuild = false;
-						}
-					}
-					else if (findIt->second.type == ObjectType_Function &&
-					         referenceStatus.guessState != GuessState_Resolved)
-					{
-						// A known Cakelisp function call
-						for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
-						{
-							ObjectReference& reference = referenceStatus.references[i];
-							// Run function invocation on it
-							// TODO: Make invocation generator know it is a Cakelisp function
-							bool result = FunctionInvocationGenerator(
-							    environment, reference.context, *reference.tokens,
-							    reference.startIndex, *reference.spliceOutput);
-							// Our guess didn't even evaluate
-							if (!result)
-								canBuild = false;
-						}
-
-						referenceStatus.guessState = GuessState_Resolved;
-					}
-					// TODO: Building references to non-comptime functions at comptime
-				}
-				else
-				{
-					if (referenceStatus.guessState == GuessState_None)
-					{
-						if (log.buildReasons)
-							printf("\tCannot build until %s is guessed. Guessing now\n",
-							       referenceStatus.name->contents.c_str());
-
-						// Find all the times the definition makes this reference
-						// We must use indices because the call to FunctionInvocationGenerator can
-						// add new references to the list
-						for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
-						{
-							ObjectReference& reference = referenceStatus.references[i];
-							// Run function invocation on it
-							bool result = FunctionInvocationGenerator(
-							    environment, reference.context, *reference.tokens,
-							    reference.startIndex, *reference.spliceOutput);
-							// Our guess didn't even evaluate
-							if (!result)
-								canBuild = false;
-						}
-
-						referenceStatus.guessState = GuessState_Guessed;
-						hasRelevantChangeOccurred = true;
-						hasGuessedRefs = true;
-						guessMaybeDirtiedReferences = true;
-					}
-					else if (referenceStatus.guessState == GuessState_Guessed)
-					{
-						// It has been guessed, and still isn't in definitions
-						hasGuessedRefs = true;
-					}
-				}
-			}
-		} while (guessMaybeDirtiedReferences);
-
-		// hasRelevantChangeOccurred being false suppresses rebuilding compile-time functions which
-		// still have the same missing references. Note that only compile time objects can be built.
-		// We put normal functions through the guessing system too because they need their functions
-		// resolved as well. It's a bit dirty but not too bad
-		if (canBuild && (!hasGuessedRefs || hasRelevantChangeOccurred) &&
-		    isCompileTimeObject(definition.type))
-		{
-			BuildObject objectToBuild = {};
-			objectToBuild.buildId = getNextFreeBuildId(environment);
-			objectToBuild.definition = &definition;
-			definitionsToBuild.push_back(objectToBuild);
-		}
-	}
 
 	// Spin up as many compile processes as necessary
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
@@ -929,6 +774,173 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			printf("Successfully built, loaded, and executed %s\n",
 			       buildObject.definition->name->contents.c_str());
 	}
+
+	return numReferencesResolved;
+}
+
+int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
+{
+	int numReferencesResolved = 0;
+
+	std::vector<BuildObject> definitionsToBuild;
+
+	// We must copy references in case environment.definitions is modified, which would invalidate
+	// iterators, but not references
+	std::vector<ObjectDefinition*> definitionsToCheck;
+	definitionsToCheck.reserve(environment.definitions.size());
+	for (ObjectDefinitionPair& definitionPair : environment.definitions)
+	{
+		ObjectDefinition& definition = definitionPair.second;
+		// Does it need to be built?
+		if (!definition.isRequired)
+			continue;
+
+		// Is it already in the environment?
+		if (definition.isLoaded)
+			continue;
+
+		definitionsToCheck.push_back(&definition);
+	}
+
+	for (ObjectDefinition* definitionPointer : definitionsToCheck)
+	{
+		ObjectDefinition& definition = *definitionPointer;
+		const char* defName = definition.name->contents.c_str();
+
+		if (log.buildReasons)
+			printf("Checking to build %s\n", defName);
+
+		// Can it be built in the current environment?
+		bool canBuild = true;
+		bool hasRelevantChangeOccurred = false;
+		bool hasGuessedRefs = false;
+		// If there were new guesses, we will do another pass over this definition's references in
+		// case new references turned up
+		bool guessMaybeDirtiedReferences = false;
+		do
+		{
+			guessMaybeDirtiedReferences = false;
+
+			// Copy pointers to refs in case of iterator invalidation
+			std::vector<ObjectReferenceStatus*> referencesToCheck;
+			referencesToCheck.reserve(definition.references.size());
+			for (ObjectReferenceStatusPair& referencePair : definition.references)
+			{
+				referencesToCheck.push_back(&referencePair.second);
+			}
+			for (ObjectReferenceStatus* referencePointer : referencesToCheck)
+			{
+				ObjectReferenceStatus& referenceStatus = *referencePointer;
+
+				// TODO: (Performance) Add shortcut in reference
+				ObjectDefinitionMap::iterator findIt =
+				    environment.definitions.find(referenceStatus.name->contents);
+				if (findIt != environment.definitions.end())
+				{
+					if (isCompileTimeObject(findIt->second.type))
+					{
+						bool refCompileTimeCodeLoaded = findIt->second.isLoaded;
+						if (refCompileTimeCodeLoaded)
+						{
+							// The reference is ready to go. Built objects immediately resolve
+							// references. We will react to it if the last thing we did was guess
+							// incorrectly that this was a C call
+							if (referenceStatus.guessState != GuessState_Resolved)
+							{
+								if (log.buildReasons)
+									printf("\tRequired code has been loaded\n");
+
+								hasRelevantChangeOccurred = true;
+							}
+
+							referenceStatus.guessState = GuessState_Resolved;
+						}
+						else
+						{
+							// If we know we are missing a compile time function, we won't try to
+							// guess
+							if (log.buildReasons)
+								printf("\tCannot build until %s is loaded\n",
+								       referenceStatus.name->contents.c_str());
+
+							referenceStatus.guessState = GuessState_WaitingForLoad;
+							canBuild = false;
+						}
+					}
+					else if (findIt->second.type == ObjectType_Function &&
+					         referenceStatus.guessState != GuessState_Resolved)
+					{
+						// A known Cakelisp function call
+						for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
+						{
+							ObjectReference& reference = referenceStatus.references[i];
+							// Run function invocation on it
+							// TODO: Make invocation generator know it is a Cakelisp function
+							bool result = FunctionInvocationGenerator(
+							    environment, reference.context, *reference.tokens,
+							    reference.startIndex, *reference.spliceOutput);
+							// Our guess didn't even evaluate
+							if (!result)
+								canBuild = false;
+						}
+
+						referenceStatus.guessState = GuessState_Resolved;
+					}
+					// TODO: Building references to non-comptime functions at comptime
+				}
+				else
+				{
+					if (referenceStatus.guessState == GuessState_None)
+					{
+						if (log.buildReasons)
+							printf("\tCannot build until %s is guessed. Guessing now\n",
+							       referenceStatus.name->contents.c_str());
+
+						// Find all the times the definition makes this reference
+						// We must use indices because the call to FunctionInvocationGenerator can
+						// add new references to the list
+						for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
+						{
+							ObjectReference& reference = referenceStatus.references[i];
+							// Run function invocation on it
+							bool result = FunctionInvocationGenerator(
+							    environment, reference.context, *reference.tokens,
+							    reference.startIndex, *reference.spliceOutput);
+							// Our guess didn't even evaluate
+							if (!result)
+								canBuild = false;
+						}
+
+						referenceStatus.guessState = GuessState_Guessed;
+						hasRelevantChangeOccurred = true;
+						hasGuessedRefs = true;
+						guessMaybeDirtiedReferences = true;
+					}
+					else if (referenceStatus.guessState == GuessState_Guessed)
+					{
+						// It has been guessed, and still isn't in definitions
+						hasGuessedRefs = true;
+					}
+				}
+			}
+		} while (guessMaybeDirtiedReferences);
+
+		// hasRelevantChangeOccurred being false suppresses rebuilding compile-time functions which
+		// still have the same missing references. Note that only compile time objects can be built.
+		// We put normal functions through the guessing system too because they need their functions
+		// resolved as well. It's a bit dirty but not too bad
+		if (canBuild && (!hasGuessedRefs || hasRelevantChangeOccurred) &&
+		    isCompileTimeObject(definition.type))
+		{
+			BuildObject objectToBuild = {};
+			objectToBuild.buildId = getNextFreeBuildId(environment);
+			objectToBuild.definition = &definition;
+			definitionsToBuild.push_back(objectToBuild);
+		}
+	}
+
+	numReferencesResolved +=
+	    BuildExecuteCompileTimeFunctions(environment, definitionsToBuild, numErrorsOut);
 
 	return numReferencesResolved;
 }
