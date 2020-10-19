@@ -35,6 +35,58 @@ bool SetProcessCommandFileToExec(EvaluatorEnvironment& environment,
 bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::vector<Token>& tokens,
                                 int startTokenIndex, ProcessCommand* command)
 {
+	command->arguments.clear();
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int startArgsIndex = getArgument(tokens, startTokenIndex, 2, endInvocationIndex);
+	// No args is weird, but we'll allow it
+	if (startArgsIndex == -1)
+		return true;
+
+	for (int argumentIndex = startArgsIndex; argumentIndex < endInvocationIndex; ++argumentIndex)
+	{
+		const Token& argumentToken = tokens[argumentIndex];
+		if (argumentToken.type == TokenType_String)
+		{
+			command->arguments.push_back(
+			    {ProcessCommandArgumentType_String, argumentToken.contents});
+		}
+		else if (argumentToken.type == TokenType_Symbol)
+		{
+			struct
+			{
+				const char* symbolName;
+				ProcessCommandArgumentType type;
+			} symbolsToCommandTypes[] = {
+			    {"'source-input", ProcessCommandArgumentType_SourceInput},
+			    {"'object-output", ProcessCommandArgumentType_ObjectOutput},
+			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
+			    {"'object-input", ProcessCommandArgumentType_ObjectInput},
+			    {"'library-output", ProcessCommandArgumentType_DynamicLibraryOutput},
+			};
+			bool found = false;
+			for (unsigned int i = 0; i < ArraySize(symbolsToCommandTypes); ++i)
+			{
+				if (argumentToken.contents.compare(symbolsToCommandTypes[i].symbolName) == 0)
+				{
+					command->arguments.push_back({symbolsToCommandTypes[i].type, EmptyString});
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				ErrorAtToken(argumentToken, "unrecognized symbol");
+				return false;
+			}
+		}
+		else
+		{
+			ErrorAtTokenf(argumentToken, "expected string argument or symbol, got %s",
+			              tokenTypeToString(argumentToken.type));
+			return false;
+		}
+	}
 	return true;
 }
 
@@ -125,7 +177,7 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 
 	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
 	{
-		if (tokens[optionNameIndex].contents.compare(commandOptions[i].optionName))
+		if (tokens[optionNameIndex].contents.compare(commandOptions[i].optionName) == 0)
 		{
 			return commandOptions[i].handler(environment, tokens, startTokenIndex,
 			                                 commandOptions[i].command);

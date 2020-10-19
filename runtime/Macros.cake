@@ -1,9 +1,9 @@
 (set-cakelisp-option compile-time-compiler "/usr/bin/clang++")
-(set-cakelisp-option compile-time-build-arguments
-                     "-g" "-c" 'sourceInput "-o" 'objectOutput 'cakelispHeadersInclude "-fPIC")
+(set-cakelisp-option compile-time-compile-arguments
+                     "-g" "-c" 'source-input "-o" 'object-output 'cakelisp-headers-include "-fPIC")
 (set-cakelisp-option compile-time-linker "/usr/bin/clang++")
 (set-cakelisp-option compile-time-link-arguments
-                     "-shared" "-o" 'libraryOutput 'objectInput)
+                     "-shared" "-o" 'library-output 'object-input)
 
 ;; TODO: This should be builtin to macros and generators
 (defmacro destructure-arguments ()

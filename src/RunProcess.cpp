@@ -26,6 +26,7 @@ struct Subprocess
 	int* statusOut;
 	ProcessId processId;
 	int pipeReadFileDescriptor;
+	std::string command;
 };
 
 static std::vector<Subprocess> s_subprocesses;
@@ -131,7 +132,14 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		if (log.processes)
 			printf("Created child process %d\n", pid);
 
-		s_subprocesses.push_back({statusOut, pid, pipeFileDescriptors[PipeRead]});
+		std::string command = "";
+		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
+		{
+			command.append(*arg);
+			command.append(" ");
+		}
+
+		s_subprocesses.push_back({statusOut, pid, pipeFileDescriptors[PipeRead], command});
 	}
 
 	return 1;
@@ -162,6 +170,10 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		close(process.pipeReadFileDescriptor);
 
 		waitpid(process.processId, process.statusOut, 0);
+
+		// It's pretty useful to see the command which resulted in failure
+		if (*process.statusOut != 0)
+			printf("%s\n", process.command.c_str());
 #endif
 	}
 

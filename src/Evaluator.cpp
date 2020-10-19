@@ -495,21 +495,23 @@ void PrintProcessArguments(const char** processArguments)
 const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
                                              const ProcessCommandInput* inputs, int numInputs)
 {
+	int numArguments = command.arguments.size();
 	// +1 for file to execute
-	int numArguments = command.arguments.size() + 1;
-// +1 again for the null terminator
-	const char** newArguments = (const char**)calloc(sizeof(const char*), numArguments + 1);
-	for (int i = 0; i < numArguments; ++i)
+	int numFinalArguments = numArguments + 1;
+	// +1 again for the null terminator
+	const char** newArguments = (const char**)calloc(sizeof(const char*), numFinalArguments + 1);
+	for (int i = 0; i < numFinalArguments; ++i)
 		newArguments[i] = nullptr;
-	newArguments[numArguments] = nullptr;
+	newArguments[numFinalArguments] = nullptr;
 	newArguments[0] = command.fileToExecute.c_str();
 
-	for (int i = 1; i < numArguments - 1; ++i)
+	for (int i = 0; i < numArguments; ++i)
 	{
+		int finalArgumentIndex = i + 1;
 		ProcessCommandArgument& argument = command.arguments[i];
 
 		if (argument.type == ProcessCommandArgumentType_String)
-			newArguments[i] = argument.contents.c_str();
+			newArguments[finalArgumentIndex] = argument.contents.c_str();
 		else
 		{
 			bool found = false;
@@ -517,7 +519,7 @@ const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
 			{
 				if (inputs[input].type == argument.type)
 				{
-					newArguments[i] = inputs[input].value;
+					newArguments[finalArgumentIndex] = inputs[input].value;
 					found = true;
 					break;
 				}
@@ -726,22 +728,26 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (log.buildProcess)
 			printf("Compiled %s successfully\n", buildObject.definition->name->contents.c_str());
 
-		char linkerExecutable[MAX_PATH_LENGTH] = {0};
-		PrintBuffer(linkerExecutable, "/usr/bin/clang++");
-
-		const char* arguments[] = {linkerExecutable,
-		                           "-shared",
-		                           "-o",
-		                           buildObject.dynamicLibraryPath.c_str(),
-		                           buildObject.buildObjectName.c_str(),
-		                           nullptr};
+		ProcessCommandInput linkTimeInputs[] = {
+		    {ProcessCommandArgumentType_DynamicLibraryOutput,
+		     buildObject.dynamicLibraryPath.c_str()},
+		    {ProcessCommandArgumentType_ObjectInput, buildObject.buildObjectName.c_str()}};
+		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
+		    environment.compileTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+		if (!linkArgumentList)
+		{
+			// TODO: Abort building if cannot invoke compiler
+			continue;
+		}
 		RunProcessArguments linkArguments = {};
-		linkArguments.fileToExecute = linkerExecutable;
-		linkArguments.arguments = arguments;
+		linkArguments.fileToExecute = environment.compileTimeLinkCommand.fileToExecute.c_str();
+		linkArguments.arguments = linkArgumentList;
 		if (runProcess(linkArguments, &buildObject.status) != 0)
 		{
 			// TODO: Abort if linker failed?
+			// free(linkArgumentList);
 		}
+		free(linkArgumentList);
 	}
 
 	// The result of the linking will go straight to our definitionsToBuild

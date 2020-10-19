@@ -51,6 +51,11 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.compileTimeLinkCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-shared"},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "/usr/bin/clang++";
 		manager.environment.buildTimeBuildCommand.arguments = {
@@ -63,6 +68,11 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
 	}
+
+	// TODO: Add defaults for Windows
+#ifdef WINDOWS
+#error Set sensible defaults for compile time build command
+#endif
 
 	makeDirectory(cakelispWorkingDir);
 	printf("Using cache at %s\n", cakelispWorkingDir);
