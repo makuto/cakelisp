@@ -11,6 +11,7 @@ struct NameStyleSettings;
 struct Token;
 struct GeneratorOutput;
 struct ModuleManager;
+struct Module;
 
 // Rather than needing to allocate and edit a buffer eventually equal to the size of the final
 // output, store output operations instead. This also facilitates source <-> generated mapping data
@@ -82,6 +83,7 @@ struct EvaluatorContext
 	bool isRequired;
 	// Associate all unknown references with this definition
 	const Token* definitionName;
+	Module* module;
 };
 
 struct EvaluatorEnvironment;
@@ -167,6 +169,18 @@ typedef std::pair<const std::string, ObjectDefinition> ObjectDefinitionPair;
 typedef std::unordered_map<std::string, ObjectReferencePool> ObjectReferencePoolMap;
 typedef std::pair<const std::string, ObjectReferencePool> ObjectReferencePoolPair;
 
+struct ProcessCommandArgument
+{
+	ProcessCommandArgumentType type;
+	std::string contents;
+};
+
+struct ProcessCommand
+{
+	std::string fileToExecute;
+	std::vector<ProcessCommandArgument> arguments;
+};
+
 // Unlike context, which can't be changed, environment can be changed.
 // Use care when modifying the environment. Only add things once you know things have succeeded.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -199,6 +213,11 @@ struct EvaluatorEnvironment
 
 	// Added as a search directory for compile time code execution
 	std::string cakelispSrcDir;
+
+	ProcessCommand compileTimeBuildCommand;
+	ProcessCommand compileTimeLinkCommand;
+	ProcessCommand buildTimeBuildCommand;
+	ProcessCommand buildTimeLinkCommand;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();

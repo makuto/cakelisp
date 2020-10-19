@@ -148,6 +148,12 @@ int main(int numArguments, char* arguments[])
 
 	printf("Successfully generated files\n");
 
+	if (!moduleManagerBuild(moduleManager))
+	{
+		moduleManagerDestroy(moduleManager);
+		return 1;
+	}
+
 	moduleManagerDestroy(moduleManager);
 	return 0;
 }

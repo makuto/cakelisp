@@ -9,6 +9,35 @@
 
 #include <string.h>
 
+typedef bool (*ProcessCommandOptionFunc)(EvaluatorEnvironment& environment,
+                                         const std::vector<Token>& tokens, int startTokenIndex,
+                                         ProcessCommand* command);
+
+bool SetProcessCommandFileToExec(EvaluatorEnvironment& environment,
+                                 const std::vector<Token>& tokens, int startTokenIndex,
+                                 ProcessCommand* command)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int argumentIndex = getExpectedArgument("expected path to compiler", tokens, startTokenIndex, 2,
+	                                        endInvocationIndex);
+	if (argumentIndex == -1)
+		return false;
+
+	const Token& argumentToken = tokens[argumentIndex];
+
+	if (!ExpectTokenType("file to execute", argumentToken, TokenType_String))
+		return false;
+
+	command->fileToExecute = argumentToken.contents;
+	return true;
+}
+
+bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::vector<Token>& tokens,
+                                int startTokenIndex, ProcessCommand* command)
+{
+	return true;
+}
+
 bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                        const std::vector<Token>& tokens, int startTokenIndex,
                        GeneratorOutput& output)
@@ -47,7 +76,7 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 	}
 
 	// This needs to be defined early, else things will only be partially supported
-	if (tokens[optionNameIndex].contents.compare("enable-hot-reloading") == 0)
+	else if (tokens[optionNameIndex].contents.compare("enable-hot-reloading") == 0)
 	{
 		int enableStateIndex =
 		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
@@ -70,6 +99,37 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 		}
 
 		return true;
+	}
+
+	struct ProcessCommandOptions
+	{
+		const char* optionName;
+		ProcessCommand* command;
+		ProcessCommandOptionFunc handler;
+	};
+	ProcessCommandOptions commandOptions[] = {
+	    {"compile-time-compiler", &environment.compileTimeBuildCommand,
+	     SetProcessCommandFileToExec},
+	    {"compile-time-compile-arguments", &environment.compileTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"compile-time-linker", &environment.compileTimeLinkCommand, SetProcessCommandFileToExec},
+	    {"compile-time-link-arguments", &environment.compileTimeLinkCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-compiler", &environment.buildTimeBuildCommand, SetProcessCommandFileToExec},
+	    {"build-time-compile-arguments", &environment.buildTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-linker", &environment.buildTimeLinkCommand, SetProcessCommandFileToExec},
+	    {"build-time-link-arguments", &environment.buildTimeLinkCommand,
+	     SetProcessCommandArguments},
+	};
+
+	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
+	{
+		if (tokens[optionNameIndex].contents.compare(commandOptions[i].optionName))
+		{
+			return commandOptions[i].handler(environment, tokens, startTokenIndex,
+			                                 commandOptions[i].command);
+		}
 	}
 
 	ErrorAtToken(tokens[optionNameIndex], "unrecognized option");
@@ -144,6 +204,19 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			}
 			else
 			{
+				if (context.module)
+				{
+					ModuleDependency newCakelispDependency = {};
+					newCakelispDependency.type = ModuleDependency_Cakelisp;
+					newCakelispDependency.name = currentToken.contents;
+					context.module->dependencies.push_back(newCakelispDependency);
+				}
+				else
+				{
+					NoteAtToken(currentToken,
+					            "module cannot track dependency (potential internal error)");
+				}
+
 				char relativePathBuffer[MAX_PATH_LENGTH] = {0};
 				getDirectoryFromPath(currentToken.source, relativePathBuffer,
 				                     sizeof(relativePathBuffer));

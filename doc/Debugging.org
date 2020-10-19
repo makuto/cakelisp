@@ -8,6 +8,7 @@ The following command may be run in order to tell GDB where the ~.so~ files you 
 
 #+BEGIN_SRC sh
 set solib-search-path ~/Development/code/repositories/cakelisp/
+set cwd ~/Development/code/repositories/cakelisp/
 #+END_SRC
 
 (adjust that path to where you installed cakelisp, of course).

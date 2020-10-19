@@ -20,6 +20,10 @@ struct WriterFormatSettings
 struct WriterOutputSettings
 {
 	const char* sourceCakelispFilename;
+
+	const char* sourceOutputName;
+	const char* headerOutputName;
+
 	const char* sourceHeading;
 	const char* sourceFooter;
 	const char* headerHeading;

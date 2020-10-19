@@ -371,11 +371,6 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSettings& formatSettings,
                   const WriterOutputSettings& outputSettings, const GeneratorOutput& outputToWrite)
 {
-	char sourceOutputName[MAX_PATH_LENGTH] = {0};
-	PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
-	char headerOutputName[MAX_PATH_LENGTH] = {0};
-	PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
-
 	struct
 	{
 		bool isHeader;
@@ -388,7 +383,7 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		StringOutputState stateBeforeOutputWrite;
 		char tempFilename[MAX_PATH_LENGTH];
 	} outputs[] = {{/*isHeader=*/false,
-	                sourceOutputName,
+	                outputSettings.sourceOutputName,
 	                outputSettings.sourceHeading,
 	                outputSettings.sourceFooter,
 	                {},
@@ -396,7 +391,7 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 	                {0}},
 	               {
 	                   /*isHeader=*/true,
-	                   headerOutputName,
+	                   outputSettings.headerOutputName,
 	                   outputSettings.headerHeading,
 	                   outputSettings.headerFooter,
 	                   {},

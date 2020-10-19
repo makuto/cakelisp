@@ -478,6 +478,62 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 	} while (numRequiresStatusChanged);
 }
 
+struct ProcessCommandInput
+{
+	ProcessCommandArgumentType type;
+	const char* value;
+};
+
+void PrintProcessArguments(const char** processArguments)
+{
+	for (const char* argument = processArguments[0]; argument; ++argument)
+		printf("%s ", argument);
+	printf("\n");
+}
+
+// The array will need to be deleted, but the array members will not
+const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
+                                             const ProcessCommandInput* inputs, int numInputs)
+{
+	// +1 for file to execute
+	int numArguments = command.arguments.size() + 1;
+// +1 again for the null terminator
+	const char** newArguments = (const char**)calloc(sizeof(const char*), numArguments + 1);
+	for (int i = 0; i < numArguments; ++i)
+		newArguments[i] = nullptr;
+	newArguments[numArguments] = nullptr;
+	newArguments[0] = command.fileToExecute.c_str();
+
+	for (int i = 1; i < numArguments - 1; ++i)
+	{
+		ProcessCommandArgument& argument = command.arguments[i];
+
+		if (argument.type == ProcessCommandArgumentType_String)
+			newArguments[i] = argument.contents.c_str();
+		else
+		{
+			bool found = false;
+			for (int input = 0; input < numInputs; ++input)
+			{
+				if (inputs[input].type == argument.type)
+				{
+					newArguments[i] = inputs[input].value;
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				printf("error: command missing input\n");
+				free(newArguments);
+				return nullptr;
+			}
+		}
+	}
+
+	return newArguments;
+}
+
 void OnCompileProcessOutput(const char* output)
 {
 	// TODO C/C++ error to Cakelisp token mapper
@@ -557,6 +613,14 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			outputSettings.sourceFooter = macroSourceFooter;
 		}
 		outputSettings.sourceCakelispFilename = fileOutputName;
+		{
+			char writerSourceOutputName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(writerSourceOutputName, "%s.cpp", fileOutputName);
+			char writerHeaderOutputName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(writerHeaderOutputName, "%s.hpp", fileOutputName);
+			outputSettings.sourceOutputName = writerSourceOutputName;
+			outputSettings.headerOutputName = writerHeaderOutputName;
+		}
 		// Use the separate output prepared specifically for this compile-time object
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
 		                          outputSettings))
@@ -567,9 +631,6 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		}
 
 		buildObject.stage = BuildStage_Compiling;
-
-		char fileToExec[MAX_PATH_LENGTH] = {0};
-		PrintBuffer(fileToExec, "/usr/bin/clang++");
 
 		// The evaluator is written in C++, so all generators and macros need to support the C++
 		// features used (e.g. their signatures have std::vector<>)
@@ -607,18 +668,31 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			PrintfBuffer(headerInclude, "-I%s", environment.cakelispSrcDir.c_str());
 		}
 
-		// TODO: Get arguments all the way from the top
-		// If not null terminated, the call will fail
-		const char* arguments[] = {fileToExec,      "-g",          "-c",    sourceOutputName, "-o",
-		                           buildObjectName, headerInclude, "-fPIC", nullptr};
-		RunProcessArguments compileArguments = {};
-		compileArguments.fileToExecute = fileToExec;
-		compileArguments.arguments = arguments;
-		if (runProcess(compileArguments, &buildObject.status) != 0)
+		ProcessCommandInput compileTimeInputs[] = {
+		    {ProcessCommandArgumentType_SourceInput, sourceOutputName},
+		    {ProcessCommandArgumentType_ObjectOutput, buildObjectName},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, headerInclude}};
+		const char** buildArguments = MakeProcessArgumentsFromCommand(
+		    environment.compileTimeBuildCommand, compileTimeInputs, ArraySize(compileTimeInputs));
+		if (!buildArguments)
 		{
 			// TODO: Abort building if cannot invoke compiler
+			continue;
+		}
+		// const char* arguments[] = {fileToExec,      "-g",          "-c",    sourceOutputName,
+		// "-o", buildObjectName, headerInclude, "-fPIC", nullptr};
+		// TODO: Get rid of intermediate structure
+		RunProcessArguments compileArguments = {};
+		compileArguments.fileToExecute = environment.compileTimeBuildCommand.fileToExecute.c_str();
+		compileArguments.arguments = buildArguments;
+		if (runProcess(compileArguments, &buildObject.status) != 0)
+		{
+			// TODO: Abort building if cannot invoke compiler?
+			// free(buildArguments);
 			// return 0;
 		}
+
+		free(buildArguments);
 
 		// TODO This could be made smarter by allowing more spawning right when a process closes,
 		// instead of starting in waves

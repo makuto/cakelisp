@@ -3,6 +3,7 @@
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
 #include "Evaluator.hpp"
+#include "EvaluatorEnums.hpp"
 #include "FileUtilities.hpp"
 #include "Generators.hpp"
 #include "Logging.hpp"
@@ -37,6 +38,32 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 	manager.environment.moduleManager = &manager;
 
+	// Command defaults
+	{
+		manager.environment.compileTimeBuildCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.compileTimeBuildCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-c"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+		    {ProcessCommandArgumentType_String, "-fPIC"}};
+
+		manager.environment.compileTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
+
+		manager.environment.buildTimeBuildCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.buildTimeBuildCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-c"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-fPIC"}};
+
+		manager.environment.buildTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
+	}
+
 	makeDirectory(cakelispWorkingDir);
 	printf("Using cache at %s\n", cakelispWorkingDir);
 }
@@ -44,11 +71,12 @@ void moduleManagerInitialize(ModuleManager& manager)
 void moduleManagerDestroy(ModuleManager& manager)
 {
 	environmentDestroyInvalidateTokens(manager.environment);
-	for (Module& module : manager.modules)
+	for (Module* module : manager.modules)
 	{
-		delete module.tokens;
-		delete module.generatedOutput;
-		free((void*)module.filename);
+		delete module->tokens;
+		delete module->generatedOutput;
+		free((void*)module->filename);
+		delete module;
 	}
 	manager.modules.clear();
 	closeAllDynamicLibraries();
@@ -145,27 +173,28 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 
 bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 {
-	for (Module& module : manager.modules)
+	for (Module* module : manager.modules)
 	{
-		if (strcmp(module.filename, filename) == 0)
+		if (strcmp(module->filename, filename) == 0)
 		{
 			printf("Already loaded %s\n", filename);
 			return true;
 		}
 	}
 
-	Module newModule = {};
+	Module* newModule = new Module();
 	// We need to keep this memory around for the lifetime of the token, regardless of relocation
-	newModule.filename = strdup(filename);
+	newModule->filename = strdup(filename);
 	// This stage cleans up after itself if it fails
-	if (!moduleLoadTokenizeValidate(newModule.filename, &newModule.tokens))
+	if (!moduleLoadTokenizeValidate(newModule->filename, &newModule->tokens))
 		return false;
 
-	newModule.generatedOutput = new GeneratorOutput;
+	newModule->generatedOutput = new GeneratorOutput;
 
 	manager.modules.push_back(newModule);
 
 	EvaluatorContext moduleContext = {};
+	moduleContext.module = newModule;
 	moduleContext.scope = EvaluatorScope_Module;
 	moduleContext.definitionName = &manager.globalPseudoInvocationName;
 	// Module always requires all its functions
@@ -175,14 +204,14 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 	StringOutput bodyDelimiterTemplate = {};
 	bodyDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
 	int numErrors = EvaluateGenerateAll_Recursive(
-	    manager.environment, moduleContext, *newModule.tokens,
-	    /*startTokenIndex=*/0, &bodyDelimiterTemplate, *newModule.generatedOutput);
+	    manager.environment, moduleContext, *newModule->tokens,
+	    /*startTokenIndex=*/0, &bodyDelimiterTemplate, *newModule->generatedOutput);
 	// After this point, the module may have references to its tokens in the environmment, so we
 	// cannot destroy it until we're done evaluating everything
 	if (numErrors)
 		return false;
 
-	printf("Loaded %s\n", newModule.filename);
+	printf("Loaded %s\n", newModule->filename);
 	return true;
 }
 
@@ -196,14 +225,14 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	NameStyleSettings nameSettings;
 	WriterFormatSettings formatSettings;
 
-	for (Module& module : manager.modules)
+	for (Module* module : manager.modules)
 	{
 		WriterOutputSettings outputSettings;
-		outputSettings.sourceCakelispFilename = module.filename;
+		outputSettings.sourceCakelispFilename = module->filename;
 
 		// TODO: hpp to h support
 		char relativeIncludeBuffer[MAX_PATH_LENGTH];
-		getFilenameFromPath(module.filename, relativeIncludeBuffer, sizeof(relativeIncludeBuffer));
+		getFilenameFromPath(module->filename, relativeIncludeBuffer, sizeof(relativeIncludeBuffer));
 		char sourceHeadingBuffer[1024] = {0};
 		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", relativeIncludeBuffer,
 		             generatedSourceHeading ? generatedSourceHeading : "");
@@ -212,9 +241,37 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		outputSettings.headerHeading = generatedHeaderHeading;
 		outputSettings.headerFooter = generatedHeaderFooter;
 
-		if (!writeGeneratorOutput(*module.generatedOutput, nameSettings, formatSettings,
+		char sourceOutputName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
+		char headerOutputName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
+		module->sourceOutputName = sourceOutputName;
+		module->headerOutputName = headerOutputName;
+		outputSettings.sourceOutputName = module->sourceOutputName.c_str();
+		outputSettings.headerOutputName = module->headerOutputName.c_str();
+
+		if (!writeGeneratorOutput(*module->generatedOutput, nameSettings, formatSettings,
 		                          outputSettings))
 			return false;
+	}
+
+	return true;
+}
+
+bool moduleManagerBuild(ModuleManager& manager)
+{
+	for (Module* module : manager.modules)
+	{
+		printf("Build module %s\n", module->sourceOutputName.c_str());
+		for (ModuleDependency& dependency : module->dependencies)
+		{
+			printf("\tRequires %s\n", dependency.name.c_str());
+
+			// Cakelisp files are built at the module manager level, so we need not concern
+			// ourselves with them
+			if (dependency.type == ModuleDependency_Cakelisp)
+				continue;
+		}
 	}
 
 	return true;

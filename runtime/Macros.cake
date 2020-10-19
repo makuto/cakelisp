@@ -1,3 +1,10 @@
+(set-cakelisp-option compile-time-compiler "/usr/bin/clang++")
+(set-cakelisp-option compile-time-build-arguments
+                     "-g" "-c" 'sourceInput "-o" 'objectOutput 'cakelispHeadersInclude "-fPIC")
+(set-cakelisp-option compile-time-linker "/usr/bin/clang++")
+(set-cakelisp-option compile-time-link-arguments
+                     "-shared" "-o" 'libraryOutput 'objectInput)
+
 ;; TODO: This should be builtin to macros and generators
 (defmacro destructure-arguments ()
   (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
