@@ -2,15 +2,11 @@
 
 #include <vector>
 
-#include "Tokenizer.hpp"
-#include "Evaluator.hpp"
+#include "ModuleManagerEnums.hpp"
 
-enum ModuleDependencyType
-{
-	ModuleDependency_Cakelisp,
-	ModuleDependency_Library,
-	ModuleDependency_CFile
-};
+#include "Evaluator.hpp"
+#include "RunProcess.hpp"
+#include "Tokenizer.hpp"
 
 struct ModuleDependency
 {
@@ -26,7 +22,17 @@ struct Module
 	GeneratorOutput* generatedOutput;
 	std::string sourceOutputName;
 	std::string headerOutputName;
+
+	// Build system
 	std::vector<ModuleDependency> dependencies;
+	bool skipBuild;
+
+	// These make sense to overload if you want a compile-time dependency
+	ProcessCommand compileTimeBuildCommand;
+	ProcessCommand compileTimeLinkCommand;
+
+	ProcessCommand buildTimeBuildCommand;
+	ProcessCommand buildTimeLinkCommand;
 };
 
 struct ModuleManager

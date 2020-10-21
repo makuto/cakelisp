@@ -142,9 +142,9 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		s_subprocesses.push_back({statusOut, pid, pipeFileDescriptors[PipeRead], command});
 	}
 
-	return 1;
-#endif
 	return 0;
+#endif
+	return 1;
 }
 
 void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
@@ -179,3 +179,57 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 
 	s_subprocesses.clear();
 }
+
+void PrintProcessArguments(const char** processArguments)
+{
+	for (const char** argument = processArguments; *argument; ++argument)
+		printf("%s ", *argument);
+	printf("\n");
+}
+
+// The array will need to be deleted, but the array members will not
+const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
+                                             const ProcessCommandInput* inputs, int numInputs)
+{
+	int numArguments = command.arguments.size();
+	// +1 for file to execute
+	int numFinalArguments = numArguments + 1;
+	// +1 again for the null terminator
+	const char** newArguments = (const char**)calloc(sizeof(const char*), numFinalArguments + 1);
+	for (int i = 0; i < numFinalArguments; ++i)
+		newArguments[i] = nullptr;
+	newArguments[numFinalArguments] = nullptr;
+	newArguments[0] = command.fileToExecute.c_str();
+
+	for (int i = 0; i < numArguments; ++i)
+	{
+		int finalArgumentIndex = i + 1;
+		ProcessCommandArgument& argument = command.arguments[i];
+
+		if (argument.type == ProcessCommandArgumentType_String)
+			newArguments[finalArgumentIndex] = argument.contents.c_str();
+		else
+		{
+			bool found = false;
+			for (int input = 0; input < numInputs; ++input)
+			{
+				if (inputs[input].type == argument.type)
+				{
+					newArguments[finalArgumentIndex] = inputs[input].value;
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				printf("error: command missing input\n");
+				free(newArguments);
+				return nullptr;
+			}
+		}
+	}
+
+	return newArguments;
+}
+
+const int maxProcessesRecommendedSpawned = 8;

@@ -268,10 +268,22 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	return true;
 }
 
+static void OnCompileProcessOutput(const char* output)
+{
+	// TODO C/C++ error to Cakelisp token mapper
+}
+
 bool moduleManagerBuild(ModuleManager& manager)
 {
-	for (Module* module : manager.modules)
+	int currentNumProcessesSpawned = 0;
+
+	int numModules = manager.modules.size();
+	std::vector<int> buildStatusCodes(numModules);
+
+	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
+		Module* module = manager.modules[moduleIndex];
+
 		printf("Build module %s\n", module->sourceOutputName.c_str());
 		for (ModuleDependency& dependency : module->dependencies)
 		{
@@ -281,6 +293,78 @@ bool moduleManagerBuild(ModuleManager& manager)
 			// ourselves with them
 			if (dependency.type == ModuleDependency_Cakelisp)
 				continue;
+		}
+
+		// TODO: Importing needs to set this on the module, not the dependency...
+		if (module->skipBuild)
+			continue;
+
+		// TODO: Lots of overlap between this and compile-time building
+		char buildFilename[MAX_NAME_LENGTH] = {0};
+		getFilenameFromPath(module->sourceOutputName.c_str(), buildFilename, sizeof(buildFilename));
+		if (!buildFilename[0])
+			return false;
+
+		char buildObjectName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(buildObjectName, "%s/%s.o", cakelispWorkingDir, buildFilename);
+		if (!fileIsMoreRecentlyModified(module->sourceOutputName.c_str(), buildObjectName))
+		{
+			if (log.buildProcess)
+				printf("Skipping compiling %s (using cached object)\n",
+				       module->sourceOutputName.c_str());
+		}
+		else
+		{
+			ProcessCommand& buildCommand = (!module->buildTimeBuildCommand.fileToExecute.empty() &&
+			                                !module->buildTimeBuildCommand.arguments.empty()) ?
+			                                   module->buildTimeBuildCommand :
+			                                   manager.environment.buildTimeBuildCommand;
+
+			ProcessCommandInput buildTimeInputs[] = {
+			    {ProcessCommandArgumentType_SourceInput, module->sourceOutputName.c_str()},
+			    {ProcessCommandArgumentType_ObjectOutput, buildObjectName}};
+			const char** buildArguments = MakeProcessArgumentsFromCommand(
+			    buildCommand, buildTimeInputs, ArraySize(buildTimeInputs));
+			if (!buildArguments)
+			{
+				printf("error: failed to construct build arguments\n");
+				return false;
+			}
+			RunProcessArguments compileArguments = {};
+			compileArguments.fileToExecute = buildCommand.fileToExecute.c_str();
+			compileArguments.arguments = buildArguments;
+			// PrintProcessArguments(buildArguments);
+			if (runProcess(compileArguments, &buildStatusCodes[moduleIndex]) != 0)
+			{
+				printf("error: failed to invoke compiler\n");
+				free(buildArguments);
+				return false;
+			}
+
+			free(buildArguments);
+
+			// TODO This could be made smarter by allowing more spawning right when a process
+			// closes, instead of starting in waves
+			++currentNumProcessesSpawned;
+			if (currentNumProcessesSpawned >= maxProcessesRecommendedSpawned)
+			{
+				waitForAllProcessesClosed(OnCompileProcessOutput);
+				currentNumProcessesSpawned = 0;
+			}
+		}
+	}
+
+	waitForAllProcessesClosed(OnCompileProcessOutput);
+	currentNumProcessesSpawned = 0;
+
+	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
+	{
+		// Module* module = manager.modules[moduleIndex];
+		int buildResult = buildStatusCodes[moduleIndex];
+		if (buildResult != 0)
+		{
+			printf("error: failed to build file\n");
+			return false;
 		}
 	}
 

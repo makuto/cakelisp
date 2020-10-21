@@ -1,17 +1,18 @@
 #pragma once
 
 #include "EvaluatorEnums.hpp"
+#include "RunProcess.hpp"
 
 #include <string>
 #include <vector>
 // TODO: Replace with fast hash table
 #include <unordered_map>
 
-struct NameStyleSettings;
-struct Token;
 struct GeneratorOutput;
 struct ModuleManager;
 struct Module;
+struct NameStyleSettings;
+struct Token;
 
 // Rather than needing to allocate and edit a buffer eventually equal to the size of the final
 // output, store output operations instead. This also facilitates source <-> generated mapping data
@@ -168,18 +169,6 @@ typedef std::unordered_map<std::string, ObjectDefinition> ObjectDefinitionMap;
 typedef std::pair<const std::string, ObjectDefinition> ObjectDefinitionPair;
 typedef std::unordered_map<std::string, ObjectReferencePool> ObjectReferencePoolMap;
 typedef std::pair<const std::string, ObjectReferencePool> ObjectReferencePoolPair;
-
-struct ProcessCommandArgument
-{
-	ProcessCommandArgumentType type;
-	std::string contents;
-};
-
-struct ProcessCommand
-{
-	std::string fileToExecute;
-	std::vector<ProcessCommandArgument> arguments;
-};
 
 // Unlike context, which can't be changed, environment can be changed.
 // Use care when modifying the environment. Only add things once you know things have succeeded.

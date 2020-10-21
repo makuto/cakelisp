@@ -1,9 +1,4 @@
-(set-cakelisp-option compile-time-compiler "/usr/bin/clang++")
-(set-cakelisp-option compile-time-compile-arguments
-                     "-g" "-c" 'source-input "-o" 'object-output 'cakelisp-headers-include "-fPIC")
-(set-cakelisp-option compile-time-linker "/usr/bin/clang++")
-(set-cakelisp-option compile-time-link-arguments
-                     "-shared" "-o" 'library-output 'object-input)
+(skip-build)
 
 ;; TODO: This should be builtin to macros and generators
 (defmacro destructure-arguments ()

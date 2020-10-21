@@ -478,65 +478,7 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 	} while (numRequiresStatusChanged);
 }
 
-struct ProcessCommandInput
-{
-	ProcessCommandArgumentType type;
-	const char* value;
-};
-
-void PrintProcessArguments(const char** processArguments)
-{
-	for (const char* argument = processArguments[0]; argument; ++argument)
-		printf("%s ", argument);
-	printf("\n");
-}
-
-// The array will need to be deleted, but the array members will not
-const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
-                                             const ProcessCommandInput* inputs, int numInputs)
-{
-	int numArguments = command.arguments.size();
-	// +1 for file to execute
-	int numFinalArguments = numArguments + 1;
-	// +1 again for the null terminator
-	const char** newArguments = (const char**)calloc(sizeof(const char*), numFinalArguments + 1);
-	for (int i = 0; i < numFinalArguments; ++i)
-		newArguments[i] = nullptr;
-	newArguments[numFinalArguments] = nullptr;
-	newArguments[0] = command.fileToExecute.c_str();
-
-	for (int i = 0; i < numArguments; ++i)
-	{
-		int finalArgumentIndex = i + 1;
-		ProcessCommandArgument& argument = command.arguments[i];
-
-		if (argument.type == ProcessCommandArgumentType_String)
-			newArguments[finalArgumentIndex] = argument.contents.c_str();
-		else
-		{
-			bool found = false;
-			for (int input = 0; input < numInputs; ++input)
-			{
-				if (inputs[input].type == argument.type)
-				{
-					newArguments[finalArgumentIndex] = inputs[input].value;
-					found = true;
-					break;
-				}
-			}
-			if (!found)
-			{
-				printf("error: command missing input\n");
-				free(newArguments);
-				return nullptr;
-			}
-		}
-	}
-
-	return newArguments;
-}
-
-void OnCompileProcessOutput(const char* output)
+static void OnCompileProcessOutput(const char* output)
 {
 	// TODO C/C++ error to Cakelisp token mapper
 }
@@ -577,7 +519,6 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	// TODO: Make pipeline able to start e.g. linker while other objects are still compiling
 	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
 	// waitForAllProcessesClosed(), else the status pointer could be invalidated
-	const int maxProcessesSpawned = 8;
 	int currentNumProcessesSpawned = 0;
 	for (BuildObject& buildObject : definitionsToBuild)
 	{
@@ -681,9 +622,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			// TODO: Abort building if cannot invoke compiler
 			continue;
 		}
-		// const char* arguments[] = {fileToExec,      "-g",          "-c",    sourceOutputName,
-		// "-o", buildObjectName, headerInclude, "-fPIC", nullptr};
-		// TODO: Get rid of intermediate structure
+
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = environment.compileTimeBuildCommand.fileToExecute.c_str();
 		compileArguments.arguments = buildArguments;
@@ -696,10 +635,11 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		free(buildArguments);
 
+		// TODO: Move this to other processes as well
 		// TODO This could be made smarter by allowing more spawning right when a process closes,
 		// instead of starting in waves
 		++currentNumProcessesSpawned;
-		if (currentNumProcessesSpawned >= maxProcessesSpawned)
+		if (currentNumProcessesSpawned >= maxProcessesRecommendedSpawned)
 		{
 			waitForAllProcessesClosed(OnCompileProcessOutput);
 			currentNumProcessesSpawned = 0;
@@ -708,6 +648,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 	// The result of the builds will go straight to our definitionsToBuild
 	waitForAllProcessesClosed(OnCompileProcessOutput);
+	currentNumProcessesSpawned = 0;
 
 	// Linking
 	for (BuildObject& buildObject : definitionsToBuild)
@@ -752,6 +693,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 	// The result of the linking will go straight to our definitionsToBuild
 	waitForAllProcessesClosed(OnCompileProcessOutput);
+	currentNumProcessesSpawned = 0;
 
 	for (BuildObject& buildObject : definitionsToBuild)
 	{

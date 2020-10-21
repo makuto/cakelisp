@@ -1,3 +1,13 @@
+(set-cakelisp-option enable-hot-reloading true)
+
+(set-module-option build-time-compiler "/usr/bin/clang++")
+;; Include cakelisp source for DynamicLoader.hpp
+(set-module-option build-time-compile-arguments
+                   "-g" "-c" 'source-input "-o" 'object-output "-fPIC" "-Isrc/")
+(set-module-option build-time-linker "/usr/bin/clang++")
+(set-module-option build-time-link-arguments
+                   "-shared" "-o" 'library-output 'object-input)
+
 (import &comptime-only "Macros.cake")
 (c-import "<unordered_map>" "<vector>")
 (c-import "DynamicLoader.hpp")

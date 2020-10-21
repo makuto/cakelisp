@@ -188,6 +188,74 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 	return false;
 }
 
+bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                     const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
+{
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex], "modules not supported (internal code error?)");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int optionNameIndex =
+	    getExpectedArgument("expected option name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (optionNameIndex == -1)
+		return false;
+
+	// TODO: Copy-pasted
+	struct ProcessCommandOptions
+	{
+		const char* optionName;
+		ProcessCommand* command;
+		ProcessCommandOptionFunc handler;
+	};
+	ProcessCommandOptions commandOptions[] = {
+	    {"compile-time-compiler", &context.module->compileTimeBuildCommand,
+	     SetProcessCommandFileToExec},
+	    {"compile-time-compile-arguments", &context.module->compileTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"compile-time-linker", &context.module->compileTimeLinkCommand,
+	     SetProcessCommandFileToExec},
+	    {"compile-time-link-arguments", &context.module->compileTimeLinkCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-compiler", &context.module->buildTimeBuildCommand,
+	     SetProcessCommandFileToExec},
+	    {"build-time-compile-arguments", &context.module->buildTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-linker", &context.module->buildTimeLinkCommand, SetProcessCommandFileToExec},
+	    {"build-time-link-arguments", &context.module->buildTimeLinkCommand,
+	     SetProcessCommandArguments},
+	};
+
+	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
+	{
+		if (tokens[optionNameIndex].contents.compare(commandOptions[i].optionName) == 0)
+		{
+			return commandOptions[i].handler(environment, tokens, startTokenIndex,
+			                                 commandOptions[i].command);
+		}
+	}
+
+	return true;
+}
+
+bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      GeneratorOutput& output)
+{
+	if (context.module)
+		context.module->skipBuild = true;
+	else
+	{
+		ErrorAtToken(tokens[startTokenIndex], "building not supported (internal code error?)");
+		return false;
+	}
+
+	return true;
+}
+
 enum ImportState
 {
 	WithDefinitions,
@@ -1898,6 +1966,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	// Cakelisp options
 	environment.generators["set-cakelisp-option"] = SetCakelispOption;
+	environment.generators["set-module-option"] = SetModuleOption;
+
+	environment.generators["skip-build"] = SkipBuildGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
