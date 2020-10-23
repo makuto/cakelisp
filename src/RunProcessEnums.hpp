@@ -10,4 +10,5 @@ enum ProcessCommandArgumentType
 
 	ProcessCommandArgumentType_ObjectInput,
 	ProcessCommandArgumentType_DynamicLibraryOutput,
+	ProcessCommandArgumentType_ExecutableOutput
 };

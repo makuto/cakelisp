@@ -4,7 +4,10 @@
 ;; Include cakelisp source for DynamicLoader.hpp
 (set-module-option build-time-compile-arguments
                    "-g" "-c" 'source-input "-o" 'object-output "-fPIC" "-Isrc/")
+;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
+;; arguments to the link command only
 (set-module-option build-time-linker "/usr/bin/clang++")
+;; This needs to link -ldl and such (depending on platform...)
 (set-module-option build-time-link-arguments
                    "-shared" "-o" 'library-output 'object-input)
 

@@ -38,7 +38,8 @@ bool validateParentheses(const std::vector<Token>& tokens);
 
 void printTokens(const std::vector<Token>& tokens);
 
-bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize, const Token& token);
-bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize,
-                         const Token& token);
+bool writeCharToBufferErrorToken(char c, char** at, char* bufferStart, int bufferSize,
+                                 const Token& token);
+bool writeStringToBufferErrorToken(const char* str, char** at, char* bufferStart, int bufferSize,
+                                   const Token& token);
 bool appendTokenToString(const Token& token, char** at, char* bufferStart, int bufferSize);

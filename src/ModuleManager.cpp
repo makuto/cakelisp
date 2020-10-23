@@ -67,6 +67,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.buildTimeLinkCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 	}
 
 	// TODO: Add defaults for Windows
@@ -273,21 +277,50 @@ static void OnCompileProcessOutput(const char* output)
 	// TODO C/C++ error to Cakelisp token mapper
 }
 
+// enum BuildTargetType
+// {
+// 	BuildTargetType_Executable,
+// 	BuildTargetType_Library
+// };
+
+// struct BuildTarget
+// {
+// 	BuildTargetType type;
+// 	std::vector<std::string> filesToLink;
+// };
+
+struct BuiltObject
+{
+	int buildStatus;
+	std::string filename;
+};
+
+void builtObjectsFree(std::vector<BuiltObject*>& objects)
+{
+	for (BuiltObject* object : objects)
+		delete object;
+
+	objects.clear();
+}
+
 bool moduleManagerBuild(ModuleManager& manager)
 {
 	int currentNumProcessesSpawned = 0;
 
 	int numModules = manager.modules.size();
-	std::vector<int> buildStatusCodes(numModules);
+	// Pointer because the objects can't move, status codes are pointed to
+	std::vector<BuiltObject*> builtObjects;
 
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
 		Module* module = manager.modules[moduleIndex];
 
-		printf("Build module %s\n", module->sourceOutputName.c_str());
+		if (log.buildProcess)
+			printf("Build module %s\n", module->sourceOutputName.c_str());
 		for (ModuleDependency& dependency : module->dependencies)
 		{
-			printf("\tRequires %s\n", dependency.name.c_str());
+			if (log.buildProcess)
+				printf("\tRequires %s\n", dependency.name.c_str());
 
 			// Cakelisp files are built at the module manager level, so we need not concern
 			// ourselves with them
@@ -303,10 +336,22 @@ bool moduleManagerBuild(ModuleManager& manager)
 		char buildFilename[MAX_NAME_LENGTH] = {0};
 		getFilenameFromPath(module->sourceOutputName.c_str(), buildFilename, sizeof(buildFilename));
 		if (!buildFilename[0])
+		{
+			builtObjectsFree(builtObjects);
 			return false;
+		}
 
+		// TODO: Trim .cake.cpp
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(buildObjectName, "%s/%s.o", cakelispWorkingDir, buildFilename);
+
+		// At this point, we do want to build the object. We might skip building it if it is cached.
+		// In that case, the status code should still be 0, as if we built and succeeded building it
+		BuiltObject* newBuiltObject = new BuiltObject;
+		newBuiltObject->buildStatus = 0;
+		newBuiltObject->filename = buildObjectName;
+		builtObjects.push_back(newBuiltObject);
+
 		if (!fileIsMoreRecentlyModified(module->sourceOutputName.c_str(), buildObjectName))
 		{
 			if (log.buildProcess)
@@ -328,16 +373,19 @@ bool moduleManagerBuild(ModuleManager& manager)
 			if (!buildArguments)
 			{
 				printf("error: failed to construct build arguments\n");
+				builtObjectsFree(builtObjects);
 				return false;
 			}
 			RunProcessArguments compileArguments = {};
 			compileArguments.fileToExecute = buildCommand.fileToExecute.c_str();
 			compileArguments.arguments = buildArguments;
 			// PrintProcessArguments(buildArguments);
-			if (runProcess(compileArguments, &buildStatusCodes[moduleIndex]) != 0)
+
+			if (runProcess(compileArguments, &newBuiltObject->buildStatus) != 0)
 			{
 				printf("error: failed to invoke compiler\n");
 				free(buildArguments);
+				builtObjectsFree(builtObjects);
 				return false;
 			}
 
@@ -357,16 +405,118 @@ bool moduleManagerBuild(ModuleManager& manager)
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;
 
-	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
+	// TODO: Make configurable
+	const char* outputExecutableName = "a.out";
+
+	int objectNameBufferSize = 0;
+	int numObjectsToLink = 0;
+	bool succeededBuild = true;
+	bool needsLink = false;
+	for (BuiltObject* object : builtObjects)
 	{
 		// Module* module = manager.modules[moduleIndex];
-		int buildResult = buildStatusCodes[moduleIndex];
+		int buildResult = object->buildStatus;
 		if (buildResult != 0)
 		{
-			printf("error: failed to build file\n");
-			return false;
+			printf("error: failed to make target %s\n", object->filename.c_str());
+			succeededBuild = false;
+			continue;
 		}
+
+		if (log.buildProcess)
+			printf("Linking %s\n", object->filename.c_str());
+
+		objectNameBufferSize += object->filename.size();
+		++numObjectsToLink;
+
+		// If all our objects are older than our executable, don't even link!
+		needsLink |= fileIsMoreRecentlyModified(object->filename.c_str(), outputExecutableName);
 	}
 
+	if (!succeededBuild)
+	{
+		builtObjectsFree(builtObjects);
+		return false;
+	}
+
+	if (!needsLink)
+	{
+		if (log.buildProcess)
+			printf("Skipping linking (no built objects are newer than cached executable)\n");
+
+		builtObjectsFree(builtObjects);
+		return true;
+	}
+
+	if (numObjectsToLink)
+	{
+		// Four objects means we need three spaces and a null terminator
+		int totalNameBufferSize = objectNameBufferSize + numObjectsToLink;
+		char* objectNameBuffer = new char[totalNameBufferSize];
+		char* writeHead = objectNameBuffer;
+		for (int i = 0; i < numObjectsToLink; ++i)
+		{
+			BuiltObject* object = builtObjects[i];
+
+			if (!writeStringToBuffer(object->filename.c_str(), &writeHead, objectNameBuffer,
+			                         totalNameBufferSize))
+			{
+				delete[] objectNameBuffer;
+				builtObjectsFree(builtObjects);
+				return false;
+			}
+
+			if (i < numObjectsToLink - 1)
+			{
+				if (!writeCharToBuffer(' ', &writeHead, objectNameBuffer, totalNameBufferSize))
+				{
+					delete[] objectNameBuffer;
+					builtObjectsFree(builtObjects);
+					return false;
+				}
+			}
+		}
+
+		if (log.buildProcess)
+			printf("Link '%s'\n", objectNameBuffer);
+
+		ProcessCommandInput linkTimeInputs[] = {
+		    {ProcessCommandArgumentType_ExecutableOutput, outputExecutableName},
+		    {ProcessCommandArgumentType_ObjectInput, objectNameBuffer}};
+		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
+		    manager.environment.buildTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+		if (!linkArgumentList)
+		{
+			delete[] objectNameBuffer;
+			builtObjectsFree(builtObjects);
+			return false;
+		}
+		RunProcessArguments linkArguments = {};
+		linkArguments.fileToExecute =
+		    manager.environment.buildTimeLinkCommand.fileToExecute.c_str();
+		linkArguments.arguments = linkArgumentList;
+		int linkStatus = 0;
+		if (runProcess(linkArguments, &linkStatus) != 0)
+		{
+			delete[] objectNameBuffer;
+			builtObjectsFree(builtObjects);
+			return false;
+		}
+
+		free(linkArgumentList);
+		delete[] objectNameBuffer;
+
+		waitForAllProcessesClosed(OnCompileProcessOutput);
+
+		succeededBuild = linkStatus == 0;
+	}
+
+	if (!succeededBuild)
+	{
+		builtObjectsFree(builtObjects);
+		return false;
+	}
+
+	builtObjectsFree(builtObjects);
 	return true;
 }

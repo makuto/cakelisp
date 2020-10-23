@@ -22,6 +22,9 @@ void printIndentToDepth(int depth);
 // TODO Replace with strcat()
 #define PrintBuffer(buffer, output) SafeSnprinf(buffer, sizeof(buffer), "%s", output)
 
+bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize);
+bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize);
+
 // TODO De-macroize these? It could be useful to keep as macros if I add __LINE__ etc. (to answer
 // questions like "where is this error coming from?")
 

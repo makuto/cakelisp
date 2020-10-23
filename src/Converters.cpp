@@ -24,7 +24,8 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 			switch (mode)
 			{
 				case NameStyleMode_Underscores:
-					if (!writeCharToBuffer('_', &bufferWrite, bufferOut, bufferOutSize, token))
+					if (!writeCharToBufferErrorToken('_', &bufferWrite, bufferOut, bufferOutSize,
+					                                 token))
 						return;
 					break;
 				case NameStyleMode_CamelCase:
@@ -49,7 +50,7 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 			// Special case for C++ namespaces: valid only if there are two in a row
 			if ((c == name && *c + 1 == ':') || (*(c + 1) == ':' || *(c - 1) == ':'))
 			{
-				if (!writeCharToBuffer(*c, &bufferWrite, bufferOut, bufferOutSize, token))
+				if (!writeCharToBufferErrorToken(*c, &bufferWrite, bufferOut, bufferOutSize, token))
 					return;
 			}
 			else
@@ -62,7 +63,8 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 					    "interpreting a special symbol?\n");
 
 				requiredSymbolConversion = true;
-				if (!writeStringToBuffer("Colon", &bufferWrite, bufferOut, bufferOutSize, token))
+				if (!writeStringToBufferErrorToken("Colon", &bufferWrite, bufferOut, bufferOutSize,
+				                                   token))
 					return;
 			}
 		}
@@ -70,12 +72,13 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 		{
 			if (upcaseNextCharacter)
 			{
-				if (!writeCharToBuffer(toupper(*c), &bufferWrite, bufferOut, bufferOutSize, token))
+				if (!writeCharToBufferErrorToken(toupper(*c), &bufferWrite, bufferOut,
+				                                 bufferOutSize, token))
 					return;
 			}
 			else
 			{
-				if (!writeCharToBuffer(*c, &bufferWrite, bufferOut, bufferOutSize, token))
+				if (!writeCharToBufferErrorToken(*c, &bufferWrite, bufferOut, bufferOutSize, token))
 					return;
 			}
 
@@ -89,28 +92,34 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 			switch (*c)
 			{
 				case '+':
-					if (!writeStringToBuffer("Add", &bufferWrite, bufferOut, bufferOutSize, token))
+					if (!writeStringToBufferErrorToken("Add", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
 						return;
 					break;
 				case '-':
-					if (!writeStringToBuffer("Sub", &bufferWrite, bufferOut, bufferOutSize, token))
+					if (!writeStringToBufferErrorToken("Sub", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
 						return;
 					break;
 				case '*':
-					if (!writeStringToBuffer("Mul", &bufferWrite, bufferOut, bufferOutSize, token))
+					if (!writeStringToBufferErrorToken("Mul", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
 						return;
 					break;
 				case '/':
-					if (!writeStringToBuffer("Div", &bufferWrite, bufferOut, bufferOutSize, token))
+					if (!writeStringToBufferErrorToken("Div", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
 						return;
 					break;
 				case '%':
-					if (!writeStringToBuffer("Mod", &bufferWrite, bufferOut, bufferOutSize, token))
+					if (!writeStringToBufferErrorToken("Mod", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
 						return;
 					break;
 				case '.':
 					// TODO: Decide how to handle object pathing
-					if (!writeStringToBuffer(".", &bufferWrite, bufferOut, bufferOutSize, token))
+					if (!writeStringToBufferErrorToken(".", &bufferWrite, bufferOut, bufferOutSize,
+					                                   token))
 						return;
 					break;
 				default:
@@ -120,8 +129,8 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 					    "'%c' which has no conversion equivalent. It will be replaced with "
 					    "'BadChar'",
 					    name, *c);
-					if (!writeStringToBuffer("BadChar", &bufferWrite, bufferOut, bufferOutSize,
-					                         token))
+					if (!writeStringToBufferErrorToken("BadChar", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
 						return;
 					break;
 			}
