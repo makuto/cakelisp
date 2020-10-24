@@ -612,9 +612,9 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		}
 
 		ProcessCommandInput compileTimeInputs[] = {
-		    {ProcessCommandArgumentType_SourceInput, sourceOutputName},
-		    {ProcessCommandArgumentType_ObjectOutput, buildObjectName},
-		    {ProcessCommandArgumentType_CakelispHeadersInclude, headerInclude}};
+		    {ProcessCommandArgumentType_SourceInput, {sourceOutputName}},
+		    {ProcessCommandArgumentType_ObjectOutput, {buildObjectName}},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
 		const char** buildArguments = MakeProcessArgumentsFromCommand(
 		    environment.compileTimeBuildCommand, compileTimeInputs, ArraySize(compileTimeInputs));
 		if (!buildArguments)
@@ -671,8 +671,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		ProcessCommandInput linkTimeInputs[] = {
 		    {ProcessCommandArgumentType_DynamicLibraryOutput,
-		     buildObject.dynamicLibraryPath.c_str()},
-		    {ProcessCommandArgumentType_ObjectInput, buildObject.buildObjectName.c_str()}};
+		     {buildObject.dynamicLibraryPath.c_str()}},
+		    {ProcessCommandArgumentType_ObjectInput, {buildObject.buildObjectName.c_str()}}};
 		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
 		    environment.compileTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
 		if (!linkArgumentList)

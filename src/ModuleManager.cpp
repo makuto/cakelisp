@@ -366,8 +366,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 			                                   manager.environment.buildTimeBuildCommand;
 
 			ProcessCommandInput buildTimeInputs[] = {
-			    {ProcessCommandArgumentType_SourceInput, module->sourceOutputName.c_str()},
-			    {ProcessCommandArgumentType_ObjectOutput, buildObjectName}};
+			    {ProcessCommandArgumentType_SourceInput, {module->sourceOutputName.c_str()}},
+			    {ProcessCommandArgumentType_ObjectOutput, {buildObjectName}}};
 			const char** buildArguments = MakeProcessArgumentsFromCommand(
 			    buildCommand, buildTimeInputs, ArraySize(buildTimeInputs));
 			if (!buildArguments)
@@ -426,7 +426,6 @@ bool moduleManagerBuild(ModuleManager& manager)
 		if (log.buildProcess)
 			printf("Linking %s\n", object->filename.c_str());
 
-		objectNameBufferSize += object->filename.size();
 		++numObjectsToLink;
 
 		// If all our objects are older than our executable, don't even link!
@@ -450,44 +449,21 @@ bool moduleManagerBuild(ModuleManager& manager)
 
 	if (numObjectsToLink)
 	{
-		// Four objects means we need three spaces and a null terminator
-		int totalNameBufferSize = objectNameBufferSize + numObjectsToLink;
-		char* objectNameBuffer = new char[totalNameBufferSize];
-		char* writeHead = objectNameBuffer;
+		std::vector<const char*> objectsToLink(numObjectsToLink);
 		for (int i = 0; i < numObjectsToLink; ++i)
 		{
 			BuiltObject* object = builtObjects[i];
 
-			if (!writeStringToBuffer(object->filename.c_str(), &writeHead, objectNameBuffer,
-			                         totalNameBufferSize))
-			{
-				delete[] objectNameBuffer;
-				builtObjectsFree(builtObjects);
-				return false;
-			}
-
-			if (i < numObjectsToLink - 1)
-			{
-				if (!writeCharToBuffer(' ', &writeHead, objectNameBuffer, totalNameBufferSize))
-				{
-					delete[] objectNameBuffer;
-					builtObjectsFree(builtObjects);
-					return false;
-				}
-			}
+			objectsToLink[i] = object->filename.c_str();
 		}
 
-		if (log.buildProcess)
-			printf("Link '%s'\n", objectNameBuffer);
-
 		ProcessCommandInput linkTimeInputs[] = {
-		    {ProcessCommandArgumentType_ExecutableOutput, outputExecutableName},
-		    {ProcessCommandArgumentType_ObjectInput, objectNameBuffer}};
+		    {ProcessCommandArgumentType_ExecutableOutput, {outputExecutableName}},
+		    {ProcessCommandArgumentType_ObjectInput, objectsToLink}};
 		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
 		    manager.environment.buildTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
 		if (!linkArgumentList)
 		{
-			delete[] objectNameBuffer;
 			builtObjectsFree(builtObjects);
 			return false;
 		}
@@ -498,13 +474,11 @@ bool moduleManagerBuild(ModuleManager& manager)
 		int linkStatus = 0;
 		if (runProcess(linkArguments, &linkStatus) != 0)
 		{
-			delete[] objectNameBuffer;
 			builtObjectsFree(builtObjects);
 			return false;
 		}
 
 		free(linkArgumentList);
-		delete[] objectNameBuffer;
 
 		waitForAllProcessesClosed(OnCompileProcessOutput);
 

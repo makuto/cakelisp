@@ -191,23 +191,14 @@ void PrintProcessArguments(const char** processArguments)
 const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
                                              const ProcessCommandInput* inputs, int numInputs)
 {
-	int numArguments = command.arguments.size();
-	// +1 for file to execute
-	int numFinalArguments = numArguments + 1;
-	// +1 again for the null terminator
-	const char** newArguments = (const char**)calloc(sizeof(const char*), numFinalArguments + 1);
-	for (int i = 0; i < numFinalArguments; ++i)
-		newArguments[i] = nullptr;
-	newArguments[numFinalArguments] = nullptr;
-	newArguments[0] = command.fileToExecute.c_str();
+	std::vector<const char*> argumentsAccumulate;
 
-	for (int i = 0; i < numArguments; ++i)
+	for (unsigned int i = 0; i < command.arguments.size(); ++i)
 	{
-		int finalArgumentIndex = i + 1;
 		ProcessCommandArgument& argument = command.arguments[i];
 
 		if (argument.type == ProcessCommandArgumentType_String)
-			newArguments[finalArgumentIndex] = argument.contents.c_str();
+			argumentsAccumulate.push_back(argument.contents.c_str());
 		else
 		{
 			bool found = false;
@@ -215,7 +206,8 @@ const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
 			{
 				if (inputs[input].type == argument.type)
 				{
-					newArguments[finalArgumentIndex] = inputs[input].value;
+					for (const char* value : inputs[input].value)
+						argumentsAccumulate.push_back(value);
 					found = true;
 					break;
 				}
@@ -223,11 +215,21 @@ const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
 			if (!found)
 			{
 				printf("error: command missing input\n");
-				free(newArguments);
 				return nullptr;
 			}
 		}
 	}
+
+	int numUserArguments = argumentsAccumulate.size();
+	// +1 for file to execute
+	int numFinalArguments = numUserArguments + 1;
+	// +1 again for the null terminator
+	const char** newArguments = (const char**)calloc(sizeof(const char*), numFinalArguments + 1);
+
+	newArguments[0] = command.fileToExecute.c_str();
+	for (int i = 1; i < numFinalArguments; ++i)
+		newArguments[i] = argumentsAccumulate[i - 1];
+	newArguments[numFinalArguments] = nullptr;
 
 	return newArguments;
 }

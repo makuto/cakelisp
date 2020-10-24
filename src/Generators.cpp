@@ -61,8 +61,9 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			    {"'source-input", ProcessCommandArgumentType_SourceInput},
 			    {"'object-output", ProcessCommandArgumentType_ObjectOutput},
 			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
-			    {"'object-input", ProcessCommandArgumentType_ObjectInput},
+				{"'object-input", ProcessCommandArgumentType_ObjectInput},
 			    {"'library-output", ProcessCommandArgumentType_DynamicLibraryOutput},
+				{"'executable-output", ProcessCommandArgumentType_ExecutableOutput},
 			};
 			bool found = false;
 			for (unsigned int i = 0; i < ArraySize(symbolsToCommandTypes); ++i)

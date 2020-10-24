@@ -36,7 +36,7 @@ struct ProcessCommand
 struct ProcessCommandInput
 {
 	ProcessCommandArgumentType type;
-	const char* value;
+	std::vector<const char*> value;
 };
 
 void PrintProcessArguments(const char** processArguments);
