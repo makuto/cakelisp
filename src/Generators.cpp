@@ -395,6 +395,39 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 	return true;
 }
 
+bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                            const std::vector<Token>& tokens, int startTokenIndex,
+                            GeneratorOutput& output)
+{
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex],
+		             "module cannot track dependency (potential internal error)");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int invocationIndex = startTokenIndex + 1;
+
+	int nameIndex = getExpectedArgument("expected dependency name", tokens, startTokenIndex, 1,
+	                                    endInvocationIndex);
+	if (nameIndex == -1)
+		return false;
+	if (!ExpectTokenType("add dependency", tokens[nameIndex], TokenType_String))
+		return false;
+
+	if (tokens[invocationIndex].contents.compare("add-cpp-build-dependency") == 0)
+	{
+		ModuleDependency newDependency = {};
+		newDependency.type = ModuleDependency_CFile;
+		newDependency.name = tokens[nameIndex].contents;
+		context.module->dependencies.push_back(newDependency);
+	}
+
+	return true;
+}
+
 bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                     const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
 {
@@ -1970,6 +2003,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["set-module-option"] = SetModuleOption;
 
 	environment.generators["skip-build"] = SkipBuildGenerator;
+	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

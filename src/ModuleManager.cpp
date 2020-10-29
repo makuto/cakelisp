@@ -1,5 +1,6 @@
 #include "ModuleManager.hpp"
 
+#include "Building.hpp"
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
 #include "Evaluator.hpp"
@@ -292,7 +293,10 @@ static void OnCompileProcessOutput(const char* output)
 struct BuiltObject
 {
 	int buildStatus;
+	std::string sourceFilename;
 	std::string filename;
+
+	ProcessCommand* buildCommandOverride;
 };
 
 void builtObjectsFree(std::vector<BuiltObject*>& objects)
@@ -315,6 +319,12 @@ bool moduleManagerBuild(ModuleManager& manager)
 	{
 		Module* module = manager.modules[moduleIndex];
 
+		ProcessCommand* buildCommandOverride =
+		    (!module->buildTimeBuildCommand.fileToExecute.empty() &&
+		     !module->buildTimeBuildCommand.arguments.empty()) ?
+		        &module->buildTimeBuildCommand :
+		        nullptr;
+
 		if (log.buildProcess)
 			printf("Build module %s\n", module->sourceOutputName.c_str());
 		for (ModuleDependency& dependency : module->dependencies)
@@ -326,48 +336,70 @@ bool moduleManagerBuild(ModuleManager& manager)
 			// ourselves with them
 			if (dependency.type == ModuleDependency_Cakelisp)
 				continue;
+
+			if (dependency.type == ModuleDependency_CFile)
+			{
+				BuiltObject* newBuiltObject = new BuiltObject;
+				newBuiltObject->buildStatus = 0;
+				// TODO: Better to use search directories
+				char sourceName[MAX_PATH_LENGTH] = {0};
+				makePathRelativeToFile(module->sourceOutputName.c_str(), dependency.name.c_str(),
+				                       sourceName, sizeof(sourceName));
+				newBuiltObject->sourceFilename = sourceName;
+
+				char buildObjectName[MAX_PATH_LENGTH] = {0};
+				if (!objectFilenameFromSourceFilename(cakelispWorkingDir,
+				                                      newBuiltObject->sourceFilename.c_str(),
+				                                      buildObjectName, sizeof(buildObjectName)))
+				{
+					builtObjectsFree(builtObjects);
+					return false;
+				}
+
+				newBuiltObject->filename = buildObjectName;
+				newBuiltObject->buildCommandOverride = buildCommandOverride;
+				builtObjects.push_back(newBuiltObject);
+			}
 		}
 
 		// TODO: Importing needs to set this on the module, not the dependency...
 		if (module->skipBuild)
 			continue;
 
-		// TODO: Lots of overlap between this and compile-time building
-		char buildFilename[MAX_NAME_LENGTH] = {0};
-		getFilenameFromPath(module->sourceOutputName.c_str(), buildFilename, sizeof(buildFilename));
-		if (!buildFilename[0])
+		char buildObjectName[MAX_PATH_LENGTH] = {0};
+		if (!objectFilenameFromSourceFilename(cakelispWorkingDir, module->sourceOutputName.c_str(),
+		                                      buildObjectName, sizeof(buildObjectName)))
 		{
 			builtObjectsFree(builtObjects);
 			return false;
 		}
 
-		// TODO: Trim .cake.cpp
-		char buildObjectName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(buildObjectName, "%s/%s.o", cakelispWorkingDir, buildFilename);
-
 		// At this point, we do want to build the object. We might skip building it if it is cached.
 		// In that case, the status code should still be 0, as if we built and succeeded building it
 		BuiltObject* newBuiltObject = new BuiltObject;
 		newBuiltObject->buildStatus = 0;
+		newBuiltObject->sourceFilename = module->sourceOutputName.c_str();
 		newBuiltObject->filename = buildObjectName;
+		newBuiltObject->buildCommandOverride = buildCommandOverride;
 		builtObjects.push_back(newBuiltObject);
+	}
 
-		if (!fileIsMoreRecentlyModified(module->sourceOutputName.c_str(), buildObjectName))
+	for (BuiltObject* object : builtObjects)
+	{
+		if (!fileIsMoreRecentlyModified(object->sourceFilename.c_str(), object->filename.c_str()))
 		{
 			if (log.buildProcess)
-				printf("Skipping compiling %s (using cached object)\n",
-				       module->sourceOutputName.c_str());
+				printf("Skipping compiling %s (using cached object)\n", object->sourceFilename.c_str());
 		}
 		else
 		{
-			ProcessCommand& buildCommand = (!module->buildTimeBuildCommand.fileToExecute.empty() &&
-			                                !module->buildTimeBuildCommand.arguments.empty()) ?
-			                                   module->buildTimeBuildCommand :
+			ProcessCommand& buildCommand = object->buildCommandOverride ?
+			                                   *object->buildCommandOverride :
 			                                   manager.environment.buildTimeBuildCommand;
 
 			ProcessCommandInput buildTimeInputs[] = {
-			    {ProcessCommandArgumentType_SourceInput, {module->sourceOutputName.c_str()}},
-			    {ProcessCommandArgumentType_ObjectOutput, {buildObjectName}}};
+			    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
+			    {ProcessCommandArgumentType_ObjectOutput, {object->filename.c_str()}}};
 			const char** buildArguments = MakeProcessArgumentsFromCommand(
 			    buildCommand, buildTimeInputs, ArraySize(buildTimeInputs));
 			if (!buildArguments)
@@ -381,7 +413,7 @@ bool moduleManagerBuild(ModuleManager& manager)
 			compileArguments.arguments = buildArguments;
 			// PrintProcessArguments(buildArguments);
 
-			if (runProcess(compileArguments, &newBuiltObject->buildStatus) != 0)
+			if (runProcess(compileArguments, &object->buildStatus) != 0)
 			{
 				printf("error: failed to invoke compiler\n");
 				free(buildArguments);
@@ -408,7 +440,6 @@ bool moduleManagerBuild(ModuleManager& manager)
 	// TODO: Make configurable
 	const char* outputExecutableName = "a.out";
 
-	int objectNameBufferSize = 0;
 	int numObjectsToLink = 0;
 	bool succeededBuild = true;
 	bool needsLink = false;
@@ -424,7 +455,7 @@ bool moduleManagerBuild(ModuleManager& manager)
 		}
 
 		if (log.buildProcess)
-			printf("Linking %s\n", object->filename.c_str());
+			printf("Need to link %s\n", object->filename.c_str());
 
 		++numObjectsToLink;
 

@@ -4,6 +4,8 @@
 ;; Include cakelisp source for DynamicLoader.hpp
 (set-module-option build-time-compile-arguments
                    "-std=c++11" "-Wall" "-Wextra" "-Wno-unused-parameter" "-O0"
+                   ;; TODO: Multiplatform support
+                   "-DUNIX"
                    "-g" "-c" 'source-input "-o" 'object-output "-fPIC" "-Isrc/")
 ;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
 ;; arguments to the link command only
@@ -11,10 +13,11 @@
 ;; This needs to link -ldl and such (depending on platform...)
 (set-cakelisp-option build-time-link-arguments
                      "-shared" "-o" 'executable-output 'object-input
-                     ;; TODO: Make this get built by cakelisp too?
-                     "src/DynamicLoader.o"
                      ;; TODO: OS dependent
                      "-ldl" "-lpthread")
+
+;; TODO: Relative vs. absolute paths
+(add-cpp-build-dependency "../src/DynamicLoader.cpp")
 
 (import &comptime-only "Macros.cake")
 (c-import "<unordered_map>" "<vector>")

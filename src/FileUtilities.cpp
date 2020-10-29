@@ -69,3 +69,12 @@ void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize)
 #error Need to be able to strip path to get filename on this platform
 #endif
 }
+
+void makePathRelativeToFile(const char* filePath, const char* referencedFilePath, char* bufferOut,
+                            int bufferSize)
+{
+	getDirectoryFromPath(filePath, bufferOut, bufferSize);
+	// TODO: Need to make this safe!
+	strcat(bufferOut, "/");
+	strcat(bufferOut, referencedFilePath);
+}
