@@ -429,7 +429,8 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 }
 
 bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                    const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
+                    const std::vector<Token>& tokens, int startTokenIndex,
+                    GeneratorOutput& runtimeOutput)
 {
 	if (!ExpectEvaluatorScope("defun", tokens[startTokenIndex], context, EvaluatorScope_Module))
 		return false;
@@ -452,6 +453,26 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		return false;
 
 	bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defun-local") == 0;
+	bool isCompileTime = tokens[startTokenIndex + 1].contents.compare("defun-comptime") == 0;
+	GeneratorOutput* functionOutput = isCompileTime ? new GeneratorOutput : &runtimeOutput;
+
+	// Register definition before evaluating body, otherwise references in body will be orphaned
+	{
+		ObjectDefinition newFunctionDef = {};
+		newFunctionDef.name = &nameToken;
+		newFunctionDef.type = isCompileTime ? ObjectType_CompileTimeFunction : ObjectType_Function;
+		// Compile-time objects only get built with compile-time references
+		newFunctionDef.isRequired = isCompileTime ? false : context.isRequired;
+		if (isCompileTime)
+			newFunctionDef.output = functionOutput;
+		if (!addObjectDefinition(environment, newFunctionDef))
+		{
+			if (isCompileTime)
+				delete functionOutput;
+			return false;
+		}
+		// Past this point, compile-time output will be handled by environment destruction
+	}
 
 	int returnTypeStart = -1;
 	std::vector<FunctionArgumentTokens> arguments;
@@ -460,30 +481,32 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 
 	if (environment.enableHotReloading)
 	{
-		addStringOutput(isModuleLocal ? output.source : output.header, "extern \"C\"",
-		                StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(isModuleLocal ? functionOutput->source : functionOutput->header,
+		                "extern \"C\"", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 	}
 
 	// TODO: Hot-reloading functions shouldn't be declared static, right?
 	if (isModuleLocal)
-		addStringOutput(output.source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(functionOutput->source, "static", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
-	if (!outputFunctionReturnType(tokens, output, returnTypeStart, startTokenIndex, endArgsIndex,
+	if (!outputFunctionReturnType(tokens, *functionOutput, returnTypeStart, startTokenIndex,
+	                              endArgsIndex,
 	                              /*outputSource=*/true, /*outputHeader=*/!isModuleLocal))
 		return false;
 
-	addStringOutput(output.source, nameToken.contents, StringOutMod_ConvertFunctionName,
+	addStringOutput(functionOutput->source, nameToken.contents, StringOutMod_ConvertFunctionName,
 	                &nameToken);
 	if (!isModuleLocal)
-		addStringOutput(output.header, nameToken.contents, StringOutMod_ConvertFunctionName,
-		                &nameToken);
+		addStringOutput(functionOutput->header, nameToken.contents,
+		                StringOutMod_ConvertFunctionName, &nameToken);
 
-	addLangTokenOutput(output.source, StringOutMod_OpenParen, &argsStart);
+	addLangTokenOutput(functionOutput->source, StringOutMod_OpenParen, &argsStart);
 	if (!isModuleLocal)
-		addLangTokenOutput(output.header, StringOutMod_OpenParen, &argsStart);
+		addLangTokenOutput(functionOutput->header, StringOutMod_OpenParen, &argsStart);
 
-	if (!outputFunctionArguments(tokens, output, arguments, /*outputSource=*/true,
+	if (!outputFunctionArguments(tokens, *functionOutput, arguments, /*outputSource=*/true,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -498,26 +521,17 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		argumentsMetadata.push_back({tokens[arg.nameIndex].contents, startTypeToken, endTypeToken});
 	}
 
-	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 	if (!isModuleLocal)
 	{
-		addLangTokenOutput(output.header, StringOutMod_CloseParen, &tokens[endArgsIndex]);
+		addLangTokenOutput(functionOutput->header, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 		// Forward declarations end with ;
-		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endArgsIndex]);
-	}
-
-	// Register definition before evaluating body, otherwise references in body will be orphaned
-	{
-		ObjectDefinition newFunctionDef = {};
-		newFunctionDef.name = &nameToken;
-		newFunctionDef.type = ObjectType_Function;
-		newFunctionDef.isRequired = context.isRequired;
-		if (!addObjectDefinition(environment, newFunctionDef))
-			return false;
+		addLangTokenOutput(functionOutput->header, StringOutMod_EndStatement,
+		                   &tokens[endArgsIndex]);
 	}
 
 	int startBodyIndex = endArgsIndex + 1;
-	addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
 
 	// Evaluate our body!
 	EvaluatorContext bodyContext = context;
@@ -525,14 +539,17 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	bodyContext.definitionName = &nameToken;
 	// The statements will need to handle their ;
 	int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
-	                                              /*delimiterTemplate=*/nullptr, output);
+	                                              /*delimiterTemplate=*/nullptr, *functionOutput);
 	if (numErrors)
+	{
+		// Don't delete compile time function output. Evaluate may have caused references to it
 		return false;
+	}
 
-	addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
 
-	output.functions.push_back({nameToken.contents, &tokens[startTokenIndex],
-	                            &tokens[endTokenIndex], std::move(argumentsMetadata)});
+	functionOutput->functions.push_back({nameToken.contents, &tokens[startTokenIndex],
+	                                     &tokens[endTokenIndex], std::move(argumentsMetadata)});
 
 	return true;
 }
@@ -1969,6 +1986,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["defun"] = DefunGenerator;
 	environment.generators["defun-local"] = DefunGenerator;
+	environment.generators["defun-comptime"] = DefunGenerator;
 
 	environment.generators["def-function-signature"] = DefFunctionSignatureGenerator;
 	environment.generators["def-function-signature-local"] = DefFunctionSignatureGenerator;

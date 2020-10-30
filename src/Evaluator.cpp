@@ -39,12 +39,29 @@ MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
 	return nullptr;
 }
 
+void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName)
+{
+	CompileTimeFunctionTableIterator findIt =
+	    environment.compileTimeFunctions.find(std::string(functionName));
+	if (findIt != environment.compileTimeFunctions.end())
+		return findIt->second;
+	return nullptr;
+}
+
 bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
 {
-	if (definition.type == ObjectType_CompileTimeMacro)
-		return findMacro(environment, definition.name->contents.c_str()) != nullptr;
-	else
-		return findGenerator(environment, definition.name->contents.c_str()) != nullptr;
+	switch (definition.type)
+	{
+		case ObjectType_CompileTimeMacro:
+			return findMacro(environment, definition.name->contents.c_str()) != nullptr;
+		case ObjectType_CompileTimeGenerator:
+			return findGenerator(environment, definition.name->contents.c_str()) != nullptr;
+		case ObjectType_CompileTimeFunction:
+			return findCompileTimeFunction(environment, definition.name->contents.c_str()) !=
+			       nullptr;
+		default:
+			return false;
+	}
 }
 
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition)
@@ -159,7 +176,8 @@ int getNextFreeBuildId(EvaluatorEnvironment& environment)
 
 bool isCompileTimeObject(ObjectType type)
 {
-	return type == ObjectType_CompileTimeMacro || type == ObjectType_CompileTimeGenerator;
+	return type == ObjectType_CompileTimeMacro || type == ObjectType_CompileTimeGenerator ||
+	       type == ObjectType_CompileTimeFunction;
 }
 
 //
@@ -527,6 +545,13 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (log.buildProcess)
 			printf("Build %s\n", definition->name->contents.c_str());
 
+		if (!definition->output)
+		{
+			ErrorAtToken(*buildObject.definition->name,
+			             "missing compile-time output. Internal code error?");
+			continue;
+		}
+
 		char convertedNameBuffer[MAX_NAME_LENGTH] = {0};
 		lispNameStyleToCNameStyle(NameStyleMode_Underscores, definition->name->contents.c_str(),
 		                          convertedNameBuffer, sizeof(convertedNameBuffer),
@@ -545,16 +570,28 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		NameStyleSettings nameSettings;
 		WriterFormatSettings formatSettings;
 		WriterOutputSettings outputSettings = {};
-		if (definition->type == ObjectType_CompileTimeGenerator)
+
+		switch (definition->type)
 		{
-			outputSettings.sourceHeading = generatorSourceHeading;
-			outputSettings.sourceFooter = generatorSourceFooter;
+			case ObjectType_CompileTimeMacro:
+				outputSettings.sourceHeading = macroSourceHeading;
+				outputSettings.sourceFooter = macroSourceFooter;
+				break;
+			case ObjectType_CompileTimeGenerator:
+				outputSettings.sourceHeading = generatorSourceHeading;
+				outputSettings.sourceFooter = generatorSourceFooter;
+				break;
+			case ObjectType_CompileTimeFunction:
+				// TODO Right now this is the same as generators, but I don't know what I really
+				// want yet. Should each compile-time function have the ability to specify this,
+				// e.g. &with-build-tools or something? Figure it out automatically?
+				outputSettings.sourceHeading = generatorSourceHeading;
+				outputSettings.sourceFooter = generatorSourceFooter;
+				break;
+			default:
+				break;
 		}
-		else
-		{
-			outputSettings.sourceHeading = macroSourceHeading;
-			outputSettings.sourceFooter = macroSourceFooter;
-		}
+
 		outputSettings.sourceCakelispFilename = fileOutputName;
 		{
 			char writerSourceOutputName[MAX_PATH_LENGTH] = {0};
@@ -733,15 +770,25 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		}
 
 		// Add to environment
-		if (buildObject.definition->type == ObjectType_CompileTimeMacro)
+		switch (buildObject.definition->type)
 		{
-			environment.macros[buildObject.definition->name->contents] =
-			    (MacroFunc)compileTimeFunction;
-		}
-		else if (buildObject.definition->type == ObjectType_CompileTimeGenerator)
-		{
-			environment.generators[buildObject.definition->name->contents] =
-			    (GeneratorFunc)compileTimeFunction;
+			case ObjectType_CompileTimeMacro:
+				environment.macros[buildObject.definition->name->contents] =
+				    (MacroFunc)compileTimeFunction;
+				break;
+			case ObjectType_CompileTimeGenerator:
+				environment.generators[buildObject.definition->name->contents] =
+				    (GeneratorFunc)compileTimeFunction;
+				break;
+			case ObjectType_CompileTimeFunction:
+				environment.compileTimeFunctions[buildObject.definition->name->contents] =
+				    (void*)compileTimeFunction;
+				break;
+			default:
+				ErrorAtToken(
+				    *buildObject.definition->name,
+				    "Tried to build definition which is not compile-time object. Code error?");
+				break;
 		}
 
 		buildObject.stage = BuildStage_ResolvingReferences;
@@ -985,9 +1032,9 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 	}
 
-	// Keep propagating and evaluating until no more references are resolved.
-	// This must be done in passes in case evaluation created more definitions. There's probably a
-	// smarter way, but I'll do it in this brute-force style first
+	// Keep propagating and evaluating until no more references are resolved. This must be done in
+	// passes in case evaluation created more definitions. There's probably a smarter way, but I'll
+	// do it in this brute-force style first
 	int numReferencesResolved = 0;
 	int numBuildResolveErrors = 0;
 	do
@@ -1127,6 +1174,8 @@ const char* objectTypeToString(ObjectType type)
 			return "Macro";
 		case ObjectType_CompileTimeGenerator:
 			return "Generator";
+		case ObjectType_CompileTimeFunction:
+			return "Compile-time Function";
 		default:
 			return "Unknown";
 	}

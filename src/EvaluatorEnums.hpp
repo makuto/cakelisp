@@ -59,8 +59,10 @@ enum EvaluatorScope
 enum ObjectType
 {
 	ObjectType_Function,
+
 	ObjectType_CompileTimeMacro,
 	ObjectType_CompileTimeGenerator,
+	ObjectType_CompileTimeFunction,
 };
 
 enum ObjectReferenceGuessState

@@ -170,8 +170,10 @@ typedef std::pair<const std::string, ObjectDefinition> ObjectDefinitionPair;
 typedef std::unordered_map<std::string, ObjectReferencePool> ObjectReferencePoolMap;
 typedef std::pair<const std::string, ObjectReferencePool> ObjectReferencePoolPair;
 
+typedef std::unordered_map<std::string, void*> CompileTimeFunctionTable;
+typedef CompileTimeFunctionTable::iterator CompileTimeFunctionTableIterator;
+
 // Unlike context, which can't be changed, environment can be changed.
-// Use care when modifying the environment. Only add things once you know things have succeeded.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
 struct EvaluatorEnvironment
@@ -179,6 +181,8 @@ struct EvaluatorEnvironment
 	// Compile-time-executable functions
 	MacroTable macros;
 	GeneratorTable generators;
+	// Dumping ground for functions without fixed signatures
+	CompileTimeFunctionTable compileTimeFunctions;
 
 	// We need to keep the tokens macros create around so they can be referenced by StringOperations
 	// Token vectors must not be changed after they are created or pointers to Tokens will become
