@@ -23,7 +23,7 @@
 const char* globalDefinitionName = "<global>";
 const char* cakelispWorkingDir = "cakelisp_cache";
 
-GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
+static GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));
 	if (findIt != environment.generators.end())
@@ -31,7 +31,7 @@ GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* funct
 	return nullptr;
 }
 
-MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
+static MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
 {
 	MacroIterator findIt = environment.macros.find(std::string(functionName));
 	if (findIt != environment.macros.end())
@@ -48,7 +48,7 @@ void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* fun
 	return nullptr;
 }
 
-bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
+static bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
 {
 	switch (definition.type)
 	{
@@ -294,6 +294,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// could be a generator or macro invocation that hasn't been defined yet. Leave a note
 		// for the evaluator to come back to this token once a satisfying answer is found
 		ObjectReference newReference = {};
+		newReference.type = ObjectReferenceResolutionType_Splice;
 		newReference.tokens = &tokens;
 		newReference.startIndex = invocationStartIndex;
 		newReference.context = context;
@@ -773,14 +774,21 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		switch (buildObject.definition->type)
 		{
 			case ObjectType_CompileTimeMacro:
+				if (findMacro(environment, buildObject.definition->name->contents.c_str()))
+					NoteAtToken(*buildObject.definition->name, "redefined macro");
 				environment.macros[buildObject.definition->name->contents] =
 				    (MacroFunc)compileTimeFunction;
 				break;
 			case ObjectType_CompileTimeGenerator:
+				if (findGenerator(environment, buildObject.definition->name->contents.c_str()))
+					NoteAtToken(*buildObject.definition->name, "redefined generator");
 				environment.generators[buildObject.definition->name->contents] =
 				    (GeneratorFunc)compileTimeFunction;
 				break;
 			case ObjectType_CompileTimeFunction:
+				if (findCompileTimeFunction(environment,
+				                            buildObject.definition->name->contents.c_str()))
+					NoteAtToken(*buildObject.definition->name, "redefined function");
 				environment.compileTimeFunctions[buildObject.definition->name->contents] =
 				    (void*)compileTimeFunction;
 				break;
@@ -810,24 +818,35 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			if (reference.isResolved)
 				continue;
 
-			// In case a compile-time function has already guessed the invocation was a C/C++
-			// function, clear that invocation output
-			resetGeneratorOutput(*reference.spliceOutput);
+			if (reference.type == ObjectReferenceResolutionType_Splice && reference.spliceOutput)
+			{
+				// In case a compile-time function has already guessed the invocation was a C/C++
+				// function, clear that invocation output
+				resetGeneratorOutput(*reference.spliceOutput);
 
-			if (log.buildProcess)
-				NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
+				if (log.buildProcess)
+					NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
 
-			// Evaluate from that reference
-			int result =
-			    EvaluateGenerate_Recursive(environment, reference.context, *reference.tokens,
-			                               reference.startIndex, *reference.spliceOutput);
+				// Evaluate from that reference
+				int result =
+				    EvaluateGenerate_Recursive(environment, reference.context, *reference.tokens,
+				                               reference.startIndex, *reference.spliceOutput);
+				numErrorsOut += result;
+			}
+			else
+			{
+				// Do not resolve, we don't know how to resolve this type of reference
+				ErrorAtToken((*reference.tokens)[reference.startIndex],
+				             "do not know how to resolve this reference (internal code error?)");
+				continue;
+			}
+
 			// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
 			// again isn't going to change the number of errors
 			// Note that if new references emerge to this definition, they will automatically be
 			// recognized as the definition and handled then and there, so we don't need to make
 			// more than one pass
 			reference.isResolved = true;
-			numErrorsOut += result;
 			++numReferencesResolved;
 		}
 

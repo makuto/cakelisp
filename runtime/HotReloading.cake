@@ -9,7 +9,7 @@
                    "-g" "-c" 'source-input "-o" 'object-output "-fPIC" "-Isrc/")
 ;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
 ;; arguments to the link command only
-(set-module-option build-time-linker "/usr/bin/clang++")
+(set-cakelisp-option build-time-linker "/usr/bin/clang++")
 ;; This needs to link -ldl and such (depending on platform...)
 (set-cakelisp-option build-time-link-arguments
                      "-shared" "-o" 'executable-output 'object-input
@@ -18,6 +18,11 @@
 
 ;; TODO: Relative vs. absolute paths
 (add-cpp-build-dependency "../src/DynamicLoader.cpp")
+
+(defun-comptime pre-build-hook (manager (& ModuleManager) module (* Module) &return bool)
+  (printf "Hello, Hot-reloading build!\n")
+  (return true))
+(add-compile-time-hook-module pre-build pre-build-hook)
 
 (import &comptime-only "Macros.cake")
 (c-import "<unordered_map>" "<vector>")

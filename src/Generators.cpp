@@ -242,6 +242,89 @@ bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& 
 	return true;
 }
 
+bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                                 const std::vector<Token>& tokens, int startTokenIndex,
+                                 GeneratorOutput& output)
+{
+	if (IsForbiddenEvaluatorScope("add-compile-time-hook", tokens[startTokenIndex], context,
+	                              EvaluatorScope_ExpressionsOnly))
+		return false;
+
+	// Without "-module", the hook is executed at environment-level
+	bool isModuleHook =
+	    tokens[startTokenIndex + 1].contents.compare("add-compile-time-hook-module") == 0;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int hookNameIndex =
+	    getExpectedArgument("expected hook name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (hookNameIndex == -1 ||
+	    !ExpectTokenType("compile-time hook", tokens[hookNameIndex], TokenType_Symbol))
+		return false;
+
+	int functionNameIndex = getExpectedArgument("expected function name", tokens, startTokenIndex,
+	                                            2, endInvocationIndex);
+	if (functionNameIndex == -1 ||
+	    !ExpectTokenType("compile-time hook", tokens[functionNameIndex], TokenType_Symbol))
+		return false;
+
+	void* hookFunction =
+	    findCompileTimeFunction(environment, tokens[functionNameIndex].contents.c_str());
+	if (hookFunction)
+	{
+		// TODO Check function signatures. Error message should provide proper signature. Use inline
+		// string parsing code to make the signature tokens to compare
+		const Token& hookName = tokens[hookNameIndex];
+		if (isModuleHook && hookName.contents.compare("pre-build") == 0)
+		{
+			if (!context.module)
+			{
+				ErrorAtToken(
+				    tokens[startTokenIndex],
+				    "context doesn't provide module to override hook. Internal code error?");
+				return false;
+			}
+
+			bool found = false;
+			for (ModulePreBuildHook hook : context.module->preBuildHooks)
+			{
+				if (hook == hookFunction)
+				{
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				context.module->preBuildHooks.push_back((ModulePreBuildHook)hookFunction);
+			}
+		}
+	}
+	else
+	{
+		// Waiting on definition or building of this compile-time function
+		ObjectReference newReference = {};
+		newReference.type = ObjectReferenceResolutionType_Splice;
+		newReference.tokens = &tokens;
+		// Unlike function references, we want to reevaluate from the start of add-hook
+		newReference.startIndex = startTokenIndex;
+		newReference.context = context;
+		// We don't need to splice, we need to set the variable. Create it anyways
+		newReference.spliceOutput = new GeneratorOutput;
+
+		const ObjectReferenceStatus* referenceStatus =
+		    addObjectReference(environment, tokens[functionNameIndex], newReference);
+		if (!referenceStatus)
+		{
+			ErrorAtToken(tokens[functionNameIndex],
+			             "failed to create reference status (internal error)");
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                       const std::vector<Token>& tokens, int startTokenIndex,
                       GeneratorOutput& output)
@@ -2022,6 +2105,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["skip-build"] = SkipBuildGenerator;
 	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
+	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
+	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

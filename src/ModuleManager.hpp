@@ -14,6 +14,8 @@ struct ModuleDependency
 	std::string name;
 };
 
+typedef bool (*ModulePreBuildHook)(ModuleManager& manager, Module* module);
+
 // A module is typically associated with a single file. Keywords like local mean in-module only
 struct Module
 {
@@ -33,6 +35,8 @@ struct Module
 
 	ProcessCommand buildTimeBuildCommand;
 	ProcessCommand buildTimeLinkCommand;
+
+	std::vector<ModulePreBuildHook> preBuildHooks;
 };
 
 struct ModuleManager

@@ -73,3 +73,9 @@ enum ObjectReferenceGuessState
 	GuessState_WaitingForLoad,
 	GuessState_Resolved,
 };
+
+enum ObjectReferenceResolutionType
+{
+	ObjectReferenceResolutionType_None = 0,
+	ObjectReferenceResolutionType_Splice,
+};

@@ -319,6 +319,9 @@ bool moduleManagerBuild(ModuleManager& manager)
 	{
 		Module* module = manager.modules[moduleIndex];
 
+		for (ModulePreBuildHook hook : module->preBuildHooks)
+			hook(manager, module);
+
 		ProcessCommand* buildCommandOverride =
 		    (!module->buildTimeBuildCommand.fileToExecute.empty() &&
 		     !module->buildTimeBuildCommand.arguments.empty()) ?
@@ -362,7 +365,6 @@ bool moduleManagerBuild(ModuleManager& manager)
 			}
 		}
 
-		// TODO: Importing needs to set this on the module, not the dependency...
 		if (module->skipBuild)
 			continue;
 

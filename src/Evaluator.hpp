@@ -113,8 +113,11 @@ struct ObjectReference
 	int startIndex;
 	EvaluatorContext context;
 
+	ObjectReferenceResolutionType type;
+
 	// This needs to be a pointer in case the references array gets moved while we are iterating it
 	GeneratorOutput* spliceOutput;
+
 	// Not used in ObjectReferenceStatus, only ReferencePools
 	bool isResolved;
 };
@@ -238,6 +241,11 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment);
 const char* evaluatorScopeToString(EvaluatorScope expectedScope);
 
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition);
+const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environment,
+                                                const Token& referenceNameToken,
+                                                ObjectReference& reference);
+
+void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
 
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;
