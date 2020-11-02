@@ -813,6 +813,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		}
 
 		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found?
+		bool hasErrors = false;
 		for (ObjectReference& reference : referencePoolIt->second.references)
 		{
 			if (reference.isResolved)
@@ -831,6 +832,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				int result =
 				    EvaluateGenerate_Recursive(environment, reference.context, *reference.tokens,
 				                               reference.startIndex, *reference.spliceOutput);
+				hasErrors |= result > 0;
 				numErrorsOut += result;
 			}
 			else
@@ -838,8 +840,12 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				// Do not resolve, we don't know how to resolve this type of reference
 				ErrorAtToken((*reference.tokens)[reference.startIndex],
 				             "do not know how to resolve this reference (internal code error?)");
+				hasErrors = true;
 				continue;
 			}
+
+			if (hasErrors)
+				continue;
 
 			// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
 			// again isn't going to change the number of errors
@@ -849,6 +855,9 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			reference.isResolved = true;
 			++numReferencesResolved;
 		}
+
+		if (hasErrors)
+			continue;
 
 		if (log.buildProcess)
 			printf("Resolved %d references\n", numReferencesResolved);
@@ -1066,6 +1075,10 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 
 	// Check whether everything is resolved
 	printf("\nResult:\n");
+
+	if (numBuildResolveErrors)
+		printf("Failed with %d errors.\n", numBuildResolveErrors);
+
 	int errors = 0;
 	for (const ObjectDefinitionPair& definitionPair : environment.definitions)
 	{

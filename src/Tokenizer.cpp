@@ -227,10 +227,10 @@ void printFormattedToken(const Token& token)
 			printf(")");
 			break;
 		case TokenType_Symbol:
-			printf("%s ", token.contents.c_str());
+			printf("%s", token.contents.c_str());
 			break;
 		case TokenType_String:
-			printf("\"%s\" ", token.contents.c_str());
+			printf("\"%s\"", token.contents.c_str());
 			break;
 		default:
 			printf("Unknown type");
@@ -272,10 +272,25 @@ bool appendTokenToString(const Token& token, char** at, char* bufferStart, int b
 
 void printTokens(const std::vector<Token>& tokens)
 {
+	TokenType previousTokenType = TokenType_OpenParen;
 	// Note that token parens could be invalid, so we shouldn't do things which rely on validity
 	for (const Token& token : tokens)
 	{
+		bool tokenIsSymbolOrString =
+		    (token.type == TokenType_Symbol || token.type == TokenType_String);
+		bool previousTokenIsSymbolOrString =
+		    (previousTokenType == TokenType_Symbol || previousTokenType == TokenType_String);
+		bool previousTokenIsParen = (previousTokenType == TokenType_OpenParen ||
+		                             previousTokenType == TokenType_CloseParen);
+
+		if ((tokenIsSymbolOrString && !previousTokenIsParen) ||
+		    (tokenIsSymbolOrString && previousTokenType == TokenType_CloseParen) ||
+		    (token.type == TokenType_OpenParen && previousTokenIsSymbolOrString))
+			printf(" ");
+
 		printFormattedToken(token);
+
+		previousTokenType = token.type;
 	}
 	printf("\n");
 }

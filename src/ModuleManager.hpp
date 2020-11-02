@@ -14,6 +14,8 @@ struct ModuleDependency
 	std::string name;
 };
 
+// Always update both of these. Signature helps validate call
+extern const char* g_modulePreBuildHookSignature;
 typedef bool (*ModulePreBuildHook)(ModuleManager& manager, Module* module);
 
 // A module is typically associated with a single file. Keywords like local mean in-module only

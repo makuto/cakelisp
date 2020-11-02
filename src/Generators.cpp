@@ -274,6 +274,7 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	{
 		// TODO Check function signatures. Error message should provide proper signature. Use inline
 		// string parsing code to make the signature tokens to compare
+
 		const Token& hookName = tokens[hookNameIndex];
 		if (isModuleHook && hookName.contents.compare("pre-build") == 0)
 		{
@@ -285,6 +286,7 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 				return false;
 			}
 
+			// Insert only if not already hooked
 			bool found = false;
 			for (ModulePreBuildHook hook : context.module->preBuildHooks)
 			{
@@ -296,6 +298,20 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 			}
 			if (!found)
 			{
+				// Finally, check the signature so we can call it safely
+				static std::vector<Token> expectedSignature;
+				if (expectedSignature.empty())
+				{
+					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, __FILE__, __LINE__,
+					                            expectedSignature))
+						return false;
+				}
+
+				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
+				                                         tokens[functionNameIndex].contents.c_str(),
+				                                         expectedSignature))
+					return false;
+
 				context.module->preBuildHooks.push_back((ModulePreBuildHook)hookFunction);
 			}
 		}
@@ -555,6 +571,14 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 			return false;
 		}
 		// Past this point, compile-time output will be handled by environment destruction
+
+		if (isCompileTime)
+		{
+			CompileTimeFunctionMetadata newMetadata = {};
+			newMetadata.nameToken = &nameToken;
+			newMetadata.startArgsToken = &argsStart;
+			environment.compileTimeFunctionInfo[nameToken.contents.c_str()] = newMetadata;
+		}
 	}
 
 	int returnTypeStart = -1;

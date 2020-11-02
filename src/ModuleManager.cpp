@@ -16,6 +16,11 @@
 
 #include <string.h>
 
+// The ' symbols tell the signature validator that the actual contents of those symbols can be
+// user-defined (just like C letting you specify arguments without names)
+const char* g_modulePreBuildHookSignature =
+    "('manager (& ModuleManager) 'module (* Module) &return bool)";
+
 void moduleManagerInitialize(ModuleManager& manager)
 {
 	importFundamentalGenerators(manager.environment);

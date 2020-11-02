@@ -176,6 +176,16 @@ typedef std::pair<const std::string, ObjectReferencePool> ObjectReferencePoolPai
 typedef std::unordered_map<std::string, void*> CompileTimeFunctionTable;
 typedef CompileTimeFunctionTable::iterator CompileTimeFunctionTableIterator;
 
+struct CompileTimeFunctionMetadata
+{
+	const Token* nameToken;
+	const Token* startArgsToken;
+};
+
+typedef std::unordered_map<std::string, CompileTimeFunctionMetadata>
+    CompileTimeFunctionMetadataTable;
+typedef CompileTimeFunctionMetadataTable::iterator CompileTimeFunctionMetadataTableIterator;
+
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
@@ -186,6 +196,7 @@ struct EvaluatorEnvironment
 	GeneratorTable generators;
 	// Dumping ground for functions without fixed signatures
 	CompileTimeFunctionTable compileTimeFunctions;
+	CompileTimeFunctionMetadataTable compileTimeFunctionInfo;
 
 	// We need to keep the tokens macros create around so they can be referenced by StringOperations
 	// Token vectors must not be changed after they are created or pointers to Tokens will become

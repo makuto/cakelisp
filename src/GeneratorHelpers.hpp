@@ -50,6 +50,8 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
 // block, so it knows the scope comes from the generator invocation
 int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex);
 
+const Token* FindTokenExpressionEnd(const Token* startToken);
+
 // Similar to Lisp's gensym, make a globally unique symbol for e.g. macro variables. Use prefix so
 // it is still documented as to what it represents. Make sure your generated tokenToChange is
 // allocated such that it won't go away until environmentDestroyInvalidateTokens() is called (i.e.
@@ -85,3 +87,7 @@ bool outputFunctionArguments(const std::vector<Token>& tokens, GeneratorOutput& 
 bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
                                       bool allowArray, std::vector<StringOutput>& typeOutput,
                                       std::vector<StringOutput>& afterNameOutput);
+
+bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, const Token& errorToken,
+                                         const char* compileTimeFunctionName,
+                                         const std::vector<Token>& expectedSignature);

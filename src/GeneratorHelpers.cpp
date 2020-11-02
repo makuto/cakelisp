@@ -214,6 +214,25 @@ void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
 	environment.nextFreeUniqueSymbolNum++;
 }
 
+const Token* FindTokenExpressionEnd(const Token* startToken)
+{
+	if (startToken->type != TokenType_OpenParen)
+		return startToken;
+	int depth = 0;
+	for (const Token* currentToken = startToken; depth >= 0; ++currentToken)
+	{
+		if (currentToken->type == TokenType_OpenParen)
+			++depth;
+		else if (currentToken->type == TokenType_CloseParen)
+		{
+			--depth;
+			if (depth <= 0)
+				return currentToken;
+		}
+	}
+	return nullptr;
+}
+
 //
 // Token list manipulation
 //
@@ -693,4 +712,54 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 		}
 		return true;
 	}
+}
+
+bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, const Token& errorToken,
+                                         const char* compileTimeFunctionName,
+                                         const std::vector<Token>& expectedSignature)
+{
+	CompileTimeFunctionMetadataTableIterator findIt =
+	    environment.compileTimeFunctionInfo.find(compileTimeFunctionName);
+	if (findIt == environment.compileTimeFunctionInfo.end())
+	{
+		ErrorAtToken(errorToken,
+		             "could not find function metadata to validate signature. Internal "
+		             "code error");
+		return false;
+	}
+	CompileTimeFunctionMetadata& functionMetadata = findIt->second;
+	const Token* endUserArgs = FindTokenExpressionEnd(functionMetadata.startArgsToken);
+	const Token* currentUserArgToken = functionMetadata.startArgsToken;
+	int numArgumentsProvided = (endUserArgs - currentUserArgToken) + 1;
+	if (numArgumentsProvided != (long)expectedSignature.size())
+	{
+		ErrorAtToken(*functionMetadata.startArgsToken,
+		             "arguments do not match expected function signature "
+		             "printed below:");
+		printTokens(expectedSignature);
+
+		printf("too many/few arguments %i need %lu\n", numArgumentsProvided,
+		       expectedSignature.size());
+		return false;
+	}
+	for (unsigned int i = 0; i < expectedSignature.size() && currentUserArgToken != endUserArgs;
+	     ++currentUserArgToken, ++i)
+	{
+		const Token* expectedToken = &(expectedSignature[i]);
+		// Ignore variable names
+		if (expectedToken->type == TokenType_Symbol && expectedToken->contents[0] == '\'')
+			continue;
+
+		if (expectedToken->type != currentUserArgToken->type ||
+		    expectedToken->contents.compare(currentUserArgToken->contents) != 0)
+		{
+			ErrorAtToken(*currentUserArgToken,
+			             "arguments do not match expected function signature "
+			             "printed below:");
+			printTokens(expectedSignature);
+			return false;
+		}
+	}
+
+	return true;
 }
