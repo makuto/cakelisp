@@ -24,6 +24,16 @@
   (return true))
 (add-compile-time-hook-module pre-build pre-build-hook)
 
+(defun-comptime pre-link-hook (manager (& ModuleManager)
+                                       linkCommand (& ProcessCommand)
+                                       linkTimeInputs (* ProcessCommandInput) numLinkTimeInputs int
+                                       &return bool)
+  (printf "Hello, Hot-reloading link!\n")
+  ;; (on-call (field linkCommand arguments) push_back
+           ;; (array ProcessCommandArgumentType_String "-lItWorked"))
+  (return true))
+(add-compile-time-hook pre-link pre-link-hook)
+
 (import &comptime-only "Macros.cake")
 (c-import "<unordered_map>" "<vector>")
 (c-import "DynamicLoader.hpp")

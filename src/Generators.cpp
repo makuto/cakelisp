@@ -8,6 +8,7 @@
 #include "Utilities.hpp"
 
 #include <string.h>
+#include <algorithm>
 
 typedef bool (*ProcessCommandOptionFunc)(EvaluatorEnvironment& environment,
                                          const std::vector<Token>& tokens, int startTokenIndex,
@@ -287,16 +288,8 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 			}
 
 			// Insert only if not already hooked
-			bool found = false;
-			for (ModulePreBuildHook hook : context.module->preBuildHooks)
-			{
-				if (hook == hookFunction)
-				{
-					found = true;
-					break;
-				}
-			}
-			if (!found)
+			if (FindInContainer(context.module->preBuildHooks, hookFunction) ==
+			    context.module->preBuildHooks.end())
 			{
 				// Finally, check the signature so we can call it safely
 				static std::vector<Token> expectedSignature;
@@ -314,6 +307,34 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 
 				context.module->preBuildHooks.push_back((ModulePreBuildHook)hookFunction);
 			}
+
+			return true;
+		}
+
+		if (!isModuleHook && hookName.contents.compare("pre-link") == 0)
+		{
+			// Insert only if not already hooked
+			if (FindInContainer(environment.preLinkHooks, hookFunction) ==
+			    environment.preLinkHooks.end())
+			{
+				// Finally, check the signature so we can call it safely
+				static std::vector<Token> expectedSignature;
+				if (expectedSignature.empty())
+				{
+					if (!tokenizeLinePrintError(g_environmentPreLinkHookSignature, __FILE__,
+					                            __LINE__, expectedSignature))
+						return false;
+				}
+
+				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
+				                                         tokens[functionNameIndex].contents.c_str(),
+				                                         expectedSignature))
+					return false;
+
+				environment.preLinkHooks.push_back((PreLinkHook)hookFunction);
+			}
+
+			return true;
 		}
 	}
 	else
@@ -336,9 +357,14 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 			             "failed to create reference status (internal error)");
 			return false;
 		}
+
+		// Succeed only because we know the resolver will come back to us
+		return true;
 	}
 
-	return true;
+	ErrorAtToken(tokens[hookNameIndex],
+	             "failed to set hook. Hook name not recognized or context mismatched");
+	return false;
 }
 
 bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,

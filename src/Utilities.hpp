@@ -8,6 +8,8 @@
 
 #define ArraySize(array) sizeof((array)) / sizeof((array)[0])
 
+#define FindInContainer(container, element) std::find(container.begin(), container.end(), element)
+
 void printIndentToDepth(int depth);
 
 // TODO: de-macroize

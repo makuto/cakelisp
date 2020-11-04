@@ -738,7 +738,7 @@ bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, cons
 		             "printed below:");
 		printTokens(expectedSignature);
 
-		printf("too many/few arguments %i need %lu\n", numArgumentsProvided,
+		printf("too many/few tokens. %i need %lu\n", numArgumentsProvided,
 		       expectedSignature.size());
 		return false;
 	}

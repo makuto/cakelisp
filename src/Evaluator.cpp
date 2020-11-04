@@ -23,6 +23,10 @@
 const char* globalDefinitionName = "<global>";
 const char* cakelispWorkingDir = "cakelisp_cache";
 
+const char* g_environmentPreLinkHookSignature =
+    "('manager (& ModuleManager) 'linkCommand (& ProcessCommand) 'linkTimeInputs (* "
+    "ProcessCommandInput) 'numLinkTimeInputs int &return bool)";
+
 static GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));

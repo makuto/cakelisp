@@ -495,19 +495,25 @@ bool moduleManagerBuild(ModuleManager& manager)
 			objectsToLink[i] = object->filename.c_str();
 		}
 
+		// Copy it so hooks can modify it
+		ProcessCommand linkCommand = manager.environment.buildTimeLinkCommand;
 		ProcessCommandInput linkTimeInputs[] = {
 		    {ProcessCommandArgumentType_ExecutableOutput, {outputExecutableName}},
 		    {ProcessCommandArgumentType_ObjectInput, objectsToLink}};
-		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
-		    manager.environment.buildTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+
+		// Hooks should cooperate with eachother, i.e. try to only add things
+		for (PreLinkHook preLinkHook : manager.environment.preLinkHooks)
+			preLinkHook(manager, linkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+
+		const char** linkArgumentList =
+		    MakeProcessArgumentsFromCommand(linkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
 		if (!linkArgumentList)
 		{
 			builtObjectsFree(builtObjects);
 			return false;
 		}
 		RunProcessArguments linkArguments = {};
-		linkArguments.fileToExecute =
-		    manager.environment.buildTimeLinkCommand.fileToExecute.c_str();
+		linkArguments.fileToExecute = linkCommand.fileToExecute.c_str();
 		linkArguments.arguments = linkArgumentList;
 		int linkStatus = 0;
 		if (runProcess(linkArguments, &linkStatus) != 0)

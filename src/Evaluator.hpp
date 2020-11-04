@@ -186,6 +186,11 @@ typedef std::unordered_map<std::string, CompileTimeFunctionMetadata>
     CompileTimeFunctionMetadataTable;
 typedef CompileTimeFunctionMetadataTable::iterator CompileTimeFunctionMetadataTableIterator;
 
+// Always update both of these. Signature helps validate call
+extern const char* g_environmentPreLinkHookSignature;
+typedef bool (*PreLinkHook)(ModuleManager& manager, ProcessCommand& linkCommand,
+                            ProcessCommandInput* linkTimeInputs, int numLinkTimeInputs);
+
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
@@ -225,6 +230,9 @@ struct EvaluatorEnvironment
 	ProcessCommand compileTimeLinkCommand;
 	ProcessCommand buildTimeBuildCommand;
 	ProcessCommand buildTimeLinkCommand;
+
+	// Gives the user the chance to change the link command
+	std::vector<PreLinkHook> preLinkHooks;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();
