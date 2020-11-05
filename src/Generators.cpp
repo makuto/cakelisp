@@ -103,34 +103,46 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 	if (optionNameIndex == -1)
 		return false;
 
-	if (tokens[optionNameIndex].contents.compare("cakelisp-src-dir") == 0)
+	struct
 	{
-		int pathIndex =
-		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
-		if (pathIndex == -1)
-			return false;
-
-		const Token& pathToken = tokens[pathIndex];
-
-		// This is a bit unfortunate. Because I don't have an interpreter, this must be a type we
-		// can recognize, and cannot be constructed procedurally
-		if (!ExpectTokenType("cakelisp-src-dir", pathToken, TokenType_String))
-			return false;
-
-		if (!environment.cakelispSrcDir.empty())
+		const char* option;
+		std::string* output;
+	} stringOptions[] = {
+	    {"cakelisp-src-dir", &environment.cakelispSrcDir},
+	    {"executable-output", &environment.executableOutput},
+	};
+	for (unsigned int i = 0; i < ArraySize(stringOptions); ++i)
+	{
+		if (tokens[optionNameIndex].contents.compare(stringOptions[i].option) == 0)
 		{
-			NoteAtToken(
-			    pathToken,
-			    "ignoring cakelisp-src-dir - only the first encountered set will have an effect");
+			int pathIndex = getExpectedArgument("expected value", tokens, startTokenIndex, 2,
+			                                    endInvocationIndex);
+			if (pathIndex == -1)
+				return false;
+
+			const Token& pathToken = tokens[pathIndex];
+
+			// This is a bit unfortunate. Because I don't have an interpreter, this must be a type
+			// we can recognize, and cannot be constructed procedurally
+			if (!ExpectTokenType(stringOptions[i].option, pathToken, TokenType_String))
+				return false;
+
+			if (!stringOptions[i].output->empty())
+			{
+				NoteAtTokenf(pathToken,
+				             "ignoring %s - only the first encountered set will have an effect. "
+				             "Currently set to '%s'",
+				             stringOptions[i].option, stringOptions[i].output->c_str());
+				return true;
+			}
+
+			*stringOptions[i].output = pathToken.contents;
 			return true;
 		}
-
-		environment.cakelispSrcDir = pathToken.contents;
-		return true;
 	}
 
 	// This needs to be defined early, else things will only be partially supported
-	else if (tokens[optionNameIndex].contents.compare("enable-hot-reloading") == 0)
+	if (tokens[optionNameIndex].contents.compare("enable-hot-reloading") == 0)
 	{
 		int enableStateIndex =
 		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
@@ -430,7 +442,9 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			}
 			else
 			{
-				ErrorAtToken(currentToken, "Unrecognized sentinel symbol");
+				ErrorAtToken(currentToken,
+				             "Unrecognized sentinel symbol. Options "
+				             "are:\n\t&with-defs\n\t&with-decls\n\t&comptime-only\n");
 				return false;
 			}
 

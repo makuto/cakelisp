@@ -45,6 +45,10 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 	printf("%s:%d:%d: note: %s\n", (token).source, (token).lineNumber, 1 + (token).columnStart, \
 	       message)
 
+#define NoteAtTokenf(token, format, ...)                                       \
+	printf("%s:%d:%d: note: " format "\n", (token).source, (token).lineNumber, \
+	       1 + (token).columnStart, __VA_ARGS__)
+
 #define PushBackAll(dest, src) (dest).insert((dest).end(), (src).begin(), (src).end())
 
 FILE* fileOpen(const char* filename, const char* mode);

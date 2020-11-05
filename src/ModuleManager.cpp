@@ -24,6 +24,7 @@ const char* g_modulePreBuildHookSignature =
 void moduleManagerInitialize(ModuleManager& manager)
 {
 	importFundamentalGenerators(manager.environment);
+
 	// Create module definition for top-level references to attach to
 	// The token isn't actually tied to one file
 	manager.globalPseudoInvocationName = {
@@ -325,7 +326,14 @@ bool moduleManagerBuild(ModuleManager& manager)
 		Module* module = manager.modules[moduleIndex];
 
 		for (ModulePreBuildHook hook : module->preBuildHooks)
-			hook(manager, module);
+		{
+			if (!hook(manager, module))
+			{
+				printf("error: hook returned failure. Aborting build\n");
+				builtObjectsFree(builtObjects);
+				return false;
+			}
+		}
 
 		ProcessCommand* buildCommandOverride =
 		    (!module->buildTimeBuildCommand.fileToExecute.empty() &&
@@ -396,7 +404,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 		if (!fileIsMoreRecentlyModified(object->sourceFilename.c_str(), object->filename.c_str()))
 		{
 			if (log.buildProcess)
-				printf("Skipping compiling %s (using cached object)\n", object->sourceFilename.c_str());
+				printf("Skipping compiling %s (using cached object)\n",
+				       object->sourceFilename.c_str());
 		}
 		else
 		{
@@ -444,8 +453,9 @@ bool moduleManagerBuild(ModuleManager& manager)
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;
 
-	// TODO: Make configurable
-	const char* outputExecutableName = "a.out";
+	std::string outputExecutableName = manager.environment.executableOutput;
+	if (outputExecutableName.empty())
+		outputExecutableName = "a.out";
 
 	int numObjectsToLink = 0;
 	bool succeededBuild = true;
@@ -467,7 +477,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 		++numObjectsToLink;
 
 		// If all our objects are older than our executable, don't even link!
-		needsLink |= fileIsMoreRecentlyModified(object->filename.c_str(), outputExecutableName);
+		needsLink |=
+		    fileIsMoreRecentlyModified(object->filename.c_str(), outputExecutableName.c_str());
 	}
 
 	if (!succeededBuild)
@@ -498,12 +509,19 @@ bool moduleManagerBuild(ModuleManager& manager)
 		// Copy it so hooks can modify it
 		ProcessCommand linkCommand = manager.environment.buildTimeLinkCommand;
 		ProcessCommandInput linkTimeInputs[] = {
-		    {ProcessCommandArgumentType_ExecutableOutput, {outputExecutableName}},
+		    {ProcessCommandArgumentType_ExecutableOutput, {outputExecutableName.c_str()}},
 		    {ProcessCommandArgumentType_ObjectInput, objectsToLink}};
 
 		// Hooks should cooperate with eachother, i.e. try to only add things
 		for (PreLinkHook preLinkHook : manager.environment.preLinkHooks)
-			preLinkHook(manager, linkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+		{
+			if (!preLinkHook(manager, linkCommand, linkTimeInputs, ArraySize(linkTimeInputs)))
+			{
+				printf("error: hook returned failure. Aborting build\n");
+				builtObjectsFree(builtObjects);
+				return false;
+			}
+		}
 
 		const char** linkArgumentList =
 		    MakeProcessArgumentsFromCommand(linkCommand, linkTimeInputs, ArraySize(linkTimeInputs));

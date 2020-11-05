@@ -226,6 +226,9 @@ struct EvaluatorEnvironment
 	// Added as a search directory for compile time code execution
 	std::string cakelispSrcDir;
 
+	// When using the default build system, the path to output the final executable
+	std::string executableOutput;
+
 	ProcessCommand compileTimeBuildCommand;
 	ProcessCommand compileTimeLinkCommand;
 	ProcessCommand buildTimeBuildCommand;
