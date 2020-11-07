@@ -1205,6 +1205,8 @@ const char* objectTypeToString(ObjectType type)
 {
 	switch (type)
 	{
+		case ObjectType_PseudoObject:
+			return "Pseudo-object";
 		case ObjectType_Function:
 			return "Function";
 		case ObjectType_CompileTimeMacro:

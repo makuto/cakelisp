@@ -1035,7 +1035,6 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	// Evaluate our body!
 	EvaluatorContext macroBodyContext = context;
 	macroBodyContext.scope = EvaluatorScope_Body;
-	macroBodyContext.isMacroOrGeneratorDefinition = true;
 	// Let the reference required propagation step handle this
 	macroBodyContext.isRequired = false;
 	macroBodyContext.definitionName = &nameToken;
@@ -1124,7 +1123,6 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	// Evaluate our body!
 	EvaluatorContext generatorBodyContext = context;
 	generatorBodyContext.scope = EvaluatorScope_Body;
-	generatorBodyContext.isMacroOrGeneratorDefinition = true;
 	// Let the reference required propagation step handle this
 	generatorBodyContext.isRequired = false;
 	generatorBodyContext.definitionName = &nameToken;

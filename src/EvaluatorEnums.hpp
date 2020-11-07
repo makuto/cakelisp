@@ -58,6 +58,7 @@ enum EvaluatorScope
 
 enum ObjectType
 {
+	ObjectType_PseudoObject,
 	ObjectType_Function,
 
 	ObjectType_CompileTimeMacro,

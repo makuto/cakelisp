@@ -77,8 +77,6 @@ void resetGeneratorOutput(GeneratorOutput& output);
 struct EvaluatorContext
 {
 	EvaluatorScope scope;
-	// Macro and generator definitions need to be resolved first
-	bool isMacroOrGeneratorDefinition;
 
 	// Whether or not the code in this context is required to be generated, i.e. isn't "dead" code
 	bool isRequired;

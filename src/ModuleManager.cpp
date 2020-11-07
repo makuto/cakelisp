@@ -32,7 +32,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 	{
 		ObjectDefinition moduleDefinition = {};
 		moduleDefinition.name = &manager.globalPseudoInvocationName;
-		moduleDefinition.type = ObjectType_Function;
+		moduleDefinition.type = ObjectType_PseudoObject;
 		moduleDefinition.isRequired = true;
 		// Will be cleaned up when the environment is destroyed
 		GeneratorOutput* compTimeOutput = new GeneratorOutput;
@@ -495,6 +495,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 		if (log.buildProcess)
 			printf("Skipping linking (no built objects are newer than cached executable)\n");
 
+		printf("Successfully built and linked %s (no changes)\n", outputExecutableName.c_str());
+
 		builtObjectsFree(builtObjects);
 		return true;
 	}
@@ -555,6 +557,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 		builtObjectsFree(builtObjects);
 		return false;
 	}
+
+	printf("Successfully built and linked %s\n", outputExecutableName.c_str());
 
 	builtObjectsFree(builtObjects);
 	return true;

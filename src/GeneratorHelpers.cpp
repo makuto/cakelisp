@@ -735,7 +735,7 @@ bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, cons
 	{
 		ErrorAtToken(*functionMetadata.startArgsToken,
 		             "arguments do not match expected function signature "
-		             "printed below:");
+		             "printed below (' = name does not need to match):");
 		printTokens(expectedSignature);
 
 		printf("too many/few tokens. %i need %lu\n", numArgumentsProvided,
@@ -755,7 +755,7 @@ bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, cons
 		{
 			ErrorAtToken(*currentUserArgToken,
 			             "arguments do not match expected function signature "
-			             "printed below:");
+			             "printed below (' = name does not need to match):");
 			printTokens(expectedSignature);
 			return false;
 		}

@@ -47,7 +47,8 @@ int main(int numArguments, char* arguments[])
 	    {"--verbose-tokenization", &log.tokenization,
 	     "Output details about the conversion from file text to tokens"},
 	    {"--verbose-references", &log.references,
-	     "Output when references to function/macro/generator invocations are created"},
+	     "Output when references to function/macro/generator invocations are created, and list all "
+	     "definitions and their references"},
 	    {"--verbose-dependency-propagation", &log.dependencyPropagation,
 	     "Output why objects are being built (why they are required for building)"},
 	    {"--verbose-build-reasons", &log.buildReasons,
@@ -127,7 +128,7 @@ int main(int numArguments, char* arguments[])
 	ModuleManager moduleManager = {};
 	moduleManagerInitialize(moduleManager);
 
-	// Set options
+	// Set options after initialization
 	{
 		if (enableHotReloading)
 			moduleManager.environment.enableHotReloading = true;
@@ -158,6 +159,8 @@ int main(int numArguments, char* arguments[])
 	}
 
 	printf("Successfully generated files\n");
+
+	printf("\nBuild:\n");
 
 	if (!moduleManagerBuild(moduleManager))
 	{
