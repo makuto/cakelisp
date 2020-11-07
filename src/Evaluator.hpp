@@ -223,6 +223,10 @@ struct EvaluatorEnvironment
 	// Generate code so that objects defined in Cakelisp can be reloaded at runtime
 	bool enableHotReloading;
 
+	// Whether it is okay to skip an operation if the resultant file is already in the cache (and
+	// the source file hasn't been modified more recently)
+	bool useCachedFiles;
+
 	// Added as a search directory for compile time code execution
 	std::string cakelispSrcDir;
 
@@ -268,6 +272,12 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
                                                 ObjectReference& reference);
 
 void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
+
+// Whether the (reference) cached file is more recent than the filename, meaning whatever operation
+// which made the cached file can be skipped. Basically fileIsMoreRecentlyModified(), but respects
+// --ignore-cache
+bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
+                      const char* reference);
 
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

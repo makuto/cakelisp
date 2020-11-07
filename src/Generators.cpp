@@ -1515,6 +1515,14 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 	return true;
 }
 
+// Don't evaluate anything in me. Essentially a block comment
+bool IgnoreGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      GeneratorOutput& output)
+{
+	return true;
+}
+
 // I'm not too happy with this
 static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
                                            const char* stringToTokenize, GeneratorOutput& output)
@@ -2156,6 +2164,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["if"] = IfGenerator;
 	environment.generators["cond"] = ConditionGenerator;
+
+	// Essentially a block comment, without messing up my highlighting and such
+	environment.generators["ignore"] = IgnoreGenerator;
 
 	// Handle complex pathing, e.g. a->b.c->d.e
 	environment.generators["path"] = ObjectPathGenerator;

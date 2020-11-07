@@ -80,3 +80,62 @@
           (for-in function-pointer (* (* void)) (path function-referent-it . second)
                   (set (deref function-pointer) loaded-symbol)))
   (return true))
+
+
+;;
+;; Prospective compile-time modification
+;;
+
+(ignore
+(defmacro state-var ()
+  (quick-args var-name var-type &optional var-initializer)
+  ;; Add regular variable declaration but with pointerized type, then add initializer function for
+  ;; first time variable setup
+  (tokenize-push (var (splice var-name) (* (splice var-type)) nullptr)
+                 (defun (token-str-concat init- var-name) ()
+                   (set (splice var-name) (splice var-initializer))))
+  ;; Variable stored on the environment. This will auto (new) whatever my type is
+  (with-comptime-variable-module state-vars (<> std::vector std::string))
+  ;; Keep track of all state variables for later auto-dereferencing
+  (on-call state-vars push_back (field var-name contents))
+  (return true))
+
+(state-var num-times-reloaded int 0)
+
+(defun my-function ()
+  (printf "Num times reloaded: %d\n" num-times-reloaded))
+
+(defun-comptime state-var-auto-deref (definition-name (* (const char))
+                                         definition-signature (& (const (<> std::vector Token)))
+                                         definition-tags (& (const (<> std::vector DefinitionTags)))
+                                         definition-body (& (const (<> std::vector Token)))
+                                         definition-modification-out (& DefinitionModification))
+  (when 'state-var-auto-deref in definition-tags
+      ;; Already processed this function
+        (return true))
+
+  (var modified-definition (* (<> std::vector Token)) nullptr)
+
+  (for-in token (const Token) definition-body
+          (when (and (not (is-invocation token)) ;; Only pay attention to symbols
+                     (not (= (field prev-token contents) "no-auto-deref")) ;; Prevent auto deref
+                     (or (find state-vars (field token contents)) ;; Global or local state variable references
+                         (find global-state-vars (field token contents))))
+            (unless modified-definition
+              (set modified-definition (new (<> std::vector Token)))
+              ;; Catch up by copying the definition up to just before this point
+              ;; (We only want to allocate memory if we're actually modifying the definition)
+              (from definition-body to (- 1 token) (on-call modified-definition push_back prev-token)))
+            ;; Push the state var, only with the auto deref
+            (tokenize-push (addr (token-splice (addr token))))))
+
+  (when modified-definition
+    ;; The evaluator will check this and see it is changed. Subsequent modification functions will
+    ;; get our modified version, not the old version
+    (set (field definition-modification-out body) modified-definition)
+    (on-call (field definition-modification-out tags) push_back 'state-var-auto-deref))
+
+  (return true))
+
+(add-compile-time-hook function-definition-evaluated state-var-auto-deref)
+)

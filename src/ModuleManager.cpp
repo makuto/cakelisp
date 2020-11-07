@@ -78,13 +78,14 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
-	}
 
-	// TODO: Add defaults for Windows
+		// TODO: Add defaults for Windows
 #ifdef WINDOWS
 #error Set sensible defaults for compile time build command
 #endif
+	}
 
+	manager.environment.useCachedFiles = true;
 	makeDirectory(cakelispWorkingDir);
 	printf("Using cache at %s\n", cakelispWorkingDir);
 }
@@ -373,6 +374,7 @@ bool moduleManagerBuild(ModuleManager& manager)
 				}
 
 				newBuiltObject->filename = buildObjectName;
+				// TODO: This is a bit weird to automatically use the parent module's build command
 				newBuiltObject->buildCommandOverride = buildCommandOverride;
 				builtObjects.push_back(newBuiltObject);
 			}
@@ -401,7 +403,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 
 	for (BuiltObject* object : builtObjects)
 	{
-		if (!fileIsMoreRecentlyModified(object->sourceFilename.c_str(), object->filename.c_str()))
+		if (canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
+		                     object->filename.c_str()))
 		{
 			if (log.buildProcess)
 				printf("Skipping compiling %s (using cached object)\n",
@@ -478,7 +481,7 @@ bool moduleManagerBuild(ModuleManager& manager)
 
 		// If all our objects are older than our executable, don't even link!
 		needsLink |=
-		    fileIsMoreRecentlyModified(object->filename.c_str(), outputExecutableName.c_str());
+		    !canUseCachedFile(manager.environment, object->filename.c_str(), outputExecutableName.c_str());
 	}
 
 	if (!succeededBuild)

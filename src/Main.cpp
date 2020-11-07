@@ -34,8 +34,13 @@ void printHelp(const CommandLineOption* options, int numOptions)
 int main(int numArguments, char* arguments[])
 {
 	bool enableHotReloading = false;
+	bool ignoreCachedFiles = false;
 
 	const CommandLineOption options[] = {
+	    {"--ignore-cache", &ignoreCachedFiles,
+	     "Prohibit skipping an operation if the resultant file is already in the cache (and the "
+	     "source file hasn't been modified more recently). This is a good way to test a 'clean' "
+	     "build without having to delete the Cakelisp cache directory"},
 	    {"--enable-hot-reloading", &enableHotReloading,
 	     "Generate code so that objects defined in Cakelisp can be reloaded at runtime"},
 	    // Logging
@@ -122,8 +127,14 @@ int main(int numArguments, char* arguments[])
 	ModuleManager moduleManager = {};
 	moduleManagerInitialize(moduleManager);
 
-	if (enableHotReloading)
-		moduleManager.environment.enableHotReloading = true;
+	// Set options
+	{
+		if (enableHotReloading)
+			moduleManager.environment.enableHotReloading = true;
+
+		if (ignoreCachedFiles)
+			moduleManager.environment.useCachedFiles = false;
+	}
 
 	for (const char* filename : filesToEvaluate)
 	{

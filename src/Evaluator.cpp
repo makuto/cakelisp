@@ -633,7 +633,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		             buildObject.artifactsName.c_str());
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
-		if (!fileIsMoreRecentlyModified(sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
+		if (canUseCachedFile(environment, sourceOutputName,
+		                      buildObject.dynamicLibraryPath.c_str()))
 		{
 			if (log.buildProcess)
 				printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
@@ -1223,4 +1224,13 @@ void resetGeneratorOutput(GeneratorOutput& output)
 	output.header.clear();
 	output.functions.clear();
 	output.imports.clear();
+}
+
+bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
+                      const char* reference)
+{
+	if (environment.useCachedFiles)
+		return !fileIsMoreRecentlyModified(filename, reference);
+	else
+		return false;
 }
