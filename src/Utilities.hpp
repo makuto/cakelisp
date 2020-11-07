@@ -8,6 +8,8 @@
 
 #define ArraySize(array) sizeof((array)) / sizeof((array)[0])
 
+#define FindInContainer(container, element) std::find(container.begin(), container.end(), element)
+
 void printIndentToDepth(int depth);
 
 // TODO: de-macroize
@@ -21,6 +23,9 @@ void printIndentToDepth(int depth);
 
 // TODO Replace with strcat()
 #define PrintBuffer(buffer, output) SafeSnprinf(buffer, sizeof(buffer), "%s", output)
+
+bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize);
+bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize);
 
 // TODO De-macroize these? It could be useful to keep as macros if I add __LINE__ etc. (to answer
 // questions like "where is this error coming from?")
@@ -39,6 +44,10 @@ void printIndentToDepth(int depth);
 #define NoteAtToken(token, message)                                                             \
 	printf("%s:%d:%d: note: %s\n", (token).source, (token).lineNumber, 1 + (token).columnStart, \
 	       message)
+
+#define NoteAtTokenf(token, format, ...)                                       \
+	printf("%s:%d:%d: note: " format "\n", (token).source, (token).lineNumber, \
+	       1 + (token).columnStart, __VA_ARGS__)
 
 #define PushBackAll(dest, src) (dest).insert((dest).end(), (src).begin(), (src).end())
 

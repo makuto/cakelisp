@@ -59,8 +59,10 @@ enum EvaluatorScope
 enum ObjectType
 {
 	ObjectType_Function,
+
 	ObjectType_CompileTimeMacro,
 	ObjectType_CompileTimeGenerator,
+	ObjectType_CompileTimeFunction,
 };
 
 enum ObjectReferenceGuessState
@@ -70,4 +72,10 @@ enum ObjectReferenceGuessState
 	// References can skip the guessed state if the definition is already known but not loaded
 	GuessState_WaitingForLoad,
 	GuessState_Resolved,
+};
+
+enum ObjectReferenceResolutionType
+{
+	ObjectReferenceResolutionType_None = 0,
+	ObjectReferenceResolutionType_Splice,
 };

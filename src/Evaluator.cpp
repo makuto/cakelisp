@@ -23,7 +23,11 @@
 const char* globalDefinitionName = "<global>";
 const char* cakelispWorkingDir = "cakelisp_cache";
 
-GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
+const char* g_environmentPreLinkHookSignature =
+    "('manager (& ModuleManager) 'linkCommand (& ProcessCommand) 'linkTimeInputs (* "
+    "ProcessCommandInput) 'numLinkTimeInputs int &return bool)";
+
+static GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));
 	if (findIt != environment.generators.end())
@@ -31,7 +35,7 @@ GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* funct
 	return nullptr;
 }
 
-MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
+static MacroFunc findMacro(EvaluatorEnvironment& environment, const char* functionName)
 {
 	MacroIterator findIt = environment.macros.find(std::string(functionName));
 	if (findIt != environment.macros.end())
@@ -49,12 +53,29 @@ StateVariable* findModuleStateVariable(ModuleEnvironment* moduleEnvironment,
 	return nullptr;
 }
 
-bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
+void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName)
 {
-	if (definition.type == ObjectType_CompileTimeMacro)
-		return findMacro(environment, definition.name->contents.c_str()) != nullptr;
-	else
-		return findGenerator(environment, definition.name->contents.c_str()) != nullptr;
+	CompileTimeFunctionTableIterator findIt =
+	    environment.compileTimeFunctions.find(std::string(functionName));
+	if (findIt != environment.compileTimeFunctions.end())
+		return findIt->second;
+	return nullptr;
+}
+
+static bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
+{
+	switch (definition.type)
+	{
+		case ObjectType_CompileTimeMacro:
+			return findMacro(environment, definition.name->contents.c_str()) != nullptr;
+		case ObjectType_CompileTimeGenerator:
+			return findGenerator(environment, definition.name->contents.c_str()) != nullptr;
+		case ObjectType_CompileTimeFunction:
+			return findCompileTimeFunction(environment, definition.name->contents.c_str()) !=
+			       nullptr;
+		default:
+			return false;
+	}
 }
 
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition)
@@ -169,7 +190,8 @@ int getNextFreeBuildId(EvaluatorEnvironment& environment)
 
 bool isCompileTimeObject(ObjectType type)
 {
-	return type == ObjectType_CompileTimeMacro || type == ObjectType_CompileTimeGenerator;
+	return type == ObjectType_CompileTimeMacro || type == ObjectType_CompileTimeGenerator ||
+	       type == ObjectType_CompileTimeFunction;
 }
 
 //
@@ -286,6 +308,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// could be a generator or macro invocation that hasn't been defined yet. Leave a note
 		// for the evaluator to come back to this token once a satisfying answer is found
 		ObjectReference newReference = {};
+		newReference.type = ObjectReferenceResolutionType_Splice;
 		newReference.tokens = &tokens;
 		newReference.startIndex = invocationStartIndex;
 		newReference.context = context;
@@ -508,38 +531,388 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 	} while (numRequiresStatusChanged);
 }
 
-void OnCompileProcessOutput(const char* output)
+static void OnCompileProcessOutput(const char* output)
 {
 	// TODO C/C++ error to Cakelisp token mapper
+}
+
+enum BuildStage
+{
+	BuildStage_None,
+	BuildStage_Compiling,
+	BuildStage_Linking,
+	BuildStage_Loading,
+	BuildStage_ResolvingReferences,
+	BuildStage_Finished
+};
+
+// Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
+// iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
+// references on resize. This will need to change if the data structure changes
+struct BuildObject
+{
+	int buildId = -1;
+	int status = -1;
+	BuildStage stage = BuildStage_None;
+	std::string artifactsName;
+	std::string dynamicLibraryPath;
+	std::string buildObjectName;
+	ObjectDefinition* definition = nullptr;
+};
+
+int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
+                                     std::vector<BuildObject>& definitionsToBuild,
+                                     int& numErrorsOut)
+{
+	int numReferencesResolved = 0;
+
+	// Spin up as many compile processes as necessary
+	// TODO: Combine sure-thing builds into batches (ones where we know all references)
+	// TODO: Instead of creating files, pipe straight to compiler?
+	// TODO: Make pipeline able to start e.g. linker while other objects are still compiling
+	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
+	// waitForAllProcessesClosed(), else the status pointer could be invalidated
+	int currentNumProcessesSpawned = 0;
+	for (BuildObject& buildObject : definitionsToBuild)
+	{
+		ObjectDefinition* definition = buildObject.definition;
+
+		if (log.buildProcess)
+			printf("Build %s\n", definition->name->contents.c_str());
+
+		if (!definition->output)
+		{
+			ErrorAtToken(*buildObject.definition->name,
+			             "missing compile-time output. Internal code error?");
+			continue;
+		}
+
+		char convertedNameBuffer[MAX_NAME_LENGTH] = {0};
+		lispNameStyleToCNameStyle(NameStyleMode_Underscores, definition->name->contents.c_str(),
+		                          convertedNameBuffer, sizeof(convertedNameBuffer),
+		                          *definition->name);
+		char artifactsName[MAX_PATH_LENGTH] = {0};
+		// Various stages will append the appropriate file extension
+		PrintfBuffer(artifactsName, "comptime_%s", convertedNameBuffer);
+		buildObject.artifactsName = artifactsName;
+		char fileOutputName[MAX_PATH_LENGTH] = {0};
+		// Writer will append the appropriate file extensions
+		PrintfBuffer(fileOutputName, "%s/%s", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
+
+		// Output definition to a file our compiler will be happy with
+		// TODO: Make these come from the top
+		NameStyleSettings nameSettings;
+		WriterFormatSettings formatSettings;
+		WriterOutputSettings outputSettings = {};
+
+		switch (definition->type)
+		{
+			case ObjectType_CompileTimeMacro:
+				outputSettings.sourceHeading = macroSourceHeading;
+				outputSettings.sourceFooter = macroSourceFooter;
+				break;
+			case ObjectType_CompileTimeGenerator:
+				outputSettings.sourceHeading = generatorSourceHeading;
+				outputSettings.sourceFooter = generatorSourceFooter;
+				break;
+			case ObjectType_CompileTimeFunction:
+				// TODO Right now this is the same as generators, but I don't know what I really
+				// want yet. Should each compile-time function have the ability to specify this,
+				// e.g. &with-build-tools or something? Figure it out automatically?
+				outputSettings.sourceHeading = generatorSourceHeading;
+				outputSettings.sourceFooter = generatorSourceFooter;
+				break;
+			default:
+				break;
+		}
+
+		outputSettings.sourceCakelispFilename = fileOutputName;
+		{
+			char writerSourceOutputName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(writerSourceOutputName, "%s.cpp", fileOutputName);
+			char writerHeaderOutputName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(writerHeaderOutputName, "%s.hpp", fileOutputName);
+			outputSettings.sourceOutputName = writerSourceOutputName;
+			outputSettings.headerOutputName = writerHeaderOutputName;
+		}
+		// Use the separate output prepared specifically for this compile-time object
+		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
+		                          outputSettings))
+		{
+			ErrorAtToken(*buildObject.definition->name,
+			             "Failed to write to compile-time source file");
+			continue;
+		}
+
+		buildObject.stage = BuildStage_Compiling;
+
+		// The evaluator is written in C++, so all generators and macros need to support the C++
+		// features used (e.g. their signatures have std::vector<>)
+		char sourceOutputName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(sourceOutputName, "%s/%s.cpp", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
+
+		char buildObjectName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(buildObjectName, "%s/%s.o", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
+		buildObject.buildObjectName = buildObjectName;
+
+		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(dynamicLibraryOut, "%s/lib%s.so", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str());
+		buildObject.dynamicLibraryPath = dynamicLibraryOut;
+
+		if (canUseCachedFile(environment, sourceOutputName,
+		                      buildObject.dynamicLibraryPath.c_str()))
+		{
+			if (log.buildProcess)
+				printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
+			// Skip straight to linking, which immediately becomes loading
+			buildObject.stage = BuildStage_Linking;
+			buildObject.status = 0;
+			continue;
+		}
+
+		char headerInclude[MAX_PATH_LENGTH] = {0};
+		if (environment.cakelispSrcDir.empty())
+		{
+			PrintBuffer(headerInclude, "-Isrc/");
+		}
+		else
+		{
+			PrintfBuffer(headerInclude, "-I%s", environment.cakelispSrcDir.c_str());
+		}
+
+		ProcessCommandInput compileTimeInputs[] = {
+		    {ProcessCommandArgumentType_SourceInput, {sourceOutputName}},
+		    {ProcessCommandArgumentType_ObjectOutput, {buildObjectName}},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
+		const char** buildArguments = MakeProcessArgumentsFromCommand(
+		    environment.compileTimeBuildCommand, compileTimeInputs, ArraySize(compileTimeInputs));
+		if (!buildArguments)
+		{
+			// TODO: Abort building if cannot invoke compiler
+			continue;
+		}
+
+		RunProcessArguments compileArguments = {};
+		compileArguments.fileToExecute = environment.compileTimeBuildCommand.fileToExecute.c_str();
+		compileArguments.arguments = buildArguments;
+		if (runProcess(compileArguments, &buildObject.status) != 0)
+		{
+			// TODO: Abort building if cannot invoke compiler?
+			// free(buildArguments);
+			// return 0;
+		}
+
+		free(buildArguments);
+
+		// TODO: Move this to other processes as well
+		// TODO This could be made smarter by allowing more spawning right when a process closes,
+		// instead of starting in waves
+		++currentNumProcessesSpawned;
+		if (currentNumProcessesSpawned >= maxProcessesRecommendedSpawned)
+		{
+			waitForAllProcessesClosed(OnCompileProcessOutput);
+			currentNumProcessesSpawned = 0;
+		}
+	}
+
+	// The result of the builds will go straight to our definitionsToBuild
+	waitForAllProcessesClosed(OnCompileProcessOutput);
+	currentNumProcessesSpawned = 0;
+
+	// Linking
+	for (BuildObject& buildObject : definitionsToBuild)
+	{
+		if (buildObject.stage != BuildStage_Compiling)
+			continue;
+
+		if (buildObject.status != 0)
+		{
+			ErrorAtTokenf(*buildObject.definition->name,
+			              "Failed to compile definition '%s' with status %d",
+			              buildObject.definition->name->contents.c_str(), buildObject.status);
+			continue;
+		}
+
+		buildObject.stage = BuildStage_Linking;
+
+		if (log.buildProcess)
+			printf("Compiled %s successfully\n", buildObject.definition->name->contents.c_str());
+
+		ProcessCommandInput linkTimeInputs[] = {
+		    {ProcessCommandArgumentType_DynamicLibraryOutput,
+		     {buildObject.dynamicLibraryPath.c_str()}},
+		    {ProcessCommandArgumentType_ObjectInput, {buildObject.buildObjectName.c_str()}}};
+		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
+		    environment.compileTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+		if (!linkArgumentList)
+		{
+			// TODO: Abort building if cannot invoke compiler
+			continue;
+		}
+		RunProcessArguments linkArguments = {};
+		linkArguments.fileToExecute = environment.compileTimeLinkCommand.fileToExecute.c_str();
+		linkArguments.arguments = linkArgumentList;
+		if (runProcess(linkArguments, &buildObject.status) != 0)
+		{
+			// TODO: Abort if linker failed?
+			// free(linkArgumentList);
+		}
+		free(linkArgumentList);
+	}
+
+	// The result of the linking will go straight to our definitionsToBuild
+	waitForAllProcessesClosed(OnCompileProcessOutput);
+	currentNumProcessesSpawned = 0;
+
+	for (BuildObject& buildObject : definitionsToBuild)
+	{
+		if (buildObject.stage != BuildStage_Linking)
+			continue;
+
+		if (buildObject.status != 0)
+		{
+			ErrorAtToken(*buildObject.definition->name, "Failed to link definition");
+			continue;
+		}
+
+		buildObject.stage = BuildStage_Loading;
+
+		if (log.buildProcess)
+			printf("Linked %s successfully\n", buildObject.definition->name->contents.c_str());
+
+		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
+		if (!builtLib)
+		{
+			ErrorAtToken(*buildObject.definition->name, "Failed to load compile-time library");
+			continue;
+		}
+
+		// We need to do name conversion to be compatible with C naming
+		// TODO: Make these come from the top
+		NameStyleSettings nameSettings;
+		char symbolNameBuffer[MAX_NAME_LENGTH] = {0};
+		lispNameStyleToCNameStyle(nameSettings.functionNameMode,
+		                          buildObject.definition->name->contents.c_str(), symbolNameBuffer,
+		                          sizeof(symbolNameBuffer), *buildObject.definition->name);
+		void* compileTimeFunction = getSymbolFromDynamicLibrary(builtLib, symbolNameBuffer);
+		if (!compileTimeFunction)
+		{
+			ErrorAtToken(*buildObject.definition->name, "Failed to find symbol in loaded library");
+			continue;
+		}
+
+		// Add to environment
+		switch (buildObject.definition->type)
+		{
+			case ObjectType_CompileTimeMacro:
+				if (findMacro(environment, buildObject.definition->name->contents.c_str()))
+					NoteAtToken(*buildObject.definition->name, "redefined macro");
+				environment.macros[buildObject.definition->name->contents] =
+				    (MacroFunc)compileTimeFunction;
+				break;
+			case ObjectType_CompileTimeGenerator:
+				if (findGenerator(environment, buildObject.definition->name->contents.c_str()))
+					NoteAtToken(*buildObject.definition->name, "redefined generator");
+				environment.generators[buildObject.definition->name->contents] =
+				    (GeneratorFunc)compileTimeFunction;
+				break;
+			case ObjectType_CompileTimeFunction:
+				if (findCompileTimeFunction(environment,
+				                            buildObject.definition->name->contents.c_str()))
+					NoteAtToken(*buildObject.definition->name, "redefined function");
+				environment.compileTimeFunctions[buildObject.definition->name->contents] =
+				    (void*)compileTimeFunction;
+				break;
+			default:
+				ErrorAtToken(
+				    *buildObject.definition->name,
+				    "Tried to build definition which is not compile-time object. Code error?");
+				break;
+		}
+
+		buildObject.stage = BuildStage_ResolvingReferences;
+
+		// Resolve references
+		ObjectReferencePoolMap::iterator referencePoolIt =
+		    environment.referencePools.find(buildObject.definition->name->contents);
+		if (referencePoolIt == environment.referencePools.end())
+		{
+			printf(
+			    "Error: built an object which had no references. It should not have been "
+			    "required. There must be a problem with Cakelisp internally\n");
+			continue;
+		}
+
+		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found?
+		bool hasErrors = false;
+		for (ObjectReference& reference : referencePoolIt->second.references)
+		{
+			if (reference.isResolved)
+				continue;
+
+			if (reference.type == ObjectReferenceResolutionType_Splice && reference.spliceOutput)
+			{
+				// In case a compile-time function has already guessed the invocation was a C/C++
+				// function, clear that invocation output
+				resetGeneratorOutput(*reference.spliceOutput);
+
+				if (log.buildProcess)
+					NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
+
+				// Evaluate from that reference
+				int result =
+				    EvaluateGenerate_Recursive(environment, reference.context, *reference.tokens,
+				                               reference.startIndex, *reference.spliceOutput);
+				hasErrors |= result > 0;
+				numErrorsOut += result;
+			}
+			else
+			{
+				// Do not resolve, we don't know how to resolve this type of reference
+				ErrorAtToken((*reference.tokens)[reference.startIndex],
+				             "do not know how to resolve this reference (internal code error?)");
+				hasErrors = true;
+				continue;
+			}
+
+			if (hasErrors)
+				continue;
+
+			// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
+			// again isn't going to change the number of errors
+			// Note that if new references emerge to this definition, they will automatically be
+			// recognized as the definition and handled then and there, so we don't need to make
+			// more than one pass
+			reference.isResolved = true;
+			++numReferencesResolved;
+		}
+
+		if (hasErrors)
+			continue;
+
+		if (log.buildProcess)
+			printf("Resolved %d references\n", numReferencesResolved);
+
+		// Remove need to build
+		buildObject.definition->isLoaded = true;
+
+		buildObject.stage = BuildStage_Finished;
+
+		if (log.buildProcess)
+			printf("Successfully built, loaded, and executed %s\n",
+			       buildObject.definition->name->contents.c_str());
+	}
+
+	return numReferencesResolved;
 }
 
 int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
 {
 	int numReferencesResolved = 0;
-
-	enum BuildStage
-	{
-		BuildStage_None,
-		BuildStage_Compiling,
-		BuildStage_Linking,
-		BuildStage_Loading,
-		BuildStage_ResolvingReferences,
-		BuildStage_Finished
-	};
-
-	// Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
-	// iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
-	// references on resize. This will need to change if the data structure changes
-	struct BuildObject
-	{
-		int buildId = -1;
-		int status = -1;
-		BuildStage stage = BuildStage_None;
-		std::string artifactsName;
-		std::string dynamicLibraryPath;
-		std::string buildObjectName;
-		ObjectDefinition* definition = nullptr;
-	};
 
 	std::vector<BuildObject> definitionsToBuild;
 
@@ -698,267 +1071,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		}
 	}
 
-	// Spin up as many compile processes as necessary
-	// TODO: Combine sure-thing builds into batches (ones where we know all references)
-	// TODO: Instead of creating files, pipe straight to compiler?
-	// TODO: Make pipeline able to start e.g. linker while other objects are still compiling
-	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
-	// waitForAllProcessesClosed(), else the status pointer could be invalidated
-	const int maxProcessesSpawned = 8;
-	int currentNumProcessesSpawned = 0;
-	for (BuildObject& buildObject : definitionsToBuild)
-	{
-		ObjectDefinition* definition = buildObject.definition;
-
-		if (log.buildProcess)
-			printf("Build %s\n", definition->name->contents.c_str());
-
-		char convertedNameBuffer[MAX_NAME_LENGTH] = {0};
-		lispNameStyleToCNameStyle(NameStyleMode_Underscores, definition->name->contents.c_str(),
-		                          convertedNameBuffer, sizeof(convertedNameBuffer),
-		                          *definition->name);
-		char artifactsName[MAX_PATH_LENGTH] = {0};
-		// Various stages will append the appropriate file extension
-		PrintfBuffer(artifactsName, "comptime_%s", convertedNameBuffer);
-		buildObject.artifactsName = artifactsName;
-		char fileOutputName[MAX_PATH_LENGTH] = {0};
-		// Writer will append the appropriate file extensions
-		PrintfBuffer(fileOutputName, "%s/%s", cakelispWorkingDir,
-		             buildObject.artifactsName.c_str());
-
-		// Output definition to a file our compiler will be happy with
-		// TODO: Make these come from the top
-		NameStyleSettings nameSettings;
-		WriterFormatSettings formatSettings;
-		WriterOutputSettings outputSettings = {};
-		if (definition->type == ObjectType_CompileTimeGenerator)
-		{
-			outputSettings.sourceHeading = generatorSourceHeading;
-			outputSettings.sourceFooter = generatorSourceFooter;
-		}
-		else
-		{
-			outputSettings.sourceHeading = macroSourceHeading;
-			outputSettings.sourceFooter = macroSourceFooter;
-		}
-		outputSettings.sourceCakelispFilename = fileOutputName;
-		// Use the separate output prepared specifically for this compile-time object
-		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
-		                          outputSettings))
-		{
-			ErrorAtToken(*buildObject.definition->name,
-			             "Failed to write to compile-time source file");
-			continue;
-		}
-
-		buildObject.stage = BuildStage_Compiling;
-
-		char fileToExec[MAX_PATH_LENGTH] = {0};
-		PrintBuffer(fileToExec, "/usr/bin/clang++");
-
-		// The evaluator is written in C++, so all generators and macros need to support the C++
-		// features used (e.g. their signatures have std::vector<>)
-		char sourceOutputName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(sourceOutputName, "%s/%s.cpp", cakelispWorkingDir,
-		             buildObject.artifactsName.c_str());
-
-		char buildObjectName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(buildObjectName, "%s/%s.o", cakelispWorkingDir,
-		             buildObject.artifactsName.c_str());
-		buildObject.buildObjectName = buildObjectName;
-
-		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(dynamicLibraryOut, "%s/lib%s.so", cakelispWorkingDir,
-		             buildObject.artifactsName.c_str());
-		buildObject.dynamicLibraryPath = dynamicLibraryOut;
-
-		if (!fileIsMoreRecentlyModified(sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
-		{
-			if (log.buildProcess)
-				printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
-			// Skip straight to linking, which immediately becomes loading
-			buildObject.stage = BuildStage_Linking;
-			buildObject.status = 0;
-			continue;
-		}
-
-		char headerInclude[MAX_PATH_LENGTH] = {0};
-		if (environment.cakelispSrcDir.empty())
-		{
-			PrintBuffer(headerInclude, "-Isrc/");
-		}
-		else
-		{
-			PrintfBuffer(headerInclude, "-I%s", environment.cakelispSrcDir.c_str());
-		}
-
-		// TODO: Get arguments all the way from the top
-		// If not null terminated, the call will fail
-		const char* arguments[] = {fileToExec,      "-g",          "-c",    sourceOutputName, "-o",
-		                           buildObjectName, headerInclude, "-fPIC", nullptr};
-		RunProcessArguments compileArguments = {};
-		compileArguments.fileToExecute = fileToExec;
-		compileArguments.arguments = arguments;
-		if (runProcess(compileArguments, &buildObject.status) != 0)
-		{
-			// TODO: Abort building if cannot invoke compiler
-			// return 0;
-		}
-
-		// TODO This could be made smarter by allowing more spawning right when a process closes,
-		// instead of starting in waves
-		++currentNumProcessesSpawned;
-		if (currentNumProcessesSpawned >= maxProcessesSpawned)
-		{
-			waitForAllProcessesClosed(OnCompileProcessOutput);
-			currentNumProcessesSpawned = 0;
-		}
-	}
-
-	// The result of the builds will go straight to our definitionsToBuild
-	waitForAllProcessesClosed(OnCompileProcessOutput);
-
-	// Linking
-	for (BuildObject& buildObject : definitionsToBuild)
-	{
-		if (buildObject.stage != BuildStage_Compiling)
-			continue;
-
-		if (buildObject.status != 0)
-		{
-			ErrorAtTokenf(*buildObject.definition->name,
-			              "Failed to compile definition '%s' with status %d",
-			              buildObject.definition->name->contents.c_str(), buildObject.status);
-			continue;
-		}
-
-		buildObject.stage = BuildStage_Linking;
-
-		if (log.buildProcess)
-			printf("Compiled %s successfully\n", buildObject.definition->name->contents.c_str());
-
-		char linkerExecutable[MAX_PATH_LENGTH] = {0};
-		PrintBuffer(linkerExecutable, "/usr/bin/clang++");
-
-		const char* arguments[] = {linkerExecutable,
-		                           "-shared",
-		                           "-o",
-		                           buildObject.dynamicLibraryPath.c_str(),
-		                           buildObject.buildObjectName.c_str(),
-		                           nullptr};
-		RunProcessArguments linkArguments = {};
-		linkArguments.fileToExecute = linkerExecutable;
-		linkArguments.arguments = arguments;
-		if (runProcess(linkArguments, &buildObject.status) != 0)
-		{
-			// TODO: Abort if linker failed?
-		}
-	}
-
-	// The result of the linking will go straight to our definitionsToBuild
-	waitForAllProcessesClosed(OnCompileProcessOutput);
-
-	for (BuildObject& buildObject : definitionsToBuild)
-	{
-		if (buildObject.stage != BuildStage_Linking)
-			continue;
-
-		if (buildObject.status != 0)
-		{
-			ErrorAtToken(*buildObject.definition->name, "Failed to link definition");
-			continue;
-		}
-
-		buildObject.stage = BuildStage_Loading;
-
-		if (log.buildProcess)
-			printf("Linked %s successfully\n", buildObject.definition->name->contents.c_str());
-
-		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
-		if (!builtLib)
-		{
-			ErrorAtToken(*buildObject.definition->name, "Failed to load compile-time library");
-			continue;
-		}
-
-		// We need to do name conversion to be compatible with C naming
-		// TODO: Make these come from the top
-		NameStyleSettings nameSettings;
-		char symbolNameBuffer[MAX_NAME_LENGTH] = {0};
-		lispNameStyleToCNameStyle(nameSettings.functionNameMode,
-		                          buildObject.definition->name->contents.c_str(), symbolNameBuffer,
-		                          sizeof(symbolNameBuffer), *buildObject.definition->name);
-		void* compileTimeFunction = getSymbolFromDynamicLibrary(builtLib, symbolNameBuffer);
-		if (!compileTimeFunction)
-		{
-			ErrorAtToken(*buildObject.definition->name, "Failed to find symbol in loaded library");
-			continue;
-		}
-
-		// Add to environment
-		if (buildObject.definition->type == ObjectType_CompileTimeMacro)
-		{
-			environment.macros[buildObject.definition->name->contents] =
-			    (MacroFunc)compileTimeFunction;
-		}
-		else if (buildObject.definition->type == ObjectType_CompileTimeGenerator)
-		{
-			environment.generators[buildObject.definition->name->contents] =
-			    (GeneratorFunc)compileTimeFunction;
-		}
-
-		buildObject.stage = BuildStage_ResolvingReferences;
-
-		// Resolve references
-		ObjectReferencePoolMap::iterator referencePoolIt =
-		    environment.referencePools.find(buildObject.definition->name->contents);
-		if (referencePoolIt == environment.referencePools.end())
-		{
-			printf(
-			    "Error: built an object which had no references. It should not have been "
-			    "required. There must be a problem with Cakelisp internally\n");
-			continue;
-		}
-
-		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found?
-		for (ObjectReference& reference : referencePoolIt->second.references)
-		{
-			if (reference.isResolved)
-				continue;
-
-			// In case a compile-time function has already guessed the invocation was a C/C++
-			// function, clear that invocation output
-			resetGeneratorOutput(*reference.spliceOutput);
-
-			if (log.buildProcess)
-				NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
-
-			// Evaluate from that reference
-			int result =
-			    EvaluateGenerate_Recursive(environment, reference.context, *reference.tokens,
-			                               reference.startIndex, *reference.spliceOutput);
-			// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
-			// again isn't going to change the number of errors
-			// Note that if new references emerge to this definition, they will automatically be
-			// recognized as the definition and handled then and there, so we don't need to make
-			// more than one pass
-			reference.isResolved = true;
-			numErrorsOut += result;
-			++numReferencesResolved;
-		}
-
-		if (log.buildProcess)
-			printf("Resolved %d references\n", numReferencesResolved);
-
-		// Remove need to build
-		buildObject.definition->isLoaded = true;
-
-		buildObject.stage = BuildStage_Finished;
-
-		if (log.buildProcess)
-			printf("Successfully built, loaded, and executed %s\n",
-			       buildObject.definition->name->contents.c_str());
-	}
+	numReferencesResolved +=
+	    BuildExecuteCompileTimeFunctions(environment, definitionsToBuild, numErrorsOut);
 
 	return numReferencesResolved;
 }
@@ -981,9 +1095,9 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 	}
 
-	// Keep propagating and evaluating until no more references are resolved.
-	// This must be done in passes in case evaluation created more definitions. There's probably a
-	// smarter way, but I'll do it in this brute-force style first
+	// Keep propagating and evaluating until no more references are resolved. This must be done in
+	// passes in case evaluation created more definitions. There's probably a smarter way, but I'll
+	// do it in this brute-force style first
 	int numReferencesResolved = 0;
 	int numBuildResolveErrors = 0;
 	do
@@ -996,6 +1110,10 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 
 	// Check whether everything is resolved
 	printf("\nResult:\n");
+
+	if (numBuildResolveErrors)
+		printf("Failed with %d errors.\n", numBuildResolveErrors);
+
 	int errors = 0;
 	for (const ObjectDefinitionPair& definitionPair : environment.definitions)
 	{
@@ -1123,6 +1241,8 @@ const char* objectTypeToString(ObjectType type)
 			return "Macro";
 		case ObjectType_CompileTimeGenerator:
 			return "Generator";
+		case ObjectType_CompileTimeFunction:
+			return "Compile-time Function";
 		default:
 			return "Unknown";
 	}
@@ -1134,4 +1254,13 @@ void resetGeneratorOutput(GeneratorOutput& output)
 	output.header.clear();
 	output.functions.clear();
 	output.imports.clear();
+}
+
+bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
+                      const char* reference)
+{
+	if (environment.useCachedFiles)
+		return !fileIsMoreRecentlyModified(filename, reference);
+	else
+		return false;
 }

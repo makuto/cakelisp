@@ -8,6 +8,89 @@
 #include "Utilities.hpp"
 
 #include <string.h>
+#include <algorithm>
+
+typedef bool (*ProcessCommandOptionFunc)(EvaluatorEnvironment& environment,
+                                         const std::vector<Token>& tokens, int startTokenIndex,
+                                         ProcessCommand* command);
+
+bool SetProcessCommandFileToExec(EvaluatorEnvironment& environment,
+                                 const std::vector<Token>& tokens, int startTokenIndex,
+                                 ProcessCommand* command)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int argumentIndex = getExpectedArgument("expected path to compiler", tokens, startTokenIndex, 2,
+	                                        endInvocationIndex);
+	if (argumentIndex == -1)
+		return false;
+
+	const Token& argumentToken = tokens[argumentIndex];
+
+	if (!ExpectTokenType("file to execute", argumentToken, TokenType_String))
+		return false;
+
+	command->fileToExecute = argumentToken.contents;
+	return true;
+}
+
+bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::vector<Token>& tokens,
+                                int startTokenIndex, ProcessCommand* command)
+{
+	command->arguments.clear();
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int startArgsIndex = getArgument(tokens, startTokenIndex, 2, endInvocationIndex);
+	// No args is weird, but we'll allow it
+	if (startArgsIndex == -1)
+		return true;
+
+	for (int argumentIndex = startArgsIndex; argumentIndex < endInvocationIndex; ++argumentIndex)
+	{
+		const Token& argumentToken = tokens[argumentIndex];
+		if (argumentToken.type == TokenType_String)
+		{
+			command->arguments.push_back(
+			    {ProcessCommandArgumentType_String, argumentToken.contents});
+		}
+		else if (argumentToken.type == TokenType_Symbol)
+		{
+			struct
+			{
+				const char* symbolName;
+				ProcessCommandArgumentType type;
+			} symbolsToCommandTypes[] = {
+			    {"'source-input", ProcessCommandArgumentType_SourceInput},
+			    {"'object-output", ProcessCommandArgumentType_ObjectOutput},
+			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
+				{"'object-input", ProcessCommandArgumentType_ObjectInput},
+			    {"'library-output", ProcessCommandArgumentType_DynamicLibraryOutput},
+				{"'executable-output", ProcessCommandArgumentType_ExecutableOutput},
+			};
+			bool found = false;
+			for (unsigned int i = 0; i < ArraySize(symbolsToCommandTypes); ++i)
+			{
+				if (argumentToken.contents.compare(symbolsToCommandTypes[i].symbolName) == 0)
+				{
+					command->arguments.push_back({symbolsToCommandTypes[i].type, EmptyString});
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				ErrorAtToken(argumentToken, "unrecognized symbol");
+				return false;
+			}
+		}
+		else
+		{
+			ErrorAtTokenf(argumentToken, "expected string argument or symbol, got %s",
+			              tokenTypeToString(argumentToken.type));
+			return false;
+		}
+	}
+	return true;
+}
 
 bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                        const std::vector<Token>& tokens, int startTokenIndex,
@@ -20,30 +103,42 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 	if (optionNameIndex == -1)
 		return false;
 
-	if (tokens[optionNameIndex].contents.compare("cakelisp-src-dir") == 0)
+	struct
 	{
-		int pathIndex =
-		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
-		if (pathIndex == -1)
-			return false;
-
-		const Token& pathToken = tokens[pathIndex];
-
-		// This is a bit unfortunate. Because I don't have an interpreter, this must be a type we
-		// can recognize, and cannot be constructed procedurally
-		if (!ExpectTokenType("cakelisp-src-dir", pathToken, TokenType_String))
-			return false;
-
-		if (!environment.cakelispSrcDir.empty())
+		const char* option;
+		std::string* output;
+	} stringOptions[] = {
+	    {"cakelisp-src-dir", &environment.cakelispSrcDir},
+	    {"executable-output", &environment.executableOutput},
+	};
+	for (unsigned int i = 0; i < ArraySize(stringOptions); ++i)
+	{
+		if (tokens[optionNameIndex].contents.compare(stringOptions[i].option) == 0)
 		{
-			NoteAtToken(
-			    pathToken,
-			    "ignoring cakelisp-src-dir - only the first encountered set will have an effect");
+			int pathIndex = getExpectedArgument("expected value", tokens, startTokenIndex, 2,
+			                                    endInvocationIndex);
+			if (pathIndex == -1)
+				return false;
+
+			const Token& pathToken = tokens[pathIndex];
+
+			// This is a bit unfortunate. Because I don't have an interpreter, this must be a type
+			// we can recognize, and cannot be constructed procedurally
+			if (!ExpectTokenType(stringOptions[i].option, pathToken, TokenType_String))
+				return false;
+
+			if (!stringOptions[i].output->empty())
+			{
+				NoteAtTokenf(pathToken,
+				             "ignoring %s - only the first encountered set will have an effect. "
+				             "Currently set to '%s'",
+				             stringOptions[i].option, stringOptions[i].output->c_str());
+				return true;
+			}
+
+			*stringOptions[i].output = pathToken.contents;
 			return true;
 		}
-
-		environment.cakelispSrcDir = pathToken.contents;
-		return true;
 	}
 
 	// This needs to be defined early, else things will only be partially supported
@@ -72,8 +167,231 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 		return true;
 	}
 
+	struct ProcessCommandOptions
+	{
+		const char* optionName;
+		ProcessCommand* command;
+		ProcessCommandOptionFunc handler;
+	};
+	ProcessCommandOptions commandOptions[] = {
+	    {"compile-time-compiler", &environment.compileTimeBuildCommand,
+	     SetProcessCommandFileToExec},
+	    {"compile-time-compile-arguments", &environment.compileTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"compile-time-linker", &environment.compileTimeLinkCommand, SetProcessCommandFileToExec},
+	    {"compile-time-link-arguments", &environment.compileTimeLinkCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-compiler", &environment.buildTimeBuildCommand, SetProcessCommandFileToExec},
+	    {"build-time-compile-arguments", &environment.buildTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-linker", &environment.buildTimeLinkCommand, SetProcessCommandFileToExec},
+	    {"build-time-link-arguments", &environment.buildTimeLinkCommand,
+	     SetProcessCommandArguments},
+	};
+
+	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
+	{
+		if (tokens[optionNameIndex].contents.compare(commandOptions[i].optionName) == 0)
+		{
+			return commandOptions[i].handler(environment, tokens, startTokenIndex,
+			                                 commandOptions[i].command);
+		}
+	}
+
 	ErrorAtToken(tokens[optionNameIndex], "unrecognized option");
 	return false;
+}
+
+bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                     const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
+{
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex], "modules not supported (internal code error?)");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int optionNameIndex =
+	    getExpectedArgument("expected option name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (optionNameIndex == -1)
+		return false;
+
+	// TODO: Copy-pasted
+	struct ProcessCommandOptions
+	{
+		const char* optionName;
+		ProcessCommand* command;
+		ProcessCommandOptionFunc handler;
+	};
+	ProcessCommandOptions commandOptions[] = {
+	    {"compile-time-compiler", &context.module->compileTimeBuildCommand,
+	     SetProcessCommandFileToExec},
+	    {"compile-time-compile-arguments", &context.module->compileTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"compile-time-linker", &context.module->compileTimeLinkCommand,
+	     SetProcessCommandFileToExec},
+	    {"compile-time-link-arguments", &context.module->compileTimeLinkCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-compiler", &context.module->buildTimeBuildCommand,
+	     SetProcessCommandFileToExec},
+	    {"build-time-compile-arguments", &context.module->buildTimeBuildCommand,
+	     SetProcessCommandArguments},
+	    {"build-time-linker", &context.module->buildTimeLinkCommand, SetProcessCommandFileToExec},
+	    {"build-time-link-arguments", &context.module->buildTimeLinkCommand,
+	     SetProcessCommandArguments},
+	};
+
+	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
+	{
+		if (tokens[optionNameIndex].contents.compare(commandOptions[i].optionName) == 0)
+		{
+			return commandOptions[i].handler(environment, tokens, startTokenIndex,
+			                                 commandOptions[i].command);
+		}
+	}
+
+	return true;
+}
+
+bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                                 const std::vector<Token>& tokens, int startTokenIndex,
+                                 GeneratorOutput& output)
+{
+	if (IsForbiddenEvaluatorScope("add-compile-time-hook", tokens[startTokenIndex], context,
+	                              EvaluatorScope_ExpressionsOnly))
+		return false;
+
+	// Without "-module", the hook is executed at environment-level
+	bool isModuleHook =
+	    tokens[startTokenIndex + 1].contents.compare("add-compile-time-hook-module") == 0;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int hookNameIndex =
+	    getExpectedArgument("expected hook name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (hookNameIndex == -1 ||
+	    !ExpectTokenType("compile-time hook", tokens[hookNameIndex], TokenType_Symbol))
+		return false;
+
+	int functionNameIndex = getExpectedArgument("expected function name", tokens, startTokenIndex,
+	                                            2, endInvocationIndex);
+	if (functionNameIndex == -1 ||
+	    !ExpectTokenType("compile-time hook", tokens[functionNameIndex], TokenType_Symbol))
+		return false;
+
+	void* hookFunction =
+	    findCompileTimeFunction(environment, tokens[functionNameIndex].contents.c_str());
+	if (hookFunction)
+	{
+		// TODO Check function signatures. Error message should provide proper signature. Use inline
+		// string parsing code to make the signature tokens to compare
+
+		const Token& hookName = tokens[hookNameIndex];
+		if (isModuleHook && hookName.contents.compare("pre-build") == 0)
+		{
+			if (!context.module)
+			{
+				ErrorAtToken(
+				    tokens[startTokenIndex],
+				    "context doesn't provide module to override hook. Internal code error?");
+				return false;
+			}
+
+			// Insert only if not already hooked
+			if (FindInContainer(context.module->preBuildHooks, hookFunction) ==
+			    context.module->preBuildHooks.end())
+			{
+				// Finally, check the signature so we can call it safely
+				static std::vector<Token> expectedSignature;
+				if (expectedSignature.empty())
+				{
+					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, __FILE__, __LINE__,
+					                            expectedSignature))
+						return false;
+				}
+
+				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
+				                                         tokens[functionNameIndex].contents.c_str(),
+				                                         expectedSignature))
+					return false;
+
+				context.module->preBuildHooks.push_back((ModulePreBuildHook)hookFunction);
+			}
+
+			return true;
+		}
+
+		if (!isModuleHook && hookName.contents.compare("pre-link") == 0)
+		{
+			// Insert only if not already hooked
+			if (FindInContainer(environment.preLinkHooks, hookFunction) ==
+			    environment.preLinkHooks.end())
+			{
+				// Finally, check the signature so we can call it safely
+				static std::vector<Token> expectedSignature;
+				if (expectedSignature.empty())
+				{
+					if (!tokenizeLinePrintError(g_environmentPreLinkHookSignature, __FILE__,
+					                            __LINE__, expectedSignature))
+						return false;
+				}
+
+				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
+				                                         tokens[functionNameIndex].contents.c_str(),
+				                                         expectedSignature))
+					return false;
+
+				environment.preLinkHooks.push_back((PreLinkHook)hookFunction);
+			}
+
+			return true;
+		}
+	}
+	else
+	{
+		// Waiting on definition or building of this compile-time function
+		ObjectReference newReference = {};
+		newReference.type = ObjectReferenceResolutionType_Splice;
+		newReference.tokens = &tokens;
+		// Unlike function references, we want to reevaluate from the start of add-hook
+		newReference.startIndex = startTokenIndex;
+		newReference.context = context;
+		// We don't need to splice, we need to set the variable. Create it anyways
+		newReference.spliceOutput = new GeneratorOutput;
+
+		const ObjectReferenceStatus* referenceStatus =
+		    addObjectReference(environment, tokens[functionNameIndex], newReference);
+		if (!referenceStatus)
+		{
+			ErrorAtToken(tokens[functionNameIndex],
+			             "failed to create reference status (internal error)");
+			return false;
+		}
+
+		// Succeed only because we know the resolver will come back to us
+		return true;
+	}
+
+	ErrorAtToken(tokens[hookNameIndex],
+	             "failed to set hook. Hook name not recognized or context mismatched");
+	return false;
+}
+
+bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      GeneratorOutput& output)
+{
+	if (context.module)
+		context.module->skipBuild = true;
+	else
+	{
+		ErrorAtToken(tokens[startTokenIndex], "building not supported (internal code error?)");
+		return false;
+	}
+
+	return true;
 }
 
 enum ImportState
@@ -124,7 +442,9 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			}
 			else
 			{
-				ErrorAtToken(currentToken, "Unrecognized sentinel symbol");
+				ErrorAtToken(currentToken,
+				             "Unrecognized sentinel symbol. Options "
+				             "are:\n\t&with-defs\n\t&with-decls\n\t&comptime-only\n");
 				return false;
 			}
 
@@ -144,6 +464,19 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			}
 			else
 			{
+				if (context.module)
+				{
+					ModuleDependency newCakelispDependency = {};
+					newCakelispDependency.type = ModuleDependency_Cakelisp;
+					newCakelispDependency.name = currentToken.contents;
+					context.module->dependencies.push_back(newCakelispDependency);
+				}
+				else
+				{
+					NoteAtToken(currentToken,
+					            "module cannot track dependency (potential internal error)");
+				}
+
 				char relativePathBuffer[MAX_PATH_LENGTH] = {0};
 				getDirectoryFromPath(currentToken.source, relativePathBuffer,
 				                     sizeof(relativePathBuffer));
@@ -201,8 +534,42 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 	return true;
 }
 
+bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                            const std::vector<Token>& tokens, int startTokenIndex,
+                            GeneratorOutput& output)
+{
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex],
+		             "module cannot track dependency (potential internal error)");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int invocationIndex = startTokenIndex + 1;
+
+	int nameIndex = getExpectedArgument("expected dependency name", tokens, startTokenIndex, 1,
+	                                    endInvocationIndex);
+	if (nameIndex == -1)
+		return false;
+	if (!ExpectTokenType("add dependency", tokens[nameIndex], TokenType_String))
+		return false;
+
+	if (tokens[invocationIndex].contents.compare("add-cpp-build-dependency") == 0)
+	{
+		ModuleDependency newDependency = {};
+		newDependency.type = ModuleDependency_CFile;
+		newDependency.name = tokens[nameIndex].contents;
+		context.module->dependencies.push_back(newDependency);
+	}
+
+	return true;
+}
+
 bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                    const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
+                    const std::vector<Token>& tokens, int startTokenIndex,
+                    GeneratorOutput& runtimeOutput)
 {
 	if (!ExpectEvaluatorScope("defun", tokens[startTokenIndex], context, EvaluatorScope_Module))
 		return false;
@@ -225,6 +592,34 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		return false;
 
 	bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defun-local") == 0;
+	bool isCompileTime = tokens[startTokenIndex + 1].contents.compare("defun-comptime") == 0;
+	GeneratorOutput* functionOutput = isCompileTime ? new GeneratorOutput : &runtimeOutput;
+
+	// Register definition before evaluating body, otherwise references in body will be orphaned
+	{
+		ObjectDefinition newFunctionDef = {};
+		newFunctionDef.name = &nameToken;
+		newFunctionDef.type = isCompileTime ? ObjectType_CompileTimeFunction : ObjectType_Function;
+		// Compile-time objects only get built with compile-time references
+		newFunctionDef.isRequired = isCompileTime ? false : context.isRequired;
+		if (isCompileTime)
+			newFunctionDef.output = functionOutput;
+		if (!addObjectDefinition(environment, newFunctionDef))
+		{
+			if (isCompileTime)
+				delete functionOutput;
+			return false;
+		}
+		// Past this point, compile-time output will be handled by environment destruction
+
+		if (isCompileTime)
+		{
+			CompileTimeFunctionMetadata newMetadata = {};
+			newMetadata.nameToken = &nameToken;
+			newMetadata.startArgsToken = &argsStart;
+			environment.compileTimeFunctionInfo[nameToken.contents.c_str()] = newMetadata;
+		}
+	}
 
 	int returnTypeStart = -1;
 	std::vector<FunctionArgumentTokens> arguments;
@@ -235,30 +630,32 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	// support partial reloading
 	if (environment.enableHotReloading && !isModuleLocal)
 	{
-		addStringOutput(isModuleLocal ? output.source : output.header, "extern \"C\"",
-		                StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(isModuleLocal ? functionOutput->source : functionOutput->header,
+		                "extern \"C\"", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 	}
 
 	// TODO: Hot-reloading functions shouldn't be declared static, right?
 	if (isModuleLocal)
-		addStringOutput(output.source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(functionOutput->source, "static", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
-	if (!outputFunctionReturnType(tokens, output, returnTypeStart, startTokenIndex, endArgsIndex,
+	if (!outputFunctionReturnType(tokens, *functionOutput, returnTypeStart, startTokenIndex,
+	                              endArgsIndex,
 	                              /*outputSource=*/true, /*outputHeader=*/!isModuleLocal))
 		return false;
 
-	addStringOutput(output.source, nameToken.contents, StringOutMod_ConvertFunctionName,
+	addStringOutput(functionOutput->source, nameToken.contents, StringOutMod_ConvertFunctionName,
 	                &nameToken);
 	if (!isModuleLocal)
-		addStringOutput(output.header, nameToken.contents, StringOutMod_ConvertFunctionName,
-		                &nameToken);
+		addStringOutput(functionOutput->header, nameToken.contents,
+		                StringOutMod_ConvertFunctionName, &nameToken);
 
-	addLangTokenOutput(output.source, StringOutMod_OpenParen, &argsStart);
+	addLangTokenOutput(functionOutput->source, StringOutMod_OpenParen, &argsStart);
 	if (!isModuleLocal)
-		addLangTokenOutput(output.header, StringOutMod_OpenParen, &argsStart);
+		addLangTokenOutput(functionOutput->header, StringOutMod_OpenParen, &argsStart);
 
-	if (!outputFunctionArguments(tokens, output, arguments, /*outputSource=*/true,
+	if (!outputFunctionArguments(tokens, *functionOutput, arguments, /*outputSource=*/true,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -273,26 +670,17 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		argumentsMetadata.push_back({tokens[arg.nameIndex].contents, startTypeToken, endTypeToken});
 	}
 
-	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 	if (!isModuleLocal)
 	{
-		addLangTokenOutput(output.header, StringOutMod_CloseParen, &tokens[endArgsIndex]);
+		addLangTokenOutput(functionOutput->header, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 		// Forward declarations end with ;
-		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endArgsIndex]);
-	}
-
-	// Register definition before evaluating body, otherwise references in body will be orphaned
-	{
-		ObjectDefinition newFunctionDef = {};
-		newFunctionDef.name = &nameToken;
-		newFunctionDef.type = ObjectType_Function;
-		newFunctionDef.isRequired = context.isRequired;
-		if (!addObjectDefinition(environment, newFunctionDef))
-			return false;
+		addLangTokenOutput(functionOutput->header, StringOutMod_EndStatement,
+		                   &tokens[endArgsIndex]);
 	}
 
 	int startBodyIndex = endArgsIndex + 1;
-	addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
 
 	// Evaluate our body!
 	EvaluatorContext bodyContext = context;
@@ -300,14 +688,17 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	bodyContext.definitionName = &nameToken;
 	// The statements will need to handle their ;
 	int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
-	                                              /*delimiterTemplate=*/nullptr, output);
+	                                              /*delimiterTemplate=*/nullptr, *functionOutput);
 	if (numErrors)
+	{
+		// Don't delete compile time function output. Evaluate may have caused references to it
 		return false;
+	}
 
-	addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
 
-	output.functions.push_back({nameToken.contents, &tokens[startTokenIndex],
-	                            &tokens[endTokenIndex], std::move(argumentsMetadata)});
+	functionOutput->functions.push_back({nameToken.contents, &tokens[startTokenIndex],
+	                                     &tokens[endTokenIndex], std::move(argumentsMetadata)});
 
 	return true;
 }
@@ -1259,6 +1650,14 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 	return true;
 }
 
+// Don't evaluate anything in me. Essentially a block comment
+bool IgnoreGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      GeneratorOutput& output)
+{
+	return true;
+}
+
 // I'm not too happy with this
 static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
                                            const char* stringToTokenize, GeneratorOutput& output)
@@ -1899,6 +2298,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["defun"] = DefunGenerator;
 	environment.generators["defun-local"] = DefunGenerator;
+	environment.generators["defun-comptime"] = DefunGenerator;
 
 	environment.generators["def-function-signature"] = DefFunctionSignatureGenerator;
 	environment.generators["def-function-signature-local"] = DefFunctionSignatureGenerator;
@@ -1931,6 +2331,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["if"] = IfGenerator;
 	environment.generators["cond"] = ConditionGenerator;
 
+	// Essentially a block comment, without messing up my highlighting and such
+	environment.generators["ignore"] = IgnoreGenerator;
+
 	// Handle complex pathing, e.g. a->b.c->d.e
 	environment.generators["path"] = ObjectPathGenerator;
 
@@ -1939,6 +2342,12 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	// Cakelisp options
 	environment.generators["set-cakelisp-option"] = SetCakelispOption;
+	environment.generators["set-module-option"] = SetModuleOption;
+
+	environment.generators["skip-build"] = SkipBuildGenerator;
+	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
+	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
+	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

@@ -8,8 +8,13 @@ The following command may be run in order to tell GDB where the ~.so~ files you 
 
 #+BEGIN_SRC sh
 set solib-search-path ~/Development/code/repositories/cakelisp/cakelisp_cache
+# Or maybe
+# set solib-search-path ~/Development/code/repositories/cakelisp/
+
+# Make sure cakelisp can load files relatively regardless of where you ran GDB
+set cwd ~/Development/code/repositories/cakelisp/
 #+END_SRC
 
-(adjust that path to where you installed cakelisp, of course).
+(adjust paths to where you installed cakelisp, of course).
 
 By setting a breakpoint in already generated C++ code, you will then hit the breakpoint once the code is regenerated and loaded at transpiler runtime (a.k.a. compile-time code execution).

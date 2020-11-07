@@ -26,6 +26,7 @@ struct Subprocess
 	int* statusOut;
 	ProcessId processId;
 	int pipeReadFileDescriptor;
+	std::string command;
 };
 
 static std::vector<Subprocess> s_subprocesses;
@@ -131,12 +132,19 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		if (log.processes)
 			printf("Created child process %d\n", pid);
 
-		s_subprocesses.push_back({statusOut, pid, pipeFileDescriptors[PipeRead]});
+		std::string command = "";
+		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
+		{
+			command.append(*arg);
+			command.append(" ");
+		}
+
+		s_subprocesses.push_back({statusOut, pid, pipeFileDescriptors[PipeRead], command});
 	}
 
-	return 1;
-#endif
 	return 0;
+#endif
+	return 1;
 }
 
 void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
@@ -162,8 +170,68 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		close(process.pipeReadFileDescriptor);
 
 		waitpid(process.processId, process.statusOut, 0);
+
+		// It's pretty useful to see the command which resulted in failure
+		if (*process.statusOut != 0)
+			printf("%s\n", process.command.c_str());
 #endif
 	}
 
 	s_subprocesses.clear();
 }
+
+void PrintProcessArguments(const char** processArguments)
+{
+	for (const char** argument = processArguments; *argument; ++argument)
+		printf("%s ", *argument);
+	printf("\n");
+}
+
+// The array will need to be deleted, but the array members will not
+const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
+                                             const ProcessCommandInput* inputs, int numInputs)
+{
+	std::vector<const char*> argumentsAccumulate;
+
+	for (unsigned int i = 0; i < command.arguments.size(); ++i)
+	{
+		ProcessCommandArgument& argument = command.arguments[i];
+
+		if (argument.type == ProcessCommandArgumentType_String)
+			argumentsAccumulate.push_back(argument.contents.c_str());
+		else
+		{
+			bool found = false;
+			for (int input = 0; input < numInputs; ++input)
+			{
+				if (inputs[input].type == argument.type)
+				{
+					for (const char* value : inputs[input].value)
+						argumentsAccumulate.push_back(value);
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+			{
+				printf("error: command missing input\n");
+				return nullptr;
+			}
+		}
+	}
+
+	int numUserArguments = argumentsAccumulate.size();
+	// +1 for file to execute
+	int numFinalArguments = numUserArguments + 1;
+	// +1 again for the null terminator
+	const char** newArguments = (const char**)calloc(sizeof(const char*), numFinalArguments + 1);
+
+	newArguments[0] = command.fileToExecute.c_str();
+	for (int i = 1; i < numFinalArguments; ++i)
+		newArguments[i] = argumentsAccumulate[i - 1];
+	newArguments[numFinalArguments] = nullptr;
+
+	return newArguments;
+}
+
+const int maxProcessesRecommendedSpawned = 8;

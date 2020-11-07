@@ -1,3 +1,5 @@
+(skip-build)
+
 ;; TODO: This should be builtin to macros and generators
 (defmacro destructure-arguments ()
   (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))

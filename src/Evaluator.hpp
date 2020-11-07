@@ -1,16 +1,18 @@
 #pragma once
 
 #include "EvaluatorEnums.hpp"
+#include "RunProcess.hpp"
 
 #include <string>
 #include <vector>
 // TODO: Replace with fast hash table
 #include <unordered_map>
 
-struct NameStyleSettings;
-struct Token;
 struct GeneratorOutput;
 struct ModuleManager;
+struct Module;
+struct NameStyleSettings;
+struct Token;
 
 // Rather than needing to allocate and edit a buffer eventually equal to the size of the final
 // output, store output operations instead. This also facilitates source <-> generated mapping data
@@ -98,10 +100,26 @@ struct EvaluatorContext
 	// Associate all unknown references with this definition
 	const Token* definitionName;
 
+	Module* module;
+
 	// Pointer because contexts are copied to change scope, but module environment needs to be
 	// shared amoung all contexts in the module
 	ModuleEnvironment* moduleEnvironment;
 };
+
+struct EvaluatorEnvironment;
+
+// Generators output C/C++ code
+typedef bool (*GeneratorFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                              const std::vector<Token>& tokens, int startTokenIndex,
+                              GeneratorOutput& output);
+
+// Macros output tokens only
+// Note that this is for the macro invocation/signature; defining macros is actually done via a
+// generator, because macros themselves are implemented in Cakelisp/C++
+typedef bool (*MacroFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          std::vector<Token>& output);
 
 struct ObjectReference
 {
@@ -109,8 +127,11 @@ struct ObjectReference
 	int startIndex;
 	EvaluatorContext context;
 
+	ObjectReferenceResolutionType type;
+
 	// This needs to be a pointer in case the references array gets moved while we are iterating it
 	GeneratorOutput* spliceOutput;
+
 	// Not used in ObjectReferenceStatus, only ReferencePools
 	bool isResolved;
 };
@@ -184,9 +205,25 @@ typedef std::unordered_map<std::string, MacroFunc> MacroTable;
 typedef MacroTable::iterator MacroIterator;
 typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
 typedef GeneratorTable::iterator GeneratorIterator;
+typedef std::unordered_map<std::string, void*> CompileTimeFunctionTable;
+typedef CompileTimeFunctionTable::iterator CompileTimeFunctionTableIterator;
+
+struct CompileTimeFunctionMetadata
+{
+	const Token* nameToken;
+	const Token* startArgsToken;
+};
+
+typedef std::unordered_map<std::string, CompileTimeFunctionMetadata>
+    CompileTimeFunctionMetadataTable;
+typedef CompileTimeFunctionMetadataTable::iterator CompileTimeFunctionMetadataTableIterator;
+
+// Always update both of these. Signature helps validate call
+extern const char* g_environmentPreLinkHookSignature;
+typedef bool (*PreLinkHook)(ModuleManager& manager, ProcessCommand& linkCommand,
+                            ProcessCommandInput* linkTimeInputs, int numLinkTimeInputs);
 
 // Unlike context, which can't be changed, environment can be changed.
-// Use care when modifying the environment. Only add things once you know things have succeeded.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
 struct EvaluatorEnvironment
@@ -194,6 +231,9 @@ struct EvaluatorEnvironment
 	// Compile-time-executable functions
 	MacroTable macros;
 	GeneratorTable generators;
+	// Dumping ground for functions without fixed signatures
+	CompileTimeFunctionTable compileTimeFunctions;
+	CompileTimeFunctionMetadataTable compileTimeFunctionInfo;
 
 	// We need to keep the tokens macros create around so they can be referenced by StringOperations
 	// Token vectors must not be changed after they are created or pointers to Tokens will become
@@ -216,8 +256,23 @@ struct EvaluatorEnvironment
 	// Generate code so that objects defined in Cakelisp can be reloaded at runtime
 	bool enableHotReloading;
 
+	// Whether it is okay to skip an operation if the resultant file is already in the cache (and
+	// the source file hasn't been modified more recently)
+	bool useCachedFiles;
+
 	// Added as a search directory for compile time code execution
 	std::string cakelispSrcDir;
+
+	// When using the default build system, the path to output the final executable
+	std::string executableOutput;
+
+	ProcessCommand compileTimeBuildCommand;
+	ProcessCommand compileTimeLinkCommand;
+	ProcessCommand buildTimeBuildCommand;
+	ProcessCommand buildTimeLinkCommand;
+
+	// Gives the user the chance to change the link command
+	std::vector<PreLinkHook> preLinkHooks;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();
@@ -245,6 +300,17 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment);
 const char* evaluatorScopeToString(EvaluatorScope expectedScope);
 
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition);
+const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environment,
+                                                const Token& referenceNameToken,
+                                                ObjectReference& reference);
+
+void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
+
+// Whether the (reference) cached file is more recent than the filename, meaning whatever operation
+// which made the cached file can be skipped. Basically fileIsMoreRecentlyModified(), but respects
+// --ignore-cache
+bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
+                      const char* reference);
 
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

@@ -19,3 +19,6 @@
       (printf "error: failed to hot-reload\n")
       (return 1)))
   (return 0))
+
+(defun-comptime build-text-adventure ()
+  (printf "Hello, comptime!\n"))

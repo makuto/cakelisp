@@ -9,3 +9,5 @@ void makeDirectory(const char* path);
 
 void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize);
 void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize);
+void makePathRelativeToFile(const char* filePath, const char* referencedFilePath, char* bufferOut,
+                            int bufferSize);
