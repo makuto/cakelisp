@@ -233,6 +233,70 @@ const Token* FindTokenExpressionEnd(const Token* startToken)
 	return nullptr;
 }
 
+bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
+                                       std::vector<Token>& tokensOut)
+{
+	if (definition.type != ObjectType_Function)
+	{
+		printf(
+		    "error: CreateDefinitionCopyMacroExpanded() called on definition type %s which is not "
+		    "explicitly supported by this function. Check CreateDefinitionCopyMacroExpanded() and "
+		    "ensure your type's signature is understood, and that your type is tracking its macro "
+		    "expansions, then add it as a supported type\n",
+		    objectTypeToString(definition.type));
+		return false;
+	}
+
+	if (!definition.definitionInvocation)
+	{
+		printf(
+		    "error: CreateDefinitionCopyMacroExpanded() called on definition which did not set "
+		    "invocation token. This is necessary to accurately copy the definition\n");
+		return false;
+	}
+
+	if (definition.type == ObjectType_Function)
+	{
+		// TODO: Performance: Extra traversal over entire definition
+		const Token* endToken = FindTokenExpressionEnd(definition.definitionInvocation);
+
+		// It may be a bit larger or smaller depending on whether macros output more or less tokens
+		tokensOut.reserve((endToken - definition.definitionInvocation) + 1);
+
+		for (const Token* currentToken = definition.definitionInvocation; currentToken <= endToken;)
+		{
+			// TODO: Performance: O(nm)
+			bool macroFound = false;
+			for (const MacroExpansion& expansion : definition.macroExpansions)
+			{
+				if (currentToken == expansion.atToken)
+				{
+					tokensOut.reserve(tokensOut.size() + expansion.tokens->size());
+					for (const Token& expansionToken : *expansion.tokens)
+						tokensOut.push_back(expansionToken);
+
+					macroFound = true;
+					break;
+				}
+			}
+
+			if (macroFound)
+			{
+				// Skip the macro invocation; we've already replaced it with the expansion
+				currentToken = FindTokenExpressionEnd(currentToken);
+				++currentToken;
+			}
+			else
+			{
+				tokensOut.push_back(*currentToken);
+				++currentToken;
+			}
+		}
+	}
+
+	return true;
+}
+
 //
 // Token list manipulation
 //

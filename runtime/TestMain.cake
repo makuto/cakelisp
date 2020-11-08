@@ -31,10 +31,39 @@
 (defun-comptime modify-main (environment (& EvaluatorEnvironment)
                                          was-code-modified (& bool)
                                          &return bool)
-  (for-in name-definition (& ObjectDefinitionPair) (field environment definitions)
-          (unless (= 0 (on-call (field name-definition first) compare "main"))
-            (continue))
-          (printf "found main\n"))
+  (var definition-it (in ObjectDefinitionMap iterator)
+       (on-call (field environment definitions) find "main"))
+  (when (= definition-it (on-call (field environment definitions) end))
+    (printf "modify-main: could not find main!\n")
+    (return false))
+
+  (printf "modify-main: found main\n")
+  (var definition (& ObjectDefinition) (path definition-it > second))
+  (when (!= (FindInContainer (field definition tags) "modify-main-done")
+            (on-call (field definition tags) end))
+    (printf "modify-main: already modified\n")
+    (return true))
+
+  ;; Other modification functions should do this lazily, i.e. only create the expanded definition
+  ;; if a modification is necessary
+  (var modified-main-tokens (<> std::vector Token))
+  (unless (CreateDefinitionCopyMacroExpanded definition modified-main-tokens)
+    (return false))
+
+  (printTokens modified-main-tokens)
+
+  (var prev-token (* Token) nullptr)
+  (for-in token (& Token) modified-main-tokens
+       (when (and prev-token
+                  (= 0 (on-call (path prev-token > contents) compare "printf"))
+                  (ExpectTokenType "modify-main" token TokenType_String))
+         (set (field token contents) "I changed your print! Mwahahaha!\\n"))
+       (set prev-token (addr token)))
+  ;; Next: Relocate old definition, evaluate new definition
+  (set was-code-modified true)
+  (on-call (field definition tags) push_back "modify-main-done")
+  (printf "modify-main: modified main!\n")
+  (printTokens modified-main-tokens)
   (return true))
 
 (add-compile-time-hook post-references-resolved modify-main)

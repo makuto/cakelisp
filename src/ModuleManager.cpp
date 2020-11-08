@@ -31,7 +31,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 	    TokenType_Symbol, globalDefinitionName, "global_pseudotarget", 1, 0, 1};
 	{
 		ObjectDefinition moduleDefinition = {};
-		moduleDefinition.name = &manager.globalPseudoInvocationName;
+		moduleDefinition.name = manager.globalPseudoInvocationName.contents;
+		moduleDefinition.definitionInvocation = &manager.globalPseudoInvocationName;
 		moduleDefinition.type = ObjectType_PseudoObject;
 		moduleDefinition.isRequired = true;
 		// Will be cleaned up when the environment is destroyed
@@ -480,8 +481,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 		++numObjectsToLink;
 
 		// If all our objects are older than our executable, don't even link!
-		needsLink |=
-		    !canUseCachedFile(manager.environment, object->filename.c_str(), outputExecutableName.c_str());
+		needsLink |= !canUseCachedFile(manager.environment, object->filename.c_str(),
+		                               outputExecutableName.c_str());
 	}
 
 	if (!succeededBuild)

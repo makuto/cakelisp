@@ -54,17 +54,17 @@ void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* fun
 	return nullptr;
 }
 
-static bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const ObjectDefinition& definition)
+static bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment,
+                                    const ObjectDefinition& definition)
 {
 	switch (definition.type)
 	{
 		case ObjectType_CompileTimeMacro:
-			return findMacro(environment, definition.name->contents.c_str()) != nullptr;
+			return findMacro(environment, definition.name.c_str()) != nullptr;
 		case ObjectType_CompileTimeGenerator:
-			return findGenerator(environment, definition.name->contents.c_str()) != nullptr;
+			return findGenerator(environment, definition.name.c_str()) != nullptr;
 		case ObjectType_CompileTimeFunction:
-			return findCompileTimeFunction(environment, definition.name->contents.c_str()) !=
-			       nullptr;
+			return findCompileTimeFunction(environment, definition.name.c_str()) != nullptr;
 		default:
 			return false;
 	}
@@ -72,27 +72,26 @@ static bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment, const Obj
 
 bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& definition)
 {
-	ObjectDefinitionMap::iterator findIt = environment.definitions.find(definition.name->contents);
+	ObjectDefinitionMap::iterator findIt = environment.definitions.find(definition.name);
 	if (findIt == environment.definitions.end())
 	{
-		if (findGenerator(environment, definition.name->contents.c_str()) ||
-		    findMacro(environment, definition.name->contents.c_str()))
+		if (isCompileTimeCodeLoaded(environment, definition))
 		{
-			ErrorAtTokenf(*definition.name,
+			ErrorAtTokenf(*definition.definitionInvocation,
 			              "multiple definitions of %s. Name may be conflicting with built-in macro "
 			              "or generator",
-			              definition.name->contents.c_str());
+			              definition.name.c_str());
 			return false;
 		}
 
-		environment.definitions[definition.name->contents] = definition;
+		environment.definitions[definition.name] = definition;
 		return true;
 	}
 	else
 	{
-		ErrorAtTokenf(*definition.name, "multiple definitions of %s",
-		              definition.name->contents.c_str());
-		NoteAtToken(*findIt->second.name, "first defined here");
+		ErrorAtTokenf(*definition.definitionInvocation, "multiple definitions of %s",
+		              definition.name.c_str());
+		NoteAtToken(*findIt->second.definitionInvocation, "first defined here");
 		return false;
 	}
 }
@@ -508,7 +507,7 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 			const char* status = definition.isRequired ? "(required)" : "(not required)";
 
 			if (log.dependencyPropagation)
-				printf("Define %s %s\n", definition.name->contents.c_str(), status);
+				printf("Define %s %s\n", definition.name.c_str(), status);
 
 			for (ObjectReferenceStatusPair& reference : definition.references)
 			{
@@ -525,8 +524,7 @@ void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 					{
 						if (log.dependencyPropagation)
 							printf("\t Infecting %s with required due to %s\n",
-							       referenceStatus.name->contents.c_str(),
-							       definition.name->contents.c_str());
+							       referenceStatus.name->contents.c_str(), definition.name.c_str());
 
 						++numRequiresStatusChanged;
 						findIt->second.isRequired = true;
@@ -584,19 +582,19 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		ObjectDefinition* definition = buildObject.definition;
 
 		if (log.buildProcess)
-			printf("Build %s\n", definition->name->contents.c_str());
+			printf("Build %s\n", definition->name.c_str());
 
 		if (!definition->output)
 		{
-			ErrorAtToken(*buildObject.definition->name,
+			ErrorAtToken(*buildObject.definition->definitionInvocation,
 			             "missing compile-time output. Internal code error?");
 			continue;
 		}
 
 		char convertedNameBuffer[MAX_NAME_LENGTH] = {0};
-		lispNameStyleToCNameStyle(NameStyleMode_Underscores, definition->name->contents.c_str(),
+		lispNameStyleToCNameStyle(NameStyleMode_Underscores, definition->name.c_str(),
 		                          convertedNameBuffer, sizeof(convertedNameBuffer),
-		                          *definition->name);
+		                          *definition->definitionInvocation);
 		char artifactsName[MAX_PATH_LENGTH] = {0};
 		// Various stages will append the appropriate file extension
 		PrintfBuffer(artifactsName, "comptime_%s", convertedNameBuffer);
@@ -646,7 +644,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
 		                          outputSettings))
 		{
-			ErrorAtToken(*buildObject.definition->name,
+			ErrorAtToken(*buildObject.definition->definitionInvocation,
 			             "Failed to write to compile-time source file");
 			continue;
 		}
@@ -669,8 +667,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		             buildObject.artifactsName.c_str());
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
-		if (canUseCachedFile(environment, sourceOutputName,
-		                      buildObject.dynamicLibraryPath.c_str()))
+		if (canUseCachedFile(environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
 		{
 			if (log.buildProcess)
 				printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
@@ -737,16 +734,16 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		if (buildObject.status != 0)
 		{
-			ErrorAtTokenf(*buildObject.definition->name,
+			ErrorAtTokenf(*buildObject.definition->definitionInvocation,
 			              "Failed to compile definition '%s' with status %d",
-			              buildObject.definition->name->contents.c_str(), buildObject.status);
+			              buildObject.definition->name.c_str(), buildObject.status);
 			continue;
 		}
 
 		buildObject.stage = BuildStage_Linking;
 
 		if (log.buildProcess)
-			printf("Compiled %s successfully\n", buildObject.definition->name->contents.c_str());
+			printf("Compiled %s successfully\n", buildObject.definition->name.c_str());
 
 		ProcessCommandInput linkTimeInputs[] = {
 		    {ProcessCommandArgumentType_DynamicLibraryOutput,
@@ -781,19 +778,21 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		if (buildObject.status != 0)
 		{
-			ErrorAtToken(*buildObject.definition->name, "Failed to link definition");
+			ErrorAtToken(*buildObject.definition->definitionInvocation,
+			             "Failed to link definition");
 			continue;
 		}
 
 		buildObject.stage = BuildStage_Loading;
 
 		if (log.buildProcess)
-			printf("Linked %s successfully\n", buildObject.definition->name->contents.c_str());
+			printf("Linked %s successfully\n", buildObject.definition->name.c_str());
 
 		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
 		if (!builtLib)
 		{
-			ErrorAtToken(*buildObject.definition->name, "Failed to load compile-time library");
+			ErrorAtToken(*buildObject.definition->definitionInvocation,
+			             "Failed to load compile-time library");
 			continue;
 		}
 
@@ -801,13 +800,14 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		// TODO: Make these come from the top
 		NameStyleSettings nameSettings;
 		char symbolNameBuffer[MAX_NAME_LENGTH] = {0};
-		lispNameStyleToCNameStyle(nameSettings.functionNameMode,
-		                          buildObject.definition->name->contents.c_str(), symbolNameBuffer,
-		                          sizeof(symbolNameBuffer), *buildObject.definition->name);
+		lispNameStyleToCNameStyle(
+		    nameSettings.functionNameMode, buildObject.definition->name.c_str(), symbolNameBuffer,
+		    sizeof(symbolNameBuffer), *buildObject.definition->definitionInvocation);
 		void* compileTimeFunction = getSymbolFromDynamicLibrary(builtLib, symbolNameBuffer);
 		if (!compileTimeFunction)
 		{
-			ErrorAtToken(*buildObject.definition->name, "Failed to find symbol in loaded library");
+			ErrorAtToken(*buildObject.definition->definitionInvocation,
+			             "Failed to find symbol in loaded library");
 			continue;
 		}
 
@@ -815,27 +815,27 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		switch (buildObject.definition->type)
 		{
 			case ObjectType_CompileTimeMacro:
-				if (findMacro(environment, buildObject.definition->name->contents.c_str()))
-					NoteAtToken(*buildObject.definition->name, "redefined macro");
-				environment.macros[buildObject.definition->name->contents] =
-				    (MacroFunc)compileTimeFunction;
+				if (findMacro(environment, buildObject.definition->name.c_str()))
+					NoteAtToken(*buildObject.definition->definitionInvocation, "redefined macro");
+				environment.macros[buildObject.definition->name] = (MacroFunc)compileTimeFunction;
 				break;
 			case ObjectType_CompileTimeGenerator:
-				if (findGenerator(environment, buildObject.definition->name->contents.c_str()))
-					NoteAtToken(*buildObject.definition->name, "redefined generator");
-				environment.generators[buildObject.definition->name->contents] =
+				if (findGenerator(environment, buildObject.definition->name.c_str()))
+					NoteAtToken(*buildObject.definition->definitionInvocation,
+					            "redefined generator");
+				environment.generators[buildObject.definition->name] =
 				    (GeneratorFunc)compileTimeFunction;
 				break;
 			case ObjectType_CompileTimeFunction:
-				if (findCompileTimeFunction(environment,
-				                            buildObject.definition->name->contents.c_str()))
-					NoteAtToken(*buildObject.definition->name, "redefined function");
-				environment.compileTimeFunctions[buildObject.definition->name->contents] =
+				if (findCompileTimeFunction(environment, buildObject.definition->name.c_str()))
+					NoteAtToken(*buildObject.definition->definitionInvocation,
+					            "redefined function");
+				environment.compileTimeFunctions[buildObject.definition->name] =
 				    (void*)compileTimeFunction;
 				break;
 			default:
 				ErrorAtToken(
-				    *buildObject.definition->name,
+				    *buildObject.definition->definitionInvocation,
 				    "Tried to build definition which is not compile-time object. Code error?");
 				break;
 		}
@@ -844,7 +844,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		// Resolve references
 		ObjectReferencePoolMap::iterator referencePoolIt =
-		    environment.referencePools.find(buildObject.definition->name->contents);
+		    environment.referencePools.find(buildObject.definition->name);
 		if (referencePoolIt == environment.referencePools.end())
 		{
 			printf(
@@ -910,7 +910,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		if (log.buildProcess)
 			printf("Successfully built, loaded, and executed %s\n",
-			       buildObject.definition->name->contents.c_str());
+			       buildObject.definition->name.c_str());
 	}
 
 	return numReferencesResolved;
@@ -943,7 +943,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 	for (ObjectDefinition* definitionPointer : definitionsToCheck)
 	{
 		ObjectDefinition& definition = *definitionPointer;
-		const char* defName = definition.name->contents.c_str();
+		const char* defName = definition.name.c_str();
 
 		if (log.buildReasons)
 			printf("Checking to build %s\n", defName);
@@ -1091,8 +1091,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		for (ObjectDefinitionPair& definitionPair : environment.definitions)
 		{
 			ObjectDefinition& definition = definitionPair.second;
-			printf("%s %s:\n", objectTypeToString(definition.type),
-			       definition.name->contents.c_str());
+			printf("%s %s:\n", objectTypeToString(definition.type), definition.name.c_str());
 			for (ObjectReferenceStatusPair& reference : definition.references)
 			{
 				ObjectReferenceStatus& referenceStatus = reference.second;
@@ -1123,6 +1122,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		// At this point, all known references are resolved. Time to let the user do arbitrary code
 		// generation and modification. These changes will need to be evaluated and their references
 		// resolved, so we need to repeat the whole process until no more changes are made
+		codeModified = false;
 		for (PostReferencesResolvedHook& hook : environment.postReferencesResolvedHooks)
 		{
 			bool codeModifiedByHook = false;
@@ -1166,7 +1166,8 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 				if (!isCompileTimeCodeLoaded(environment, definition))
 				{
 					// TODO: Add note for who required the object
-					ErrorAtToken(*definition.name, "Failed to build required object");
+					ErrorAtToken(*definition.definitionInvocation,
+					             "Failed to build required object");
 					++errors;
 				}
 				else
@@ -1177,7 +1178,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 			else
 			{
 				// Check all references have been resolved for regular generated code
-				std::vector<const Token*> missingDefinitionNames;
+				std::vector<const Token*> missingDefinitions;
 				for (const ObjectReferenceStatusPair& reference : definition.references)
 				{
 					const ObjectReferenceStatus& referenceStatus = reference.second;
@@ -1190,7 +1191,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 						if (isCompileTimeObject(findIt->second.type) &&
 						    !isCompileTimeCodeLoaded(environment, findIt->second))
 						{
-							missingDefinitionNames.push_back(findIt->second.name);
+							missingDefinitions.push_back(findIt->second.definitionInvocation);
 							++errors;
 						}
 					}
@@ -1201,19 +1202,19 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 					}
 				}
 
-				if (!missingDefinitionNames.empty())
+				if (!missingDefinitions.empty())
 				{
-					ErrorAtTokenf(*definition.name, "failed to generate %s",
-					              definition.name->contents.c_str());
-					for (const Token* missingDefinitionName : missingDefinitionNames)
-						NoteAtToken(*missingDefinitionName,
+					ErrorAtTokenf(*definition.definitionInvocation, "failed to generate %s",
+					              definition.name.c_str());
+					for (const Token* missingDefinition : missingDefinitions)
+						NoteAtToken(*missingDefinition,
 						            "missing compile-time function defined here");
 				}
 			}
 		}
 		else
 		{
-			NoteAtToken(*definition.name, "omitted (not required by module)");
+			NoteAtToken(*definition.definitionInvocation, "omitted (not required by module)");
 		}
 	}
 

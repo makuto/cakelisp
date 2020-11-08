@@ -20,7 +20,7 @@ struct StringOutput
 {
 	// TODO: Putting this in a union means we need to write a destructor which can detect when to
 	// destroy output
-	//union {
+	// union {
 	std::string output;
 	GeneratorOutput* spliceOutput;
 	// };
@@ -145,7 +145,9 @@ struct MacroExpansion
 
 struct ObjectDefinition
 {
-	const Token* name;
+	std::string name;
+	// The generator invocation that actually triggered the definition of this object
+	const Token* definitionInvocation;
 	ObjectType type;
 	// Objects can be referenced by other objects, but something in the chain must be required in
 	// order for the objects to be built. Required-ness spreads from the top level module scope
@@ -154,7 +156,9 @@ struct ObjectDefinition
 	ObjectReferenceStatusMap references;
 
 	// Used to prepare the definition's expanded form, for post-macro-expansion code modification.
-	// EvaluatorEnvironment still handles deleting the tokens array the macro created
+	// EvaluatorEnvironment still handles deleting the tokens array the macro created. Note that
+	// these won't necessarily be in order, because macro definitions could resolve in different
+	// orders than invoked
 	std::vector<MacroExpansion> macroExpansions;
 
 	// Both runtime and compile-time definitions use output. Runtime definitions use it to support
@@ -165,6 +169,9 @@ struct ObjectDefinition
 	// For compile time functions, whether they have finished loading successfully. Mainly just a
 	// shortcut to what isCompileTimeCodeLoaded() would return
 	bool isLoaded;
+
+	// Arbitrary tags user may add for compile-time reference
+	std::vector<std::string> tags;
 };
 
 struct ObjectReferencePool
@@ -197,7 +204,8 @@ extern const char* g_environmentPreLinkHookSignature;
 typedef bool (*PreLinkHook)(ModuleManager& manager, ProcessCommand& linkCommand,
                             ProcessCommandInput* linkTimeInputs, int numLinkTimeInputs);
 extern const char* g_environmentPostReferencesResolvedHookSignature;
-typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment, bool& wasCodeModifiedOut);
+typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment,
+                                           bool& wasCodeModifiedOut);
 
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -291,6 +299,8 @@ void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* fun
 // --ignore-cache
 bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
                       const char* reference);
+
+const char* objectTypeToString(ObjectType type);
 
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

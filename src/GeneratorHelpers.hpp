@@ -11,6 +11,7 @@ struct EvaluatorContext;
 struct EvaluatorEnvironment;
 struct GeneratorOutput;
 struct StringOutput;
+struct ObjectDefinition;
 
 void StripInvocation(int& startTokenIndex, int& endTokenIndex);
 int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenIndex);
@@ -51,6 +52,9 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
 int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex);
 
 const Token* FindTokenExpressionEnd(const Token* startToken);
+
+bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
+                                       std::vector<Token>& tokensOut);
 
 // Similar to Lisp's gensym, make a globally unique symbol for e.g. macro variables. Use prefix so
 // it is still documented as to what it represents. Make sure your generated tokenToChange is

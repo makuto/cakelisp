@@ -5,9 +5,9 @@ const char* macroSourceHeading =
     "#include \"Evaluator.hpp\""
     "\n#include \"EvaluatorEnums.hpp\""
     "\n#include \"Tokenizer.hpp\""
-	"\n#include \"GeneratorHelpers.hpp\""
-	"\n#include \"Utilities.hpp\""
-	"\nextern \"C\"\n{\n";
+    "\n#include \"GeneratorHelpers.hpp\""
+    "\n#include \"Utilities.hpp\""
+    "\nextern \"C\"\n{\n";
 // Close extern "C" block
 const char* macroSourceFooter = "}\n";
 
@@ -18,7 +18,8 @@ const char* generatorSourceHeading =
 	"\n#include \"Tokenizer.hpp\""
 	"\n#include \"GeneratorHelpers.hpp\""
 	"\n#include \"Utilities.hpp\""
-    "\nextern \"C\"\n{\n";
+    "\n#include <algorithm>"
+	"\nextern \"C\"\n{\n";
 // Close extern "C" block
 const char* generatorSourceFooter = "}\n";
 

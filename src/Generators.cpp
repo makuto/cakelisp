@@ -62,9 +62,9 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			    {"'source-input", ProcessCommandArgumentType_SourceInput},
 			    {"'object-output", ProcessCommandArgumentType_ObjectOutput},
 			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
-				{"'object-input", ProcessCommandArgumentType_ObjectInput},
+			    {"'object-input", ProcessCommandArgumentType_ObjectInput},
 			    {"'library-output", ProcessCommandArgumentType_DynamicLibraryOutput},
-				{"'executable-output", ProcessCommandArgumentType_ExecutableOutput},
+			    {"'executable-output", ProcessCommandArgumentType_ExecutableOutput},
 			};
 			bool found = false;
 			for (unsigned int i = 0; i < ArraySize(symbolsToCommandTypes); ++i)
@@ -404,8 +404,8 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 }
 
 bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                      const std::vector<Token>& tokens, int startTokenIndex,
-                      GeneratorOutput& output)
+                        const std::vector<Token>& tokens, int startTokenIndex,
+                        GeneratorOutput& output)
 {
 	if (context.module)
 		context.module->skipBuild = true;
@@ -592,8 +592,7 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 }
 
 bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                    const std::vector<Token>& tokens, int startTokenIndex,
-                    GeneratorOutput& output)
+                    const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
 {
 	if (!ExpectEvaluatorScope("defun", tokens[startTokenIndex], context, EvaluatorScope_Module))
 		return false;
@@ -626,7 +625,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	// Register definition before evaluating body, otherwise references in body will be orphaned
 	{
 		ObjectDefinition newFunctionDef = {};
-		newFunctionDef.name = &nameToken;
+		newFunctionDef.definitionInvocation = &tokens[startTokenIndex];
+		newFunctionDef.name = nameToken.contents.c_str();
 		newFunctionDef.type = isCompileTime ? ObjectType_CompileTimeFunction : ObjectType_Function;
 		// Compile-time objects only get built with compile-time references
 		newFunctionDef.isRequired = isCompileTime ? false : context.isRequired;
@@ -1026,7 +1026,8 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	GeneratorOutput* compTimeOutput = new GeneratorOutput;
 
 	ObjectDefinition newMacroDef = {};
-	newMacroDef.name = &nameToken;
+	newMacroDef.definitionInvocation = &tokens[startTokenIndex];
+	newMacroDef.name = nameToken.contents;
 	newMacroDef.type = ObjectType_CompileTimeMacro;
 	// Let the reference required propagation step handle this
 	newMacroDef.isRequired = false;
@@ -1114,7 +1115,8 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	GeneratorOutput* compTimeOutput = new GeneratorOutput;
 
 	ObjectDefinition newGeneratorDef = {};
-	newGeneratorDef.name = &nameToken;
+	newGeneratorDef.definitionInvocation = &tokens[startTokenIndex];
+	newGeneratorDef.name = nameToken.contents;
 	newGeneratorDef.type = ObjectType_CompileTimeGenerator;
 	// Let the reference required propagation step handle this
 	newGeneratorDef.isRequired = false;
@@ -1547,8 +1549,7 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 
 // Don't evaluate anything in me. Essentially a block comment
 bool IgnoreGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                      const std::vector<Token>& tokens, int startTokenIndex,
-                      GeneratorOutput& output)
+                     const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
 {
 	return true;
 }
