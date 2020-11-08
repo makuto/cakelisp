@@ -50,7 +50,7 @@
   (unless (CreateDefinitionCopyMacroExpanded definition modified-main-tokens)
     (return false))
 
-  (printTokens modified-main-tokens)
+  (prettyPrintTokens modified-main-tokens)
 
   (var prev-token (* Token) nullptr)
   (for-in token (& Token) modified-main-tokens
@@ -63,7 +63,7 @@
   (set was-code-modified true)
   (on-call (field definition tags) push_back "modify-main-done")
   (printf "modify-main: modified main!\n")
-  (printTokens modified-main-tokens)
+  (prettyPrintTokens modified-main-tokens)
   (return true))
 
 (add-compile-time-hook post-references-resolved modify-main)

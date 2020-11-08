@@ -270,18 +270,42 @@ bool appendTokenToString(const Token& token, char** at, char* bufferStart, int b
 	return false;
 }
 
-void printTokens(const std::vector<Token>& tokens)
+static void printTokensInternal(const std::vector<Token>& tokens, bool prettyPrint)
 {
 	TokenType previousTokenType = TokenType_OpenParen;
+
 	// Note that token parens could be invalid, so we shouldn't do things which rely on validity
+	int depth = 0;
+
 	for (const Token& token : tokens)
 	{
+		if (token.type == TokenType_OpenParen)
+			depth++;
+		else if (token.type == TokenType_CloseParen)
+		{
+			depth--;
+			// Likely invalid tokens, but just ignore it; depth is for indentation only anyways
+			if (depth < 0)
+				depth = 0;
+		}
+
+		// Indent and estimate newlines based on parentheses
+		if (prettyPrint && previousTokenType == TokenType_CloseParen &&
+		    token.type == TokenType_OpenParen)
+		{
+			printf("\n");
+			for (int i = 0; i < depth; ++i)
+			{
+				printf(" ");
+			}
+		}
+
 		bool tokenIsSymbolOrString =
 		    (token.type == TokenType_Symbol || token.type == TokenType_String);
 		bool previousTokenIsSymbolOrString =
 		    (previousTokenType == TokenType_Symbol || previousTokenType == TokenType_String);
-		bool previousTokenIsParen = (previousTokenType == TokenType_OpenParen ||
-		                             previousTokenType == TokenType_CloseParen);
+		bool previousTokenIsParen =
+		    (previousTokenType == TokenType_OpenParen || previousTokenType == TokenType_CloseParen);
 
 		if ((tokenIsSymbolOrString && !previousTokenIsParen) ||
 		    (tokenIsSymbolOrString && previousTokenType == TokenType_CloseParen) ||
@@ -293,6 +317,16 @@ void printTokens(const std::vector<Token>& tokens)
 		previousTokenType = token.type;
 	}
 	printf("\n");
+}
+
+void printTokens(const std::vector<Token>& tokens)
+{
+	printTokensInternal(tokens, /*prettyPrint=*/false);
+}
+
+void prettyPrintTokens(const std::vector<Token>& tokens)
+{
+	printTokensInternal(tokens, /*prettyPrint=*/true);
 }
 
 bool writeCharToBufferErrorToken(char c, char** at, char* bufferStart, int bufferSize,

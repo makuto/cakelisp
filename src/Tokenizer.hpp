@@ -37,6 +37,7 @@ bool tokenizeLinePrintError(const char* inputLine, const char* source, unsigned 
 bool validateParentheses(const std::vector<Token>& tokens);
 
 void printTokens(const std::vector<Token>& tokens);
+void prettyPrintTokens(const std::vector<Token>& tokens);
 void printFormattedToken(const Token& token);
 
 bool writeCharToBufferErrorToken(char c, char** at, char* bufferStart, int bufferSize,
