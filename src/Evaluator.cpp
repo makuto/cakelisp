@@ -262,6 +262,24 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// It's also necessary for error reporting
 		environment.macroExpansions.push_back(macroOutputTokens);
 
+		// Let the definition know about the expansion so it is easy to construct an expanded list
+		// of all tokens in the definition
+		if (context.definitionName)
+		{
+			ObjectDefinitionMap::iterator findIt =
+			    environment.definitions.find(context.definitionName->contents);
+			if (findIt != environment.definitions.end())
+			{
+				ObjectDefinition& definition = findIt->second;
+				definition.macroExpansions.push_back({&invocationStart, macroOutputTokens});
+			}
+			else
+				ErrorAtTokenf(invocationStart,
+				              "could not find definition '%s' to associate macro expansion "
+				              "(internal code error)",
+				              context.definitionName->contents.c_str());
+		}
+
 		// Note that macros always inherit the current context, whereas bodies change it
 		int result = EvaluateGenerateAll_Recursive(environment, context, *macroOutputTokens,
 		                                           /*startTokenIndex=*/0,
@@ -1081,18 +1099,29 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 	}
 
-	// Keep propagating and evaluating until no more references are resolved. This must be done in
-	// passes in case evaluation created more definitions. There's probably a smarter way, but I'll
-	// do it in this brute-force style first
-	int numReferencesResolved = 0;
-	int numBuildResolveErrors = 0;
+	bool codeModified = false;
 	do
 	{
-		PropagateRequiredToReferences(environment);
-		numReferencesResolved = BuildEvaluateReferences(environment, numBuildResolveErrors);
+		// Keep propagating and evaluating until no more references are resolved. This must be done
+		// in passes in case evaluation created more definitions. There's probably a smarter way,
+		// but I'll do it in this brute-force style first
+		int numReferencesResolved = 0;
+		int numBuildResolveErrors = 0;
+		do
+		{
+			PropagateRequiredToReferences(environment);
+			numReferencesResolved = BuildEvaluateReferences(environment, numBuildResolveErrors);
+			if (numBuildResolveErrors)
+				break;
+		} while (numReferencesResolved);
+
 		if (numBuildResolveErrors)
 			break;
-	} while (numReferencesResolved);
+
+		// At this point, all known references are resolved. Time to let the user do arbitrary code
+		// generation and modification. These changes will need to be evaluated and their references
+		// resolved, so we need to repeat the whole process until no more changes are made
+	} while (codeModified);
 
 	// Check whether everything is resolved
 	printf("\nResult:\n");
@@ -1104,6 +1133,14 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	for (const ObjectDefinitionPair& definitionPair : environment.definitions)
 	{
 		const ObjectDefinition& definition = definitionPair.second;
+
+		// for (const MacroExpansion& macroExpansion : definition.macroExpansions)
+		// {
+		// 	NoteAtTokenf(*macroExpansion.atToken,
+		// 	             "%s: macro expansion below:", definitionPair.first.c_str());
+		// 	printTokens(*macroExpansion.tokens);
+		// }
+
 		if (definition.isRequired)
 		{
 			if (isCompileTimeObject(definition.type))

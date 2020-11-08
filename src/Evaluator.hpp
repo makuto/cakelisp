@@ -136,7 +136,12 @@ struct ObjectReferenceStatus
 
 typedef std::unordered_map<std::string, ObjectReferenceStatus> ObjectReferenceStatusMap;
 typedef std::pair<const std::string, ObjectReferenceStatus> ObjectReferenceStatusPair;
-// typedef std::unordered_map<std::string, int> ObjectReferentMap;
+
+struct MacroExpansion
+{
+	const Token* atToken;
+	const std::vector<Token>* tokens;
+};
 
 struct ObjectDefinition
 {
@@ -148,10 +153,13 @@ struct ObjectDefinition
 	// Unique references, for dependency checking
 	ObjectReferenceStatusMap references;
 
-	// Used only for compile-time functions
-	// Note that these don't need headers or metadata because they are found via dynamic linking.
-	// GeneratorOutput is (somewhat wastefully) used in order to make the API consistent for
-	// compile-time vs. runtime code generation
+	// Used to prepare the definition's expanded form, for post-macro-expansion code modification.
+	// EvaluatorEnvironment still handles deleting the tokens array the macro created
+	std::vector<MacroExpansion> macroExpansions;
+
+	// Both runtime and compile-time definitions use output. Runtime definitions use it to support
+	// compile-time code modification (post-macro-expansion), and compile-time definitions use it to
+	// stay out of runtime output (and be easily output to cache files for compilation)
 	GeneratorOutput* output;
 
 	// For compile time functions, whether they have finished loading successfully. Mainly just a

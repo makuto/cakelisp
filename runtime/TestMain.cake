@@ -3,6 +3,7 @@
 
 (defun main (&return int)
   (printf "Hello Hot-reloading!\n")
+  (simple-macro)
 
   (def-function-signature reload-entry-point-signature (&return bool))
   (var hot-reload-entry-point-func reload-entry-point-signature nullptr)
@@ -22,3 +23,7 @@
 
 (defun-comptime build-text-adventure ()
   (printf "Hello, comptime!\n"))
+
+(defmacro simple-macro ()
+  (tokenize-push output (printf "Hello, macros!\\n"))
+  (return true))
