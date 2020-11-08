@@ -320,11 +320,9 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 	}
 }
 
-// This is annoyingly complex because splices allow things in source to write to header
 void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
                                         const WriterFormatSettings& formatSettings,
                                         StringOutputState& outputState,
-                                        StringOutputState& otherOutputState,
                                         const std::vector<StringOutput>& outputOperations,
                                         bool isHeader)
 {
@@ -341,23 +339,19 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 		{
 			if (operation.spliceOutput)
 			{
+				// Even if the spliceOutput has output for the other type, we'll get to it when we
+				// go to write that type, because all splices must push to both types
 				if (isHeader)
 				{
-					writeOutputFollowSplices_Recursive(
-					    nameSettings, formatSettings, otherOutputState, outputState,
-					    operation.spliceOutput->source, /*isHeader=*/false);
-					writeOutputFollowSplices_Recursive(
-					    nameSettings, formatSettings, outputState, otherOutputState,
-					    operation.spliceOutput->header, /*isHeader=*/true);
+					writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
+					                                   operation.spliceOutput->header,
+					                                   /*isHeader=*/true);
 				}
 				else
 				{
-					writeOutputFollowSplices_Recursive(
-					    nameSettings, formatSettings, outputState, otherOutputState,
-					    operation.spliceOutput->source, /*isHeader=*/false);
-					writeOutputFollowSplices_Recursive(
-					    nameSettings, formatSettings, otherOutputState, outputState,
-					    operation.spliceOutput->header, /*isHeader=*/true);
+					writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
+					                                   operation.spliceOutput->source,
+					                                   /*isHeader=*/false);
 				}
 			}
 			else
@@ -422,12 +416,10 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 
 	// Source
 	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputs[0].outputState,
-	                                   outputs[1].outputState, outputToWrite.source,
-	                                   outputs[0].isHeader);
+	                                   outputToWrite.source, outputs[0].isHeader);
 	// Header
 	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputs[1].outputState,
-	                                   outputs[0].outputState, outputToWrite.header,
-	                                   outputs[1].isHeader);
+	                                   outputToWrite.header, outputs[1].isHeader);
 
 	for (int i = 0; i < static_cast<int>(ArraySize(outputs)); ++i)
 	{

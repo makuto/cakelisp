@@ -569,7 +569,7 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 
 bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                     const std::vector<Token>& tokens, int startTokenIndex,
-                    GeneratorOutput& runtimeOutput)
+                    GeneratorOutput& output)
 {
 	if (!ExpectEvaluatorScope("defun", tokens[startTokenIndex], context, EvaluatorScope_Module))
 		return false;
@@ -592,8 +592,12 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		return false;
 
 	bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defun-local") == 0;
+	// Note that macros and generators have their own generators, so we don't handle them here
 	bool isCompileTime = tokens[startTokenIndex + 1].contents.compare("defun-comptime") == 0;
-	GeneratorOutput* functionOutput = isCompileTime ? new GeneratorOutput : &runtimeOutput;
+
+	// In order to support function definition modification, even runtime functions must have
+	// spliced output, because we might be completely changing the definition
+	GeneratorOutput* functionOutput = new GeneratorOutput;
 
 	// Register definition before evaluating body, otherwise references in body will be orphaned
 	{
@@ -602,15 +606,19 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		newFunctionDef.type = isCompileTime ? ObjectType_CompileTimeFunction : ObjectType_Function;
 		// Compile-time objects only get built with compile-time references
 		newFunctionDef.isRequired = isCompileTime ? false : context.isRequired;
-		if (isCompileTime)
-			newFunctionDef.output = functionOutput;
+		newFunctionDef.output = functionOutput;
 		if (!addObjectDefinition(environment, newFunctionDef))
 		{
-			if (isCompileTime)
-				delete functionOutput;
+			delete functionOutput;
 			return false;
 		}
 		// Past this point, compile-time output will be handled by environment destruction
+
+		// Regardless of how much the definition is modified, it will still be output at this place
+		// in the module's generated file. Compile-time functions don't splice into module because
+		// they shouldn't be included in runtime code
+		if (!isCompileTime)
+			addSpliceOutput(output, functionOutput, &tokens[startTokenIndex]);
 
 		if (isCompileTime)
 		{

@@ -66,7 +66,9 @@ void addStringOutput(std::vector<StringOutput>& output, const std::string& symbo
                      StringOutputModifierFlags modifiers, const Token* startToken);
 void addLangTokenOutput(std::vector<StringOutput>& output, StringOutputModifierFlags modifiers,
                         const Token* startToken);
-void addSpliceOutput(std::vector<StringOutput>& output, GeneratorOutput* spliceOutput,
+// Splice marker must be pushed to both source and header to preserve ordering in case spliceOutput
+// has both source and header outputs
+void addSpliceOutput(GeneratorOutput& output, GeneratorOutput* spliceOutput,
                      const Token* startToken);
 
 struct FunctionArgumentTokens

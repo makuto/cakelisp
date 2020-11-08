@@ -308,7 +308,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
 		// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
 		// so that multiple splices take up space and will then maintain sequential order
-		addSpliceOutput(output.source, newReference.spliceOutput, &invocationStart);
+		addSpliceOutput(output, newReference.spliceOutput, &invocationStart);
 
 		const ObjectReferenceStatus* referenceStatus =
 		    addObjectReference(environment, invocationName, newReference);
@@ -422,6 +422,13 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 	// Note that in most cases, we will continue evaluation in order to turn up more errors
 	int numErrors = 0;
 
+	bool isDelimiterSyntactic =
+	    delimiterTemplate && (!delimiterTemplate->output.empty() ||
+	                          delimiterTemplate->modifiers != StringOutMod_NewlineAfter);
+
+	// Used to detect when something was actually output during evaluation
+	int lastOutputTotalSize = output.source.size() + output.header.size();
+
 	int numTokens = tokens.size();
 	for (int currentTokenIndex = startTokenIndex; currentTokenIndex < numTokens;
 	     ++currentTokenIndex)
@@ -435,11 +442,20 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 		// Starting a new argument to evaluate
 		if (delimiterTemplate && currentTokenIndex != startTokenIndex)
 		{
-			StringOutput delimiter = *delimiterTemplate;
-			delimiter.startToken = &tokens[currentTokenIndex];
-			// TODO: Controlling source vs. header output?
-			output.source.push_back(std::move(delimiter));
+			bool outputChanged =
+			    output.source.size() + output.header.size() != (unsigned long)lastOutputTotalSize;
+			// If the delimiter is a newline only, it is probably for humans only, and can be
+			// ignored if evaluation results in no output
+			if (isDelimiterSyntactic || outputChanged)
+			{
+				StringOutput delimiter = *delimiterTemplate;
+				delimiter.startToken = &tokens[currentTokenIndex];
+				// TODO: Controlling source vs. header output?
+				output.source.push_back(std::move(delimiter));
+			}
 		}
+
+		lastOutputTotalSize = output.source.size() + output.header.size();
 
 		numErrors +=
 		    EvaluateGenerate_Recursive(environment, context, tokens, currentTokenIndex, output);

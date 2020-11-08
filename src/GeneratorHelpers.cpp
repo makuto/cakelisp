@@ -299,7 +299,7 @@ void addLangTokenOutput(std::vector<StringOutput>& output, StringOutputModifierF
 	output.push_back(std::move(newStringOutput));
 }
 
-void addSpliceOutput(std::vector<StringOutput>& output, GeneratorOutput* spliceOutput,
+void addSpliceOutput(GeneratorOutput& output, GeneratorOutput* spliceOutput,
                      const Token* startToken)
 {
 	StringOutput newStringOutput = {};
@@ -309,7 +309,10 @@ void addSpliceOutput(std::vector<StringOutput>& output, GeneratorOutput* spliceO
 
 	newStringOutput.spliceOutput = spliceOutput;
 
-	output.push_back(std::move(newStringOutput));
+	// Splice marker must be pushed to both source and header to preserve ordering in case
+	// spliceOutput has both source and header outputs
+	output.source.push_back(std::move(newStringOutput));
+	output.header.push_back(std::move(newStringOutput));
 }
 
 //
