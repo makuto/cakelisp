@@ -18,7 +18,6 @@ const char* generatorSourceHeading =
 	"\n#include \"Tokenizer.hpp\""
 	"\n#include \"GeneratorHelpers.hpp\""
 	"\n#include \"Utilities.hpp\""
-    "\n#include <algorithm>"
 	"\nextern \"C\"\n{\n";
 // Close extern "C" block
 const char* generatorSourceFooter = "}\n";

@@ -53,6 +53,7 @@ int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex);
 
 const Token* FindTokenExpressionEnd(const Token* startToken);
 
+// This is useful for copying a definition, with macros expanded, for e.g. code modification
 bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
                                        std::vector<Token>& tokensOut);
 

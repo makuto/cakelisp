@@ -3,6 +3,8 @@
 #include <cstdio>  //  sprintf
 #include <string>
 
+#include <algorithm> // std::find
+
 #define MAX_NAME_LENGTH 64
 #define MAX_PATH_LENGTH 128
 
