@@ -196,6 +196,8 @@ typedef CompileTimeFunctionMetadataTable::iterator CompileTimeFunctionMetadataTa
 extern const char* g_environmentPreLinkHookSignature;
 typedef bool (*PreLinkHook)(ModuleManager& manager, ProcessCommand& linkCommand,
                             ProcessCommandInput* linkTimeInputs, int numLinkTimeInputs);
+extern const char* g_environmentPostReferencesResolvedHookSignature;
+typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment, bool& wasCodeModifiedOut);
 
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -243,6 +245,11 @@ struct EvaluatorEnvironment
 	ProcessCommand compileTimeLinkCommand;
 	ProcessCommand buildTimeBuildCommand;
 	ProcessCommand buildTimeLinkCommand;
+
+	// At this point, all known references are resolved. This is the best time to let the user do
+	// arbitrary code generation and modification. These changes will need to be evaluated and their
+	// references resolved, so we need to repeat the whole process until no more changes are made
+	std::vector<PostReferencesResolvedHook> postReferencesResolvedHooks;
 
 	// Gives the user the chance to change the link command
 	std::vector<PreLinkHook> preLinkHooks;

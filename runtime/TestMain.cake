@@ -27,3 +27,14 @@
 (defmacro simple-macro ()
   (tokenize-push output (printf "Hello, macros!\\n"))
   (return true))
+
+(defun-comptime modify-main (environment (& EvaluatorEnvironment)
+                                         was-code-modified (& bool)
+                                         &return bool)
+  (for-in name-definition (& ObjectDefinitionPair) (field environment definitions)
+          (unless (= 0 (on-call (field name-definition first) compare "main"))
+            (continue))
+          (printf "found main\n"))
+  (return true))
+
+(add-compile-time-hook post-references-resolved modify-main)

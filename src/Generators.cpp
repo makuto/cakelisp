@@ -285,9 +285,6 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	    findCompileTimeFunction(environment, tokens[functionNameIndex].contents.c_str());
 	if (hookFunction)
 	{
-		// TODO Check function signatures. Error message should provide proper signature. Use inline
-		// string parsing code to make the signature tokens to compare
-
 		const Token& hookName = tokens[hookNameIndex];
 		if (isModuleHook && hookName.contents.compare("pre-build") == 0)
 		{
@@ -344,6 +341,33 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 					return false;
 
 				environment.preLinkHooks.push_back((PreLinkHook)hookFunction);
+			}
+
+			return true;
+		}
+
+		if (!isModuleHook && hookName.contents.compare("post-references-resolved") == 0)
+		{
+			// Insert only if not already hooked
+			if (FindInContainer(environment.postReferencesResolvedHooks, hookFunction) ==
+			    environment.postReferencesResolvedHooks.end())
+			{
+				// Finally, check the signature so we can call it safely
+				static std::vector<Token> expectedSignature;
+				if (expectedSignature.empty())
+				{
+					if (!tokenizeLinePrintError(g_environmentPostReferencesResolvedHookSignature,
+					                            __FILE__, __LINE__, expectedSignature))
+						return false;
+				}
+
+				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
+				                                         tokens[functionNameIndex].contents.c_str(),
+				                                         expectedSignature))
+					return false;
+
+				environment.postReferencesResolvedHooks.push_back(
+				    (PostReferencesResolvedHook)hookFunction);
 			}
 
 			return true;
@@ -1925,7 +1949,6 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation dereference[] = {{KeywordNoSpace, "*", -1}, {Expression, nullptr, 1}};
 	const CStatementOperation addressOf[] = {{KeywordNoSpace, "&", -1}, {Expression, nullptr, 1}};
 
-	// TODO: Pathing is going to need a fancier generator for mixed pointers/member access
 	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
 
 	const CStatementOperation memberFunctionInvocation[] = {

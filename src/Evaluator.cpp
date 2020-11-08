@@ -24,8 +24,10 @@ const char* globalDefinitionName = "<global>";
 const char* cakelispWorkingDir = "cakelisp_cache";
 
 const char* g_environmentPreLinkHookSignature =
-    "('manager (& ModuleManager) 'linkCommand (& ProcessCommand) 'linkTimeInputs (* "
-    "ProcessCommandInput) 'numLinkTimeInputs int &return bool)";
+    "('manager (& ModuleManager) 'link-command (& ProcessCommand) 'link-time-inputs (* "
+    "ProcessCommandInput) 'num-link-time-inputs int &return bool)";
+const char* g_environmentPostReferencesResolvedHookSignature =
+    "('environment (& EvaluatorEnvironment) 'was-code-modified (& bool) &return bool)";
 
 static GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
@@ -1099,6 +1101,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 	}
 
+	int numBuildResolveErrors = 0;
 	bool codeModified = false;
 	do
 	{
@@ -1106,7 +1109,6 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		// in passes in case evaluation created more definitions. There's probably a smarter way,
 		// but I'll do it in this brute-force style first
 		int numReferencesResolved = 0;
-		int numBuildResolveErrors = 0;
 		do
 		{
 			PropagateRequiredToReferences(environment);
@@ -1121,6 +1123,21 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		// At this point, all known references are resolved. Time to let the user do arbitrary code
 		// generation and modification. These changes will need to be evaluated and their references
 		// resolved, so we need to repeat the whole process until no more changes are made
+		for (PostReferencesResolvedHook& hook : environment.postReferencesResolvedHooks)
+		{
+			bool codeModifiedByHook = false;
+			if (!hook(environment, codeModifiedByHook))
+			{
+				printf("error: hook returned failure\n");
+				numBuildResolveErrors += 1;
+				break;
+			}
+
+			codeModified |= codeModifiedByHook;
+		}
+
+		if (numBuildResolveErrors)
+			break;
 	} while (codeModified);
 
 	// Check whether everything is resolved
