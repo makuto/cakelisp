@@ -25,7 +25,11 @@
   (printf "Hello, comptime!\n"))
 
 (defmacro simple-macro ()
-  (tokenize-push output (printf "Hello, macros!\\n"))
+  (tokenize-push output (printf "Hello, macros!\\n") (magic-number))
+  (return true))
+
+(defmacro magic-number ()
+  (tokenize-push output (printf "The magic number is 42"))
   (return true))
 
 (defun-comptime modify-main (environment (& EvaluatorEnvironment)

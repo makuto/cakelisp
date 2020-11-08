@@ -233,6 +233,43 @@ const Token* FindTokenExpressionEnd(const Token* startToken)
 	return nullptr;
 }
 
+static void CopyTokensWithMacrosExpanded_Recursive(const Token* startToken, const Token* endToken,
+                                                   const std::vector<MacroExpansion>& expansions,
+                                                   std::vector<Token>& tokensOut)
+{
+	for (const Token* currentToken = startToken; currentToken <= endToken;)
+	{
+		// TODO: Performance: O(nm)
+		bool macroFound = false;
+		for (const MacroExpansion& expansion : expansions)
+		{
+			if (currentToken == expansion.atToken)
+			{
+				unsigned int numTokensInExpansion = expansion.tokens->size();
+				tokensOut.reserve(tokensOut.size() + numTokensInExpansion);
+				CopyTokensWithMacrosExpanded_Recursive(
+				    &(*expansion.tokens)[0], &(*expansion.tokens)[numTokensInExpansion - 1],
+				    expansions, tokensOut);
+
+				macroFound = true;
+				break;
+			}
+		}
+
+		if (macroFound)
+		{
+			// Skip the macro invocation; we've already replaced it with the expansion
+			currentToken = FindTokenExpressionEnd(currentToken);
+			++currentToken;
+		}
+		else
+		{
+			tokensOut.push_back(*currentToken);
+			++currentToken;
+		}
+	}
+}
+
 bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
                                        std::vector<Token>& tokensOut)
 {
@@ -263,35 +300,8 @@ bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
 		// It may be a bit larger or smaller depending on whether macros output more or less tokens
 		tokensOut.reserve((endToken - definition.definitionInvocation) + 1);
 
-		for (const Token* currentToken = definition.definitionInvocation; currentToken <= endToken;)
-		{
-			// TODO: Performance: O(nm)
-			bool macroFound = false;
-			for (const MacroExpansion& expansion : definition.macroExpansions)
-			{
-				if (currentToken == expansion.atToken)
-				{
-					tokensOut.reserve(tokensOut.size() + expansion.tokens->size());
-					for (const Token& expansionToken : *expansion.tokens)
-						tokensOut.push_back(expansionToken);
-
-					macroFound = true;
-					break;
-				}
-			}
-
-			if (macroFound)
-			{
-				// Skip the macro invocation; we've already replaced it with the expansion
-				currentToken = FindTokenExpressionEnd(currentToken);
-				++currentToken;
-			}
-			else
-			{
-				tokensOut.push_back(*currentToken);
-				++currentToken;
-			}
-		}
+		CopyTokensWithMacrosExpanded_Recursive(definition.definitionInvocation, endToken,
+		                                       definition.macroExpansions, tokensOut);
 	}
 
 	return true;
