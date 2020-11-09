@@ -504,9 +504,15 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 	EvaluatorContext definitionContext = findIt->second.context;
 	GeneratorOutput* definitionOutput = findIt->second.output;
 
+	// This output is still referred to by the module (etc.) output's splice. When a replacement
+	// definition is added, it will actually add a splice to the old definiton's output and create
+	// its own output. Have the environment hold on to it for later destruction
+	environment.orphanedOutputs.push_back(definitionOutput);
+
 	// This makes me nervous because the user could have a reference to this when calling this
 	// function. I can't think of a safer way to get rid of the reference without deleting it
 	environment.definitions.erase(findIt);
+	findIt = environment.definitions.end();
 
 	definitionOutput->source.clear();
 	definitionOutput->header.clear();
@@ -1273,6 +1279,12 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 		delete definition.output;
 	}
 	environment.definitions.clear();
+
+	for (GeneratorOutput* output : environment.orphanedOutputs)
+	{
+		delete output;
+	}
+	environment.orphanedOutputs.clear();
 
 	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
 		delete comptimeTokens;

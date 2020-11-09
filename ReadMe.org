@@ -2,22 +2,24 @@
 
 [[file:images/CakeLisp_gradient_128.png]]
 
-This is a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it too]]. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance. I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme (on their modern titles).
+This is a Lisp-like language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it too]]. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance. I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme (on their modern titles). I've also taken several ideas from Jonathan Blow's talks on Jai.
 
 The goal is a metaprogrammable, hot-reloadable, non-garbage-collected language ideal for high performance, iteratively-developed programs (especially games).
 
 It is a transpiler which generates C/C++ from a Lisp dialect.
 
 * Features
-- *The metaprogramming capabilities of Lisp:* True full-power macro support and compile-time code execution
+- *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
 - *The performance of C:* No heavyweight runtime, boxing/unboxing overhead, etc.
 - *"Real" types:* Types are identical to C types, e.g. ~int~ is 32 bits with no sign bit or anything like other Lisp implementations do
-- *No garbage collection:* I can handle my own memory. I primarily work on games, which make garbage collection pauses unacceptable. I also think garbage collectors add more complexity than manual management
+- *No garbage collection:* I primarily work on games, which make garbage collection pauses unacceptable. I also think garbage collectors add /more/ complexity than manual management
 - *Hot reloading:* It should be possible to make modifications to functions /and structures/ at runtime to quickly iterate
 - *Truly seamless C and C++ interoperability:* No bindings, no wrappers: C/C++ types and functions are as easy to declare and call as they are in C/C++. In order to support this, I've decided to ignore type deduction when possible and instead rely on the C compiler/linker to relay typing errors. Cakelisp will blindly generate what look like C/C++ function calls without knowing if that function actually exists, because the C/C++ compiler will tell us what the answer is
-- Output is human-readable C/C++ source and header files. This is so if I decide it was unsuccessful, or only useful in some scenarios (e.g. generating serialization wrappers), I can still use the output code from hand-written C/C++ code
+- *Compile-time code modification:* After all macros are expanded, the programmer can specify compile-time functions which can do arbitrary modification of the expanded code. This makes it possible to validate functions, automatically insert profiling instrumentation (similar to this [[https://www.youtube.com/watch?v=59lKAlb6cRg][Jai demonstration]]), and other tasks which would be cumbersome or impossible to do with macros alone
+- *Output human-readable C/C++ source and header files:* This makes it possible to use Cakelisp in a subset of your project. It also means Cakelisp will work on any platform C/C++ works on. Generated code closely resembles the source Cakelisp code whenever possible
+- *Build system:* Simple projects will automatically be built and linked into an executable. Complex projects can use compile-time code execution to override stages of the build process. The code essentially knows how to build itself!
 
-Many of these come naturally from using C as the backend. Eventually it would be cool to not have to generate C (e.g. generate LLVM bytecode instead), but that can a project for another time.
+Some of these features come naturally from using C as the backend. Eventually it would be cool to not have to generate C (e.g. generate LLVM bytecode instead), but that can a project for another time.
 * Building Cakelisp itself
 Install [[https://www.perforce.com/documentation/jam-documentation][Jam]]:
 #+BEGIN_SRC sh
@@ -45,12 +47,15 @@ I'm going to try to keep it very lightweight. It should make it straightforward 
 
 Note that your /project/ does not have to include or link any of these unless you use hot-reloading, which requires dynamic loading. This means projects using Cakelisp are just as portable as any C/C++ project - there's no runtime to port (except hot-reloading, which is optional).
 * Building a project using Cakelisp
-Building is expected to have two phases:
-1. Run Cakelisp on ~.cake~ files, which creates C/C++ header and source files. Cakelisp has a Python-style module system which will automatically evaluate and generate the output of imported Cakelisp files as necessary
-2. Build generated files using a conventional build system. Whatever you use currently should likely work already (I use [[https://www.perforce.com/documentation/jam-documentation][Jam]])
+Cakelisp will automatically figure out how to build simple projects into executables.
 
-One advantage of this setup is that you could decide to abandon Cakelisp and still have useful C/C++ code left over. It also means you don't need to add special support to your build system for ~.cake~ files.
+For more complex projects, many hooks and variables are provided for overriding the build process. Your code is defined in Cakelisp, and so are all build commands. This gives the code the ability to know how to build itself.
 
+For example, you could have a ~.cake~ module which includes a 3rd party graphics library. By importing that module, the module's compile-time hooks are added to the build process, which can do things like add the 3rd party graphics library's ~lib~ files to the link stage.
+
+The build hooks are all regular Cakelisp code, which means you could do something as advanced as cloning a repository from the internet, launching a subprocess to ~cmake~ and ~make~ that project, then let Cakelisp finish the build by linking the output libraries.
+
+One huge advantage to defining your build process in a "real" programming language (as opposed to a domain-specific language interpreted by a build system) is that you can attach a debugger and single step through the build process when things go wrong.
 ** C or C++?
 Cakelisp itself is written in C++. Macros and generators must generate C++ code to interact with the evaluator.
 
@@ -58,6 +63,8 @@ However, you have more options for your project's /generated/ code:
 - Only C: Generate pure C. Error if any generators which require C++ features are invoked
 - Only C++: Assume all code is compiled with a C++ compiler, even if a Cakelisp module does not use any C++ features
 - Mixed C/C++, warn on promotion: Try to generate pure C, but if a C++ feature is used, automatically change the file extension to indicate it requires a C++ compiler (~.c~ to ~.cpp~) and print a warning so the build system can be updated
+
+/Note:/ The ability to output only C is not yet implemented.
 
 I may also add declarations which allow you to constrain generation to a single module, if e.g. you want your project to be only C except for when you must interact with external C++ code.
 
@@ -74,6 +81,8 @@ Open ~.cake~ files in ~lisp-mode~:
 #+END_SRC
 ** Build systems
 A build system will work fine with Cakelisp, because Cakelisp outputs C/C++ source/header files. Note that Cakelisp is expected to be run before your regular build system runs, or in a stage where Cakelisp can create and add files to the build. This is because Cakelisp handles its own modules such that adding support to an existing build system would be challenging.
+
+Ideally, you should be able to rely on Cakelisp's built-in build system. This allows Cakelisp files to know how to build themselves.
 ** Debugging
 See [[file:doc/Debugging.org][doc/Debugging.org]]. Cakelisp doesn't really have an interpreter. Cakelisp always generates C/C++ code to do meaningful work. This means the Cakelisp transpiler, macros, generators, and final code output can be debugged using a regular C/C++ debugger like GDB, LLDB, or Visual Studio Debugger.
 
@@ -84,45 +93,6 @@ The primary benefit of using a Lisp S-expression-style dialect is its ease of ex
 Additionally, S-expressions are good for representing data, which means writing domain-specific languages is easier, because you can have the built-in tokenizer do most of the work.
 
 It's also a reaction to the high difficulty of parsing C and especially C++, which requires something like [[https://clang.llvm.org/doxygen/group__CINDEX.html][libclang]] to sanely parse.
-* Technical overview
-In very broad phases, this is what Cakelisp does/is:
-- Tokenizer and evaluator written in C++
-- Export evaluated output to C/C++
-- Compile generated C/C++
-
-** Compile-time execution: generators and macros
-Cakelisp itself is extended via "generators", which are functions which take Cakelisp tokens and output C/C++ source code. Because generators are written in C++, generators can also be written in Cakelisp! Cakelisp will compile the generators in a module into a dynamic library, then load that library before continuing parsing the module.
-
-Macros are similar to generators, only they output Cakelisp tokens instead of C/C++ code. Macro definitions also get compiled to C/C++, using the same generators which compile regular Cakelisp functions. Macros in Cakelisp are much more powerful than C's preprocessor macros, which can only do simple text templating. For example, you could write a Cakelisp macro which generates functions conditionally based on the types of members in a struct.
-
-The only thing the evaluator meaningfully does is call C/C++ functions based on the original or macro-generated Cakelisp tokens. There is no interpreter - compile-time code must be compiled before it can be executed.
-** Detailed function
-1. Tokenize ~.cake~ file into Token array
-2. Iterate through token array, looking for macro/generator definitions
-3. If there are macro/generator definitions, generate code for those definitions, compile it, load it via dynamic linking, then add it to the environment's macro/generator table. Base-level generators are written in C++ to bootstrap the language
-4. Iterate through token array, looking for macro/invocations
-5. Run macro/generator as requested by invocation
-6. Return to step 2 in case generators created generators
-7. Once no generators are invoked, output the generator operations
-8. From generator operations, create C/C++ header and source files, as well as line mapping files. Mapping files will record C source location to Cakelisp source location pairs, so debuggers, C compiler errors etc. all map back to the Cakelisp that caused that line
-9. Compile generated C/C++ files. If there are warnings or errors, use the mapping file to associate them back to the original Cakelisp lines that caused that code to be output
-
-This is somewhat inaccurate. The pipeline is a bit more complicated:
-- For each file (module) imported or included in the Cakelisp command
-- Tokenize and evaluate the module, making note of all unknown references (any function invocation not already in the environment)
-- After all modules are evaluated, resolve references
-
-** Resolving references
-Resolving references involves multiple stages:
-1. Determine which definitions (macros, generators, and functions) need to be built
-2. For each required definition, determine if it can be built (if all its references are loaded)
-3. Build all required definitions which can be built, guessing whether unknown references are C/C++ function calls
-4. For all definitions which are built successfully, resolve references to those definitions (evaluate knowing now what the reference is; macros, generators, and C/C++ function invocations all have different paths)
-5. Return to step 1 because definitions and references to them can create new definitions which resolve other references
-
-The "guessing" part of the resolving references stage is something I think is unique to Cakelisp. In order to avoid requiring bindings, Cakelisp must guess as to whether an invocation is a valid C/C++ function call. When the guess is incorrect, Cakelisp will not try to compile the referent definition until something about the environment changes, which makes the chances of a successful compilation for that definition increase. I call this "speculative compilation".
-
-The drawback to speculative compilation is costly failed compilations, but they can be minimized if hints are added. Additionally, it is only necessary during clean builds - partial builds will use definitions which have already been compiled. In this way, compile-time code execution can be imagined as extensions to the Cakelisp transpiler, written inline with "shipping" code.
 * Similar applications/languages
 In Naughty Dog's /Uncharted/ (and possibly other titles), Scheme is used to generate C structure definitions (and do various other things). See Jason Gregory's /Game Engine Architecture/, p. 257. See also: [[https://www.youtube.com/watch?v=oSmqbnhHp1c][Dan Liebgold - Racket on the Playstation 3? It's Not What you Think!]]
 

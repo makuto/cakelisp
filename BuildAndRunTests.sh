@@ -11,5 +11,5 @@
 # jam -j4 && ./bin/cakelisp --verbose-build-process --verbose-processes \
 						  # runtime/TestMain.cake runtime/TextAdventure.cake
 
-jam -j4 && ./bin/cakelisp --verbose-references --ignore-cache \
+jam -j4 && ./bin/cakelisp --ignore-cache \
 			   runtime/TestMain.cake runtime/TextAdventure.cake

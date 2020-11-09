@@ -2,7 +2,7 @@
 
 This document aspires to be one page of everything you need to know to learn the Cakelisp language. I liked how [[https://ziglang.org/documentation/master/][Zig]] is all on one page, so I'm going to emulate that here.
 
-This doesn't cover the internal workings of the Cakelisp transpiler.
+This doesn't cover the internal workings of the Cakelisp transpiler. See [[file:Internals.org][Internals.org]] for that information.
 
 * What is Cakelisp?
 Cakelisp is not intended to be an easy language for beginners. You should already have a strong grasp of either C or C++, because many functions and idioms used are actually straight from C/C++. Cakelisp is intended for people who already know C/C++ but want more features on top of the language.

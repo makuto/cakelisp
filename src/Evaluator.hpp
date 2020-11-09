@@ -228,6 +228,11 @@ struct EvaluatorEnvironment
 	// contents, however
 	std::vector<const std::vector<Token>*> comptimeTokens;
 
+	// When a definition is replaced (e.g. by ReplaceAndEvaluateDefinition()), the original
+	// definition's output is still used, but no longer has a definition to keep track of it. We'll
+	// make sure the orphans get destroyed
+	std::vector<GeneratorOutput*> orphanedOutputs;
+
 	ObjectDefinitionMap definitions;
 	ObjectReferencePoolMap referencePools;
 

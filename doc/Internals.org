@@ -1,0 +1,40 @@
+#+TITLE:Cakelisp Technical Details
+
+In very broad phases, this is what Cakelisp does/is:
+- Tokenizer and evaluator written in C++
+- Export evaluated output to C/C++
+- Compile generated C/C++
+
+* Compile-time execution: generators and macros
+Cakelisp itself is extended via "generators", which are functions which take Cakelisp tokens and output C/C++ source code. Because generators are written in C++, generators can also be written in Cakelisp! Cakelisp will compile the generators in a module into a dynamic library, then load that library before continuing parsing the module.
+
+Macros are similar to generators, only they output Cakelisp tokens instead of C/C++ code. Macro definitions also get compiled to C/C++, using the same generators which compile regular Cakelisp functions. Macros in Cakelisp are much more powerful than C's preprocessor macros, which can only do simple text templating. For example, you could write a Cakelisp macro which generates functions conditionally based on the types of members in a struct.
+
+The only thing the evaluator meaningfully does is call C/C++ functions based on the original or macro-generated Cakelisp tokens. There is no interpreter - compile-time code must be compiled before it can be executed.
+* Detailed function
+1. Tokenize ~.cake~ file into Token array
+2. Iterate through token array, looking for macro/generator definitions
+3. If there are macro/generator definitions, generate code for those definitions, compile it, load it via dynamic linking, then add it to the environment's macro/generator table. Base-level generators are written in C++ to bootstrap the language
+4. Iterate through token array, looking for macro/invocations
+5. Run macro/generator as requested by invocation
+6. Return to step 2 in case generators created generators
+7. Once no generators are invoked, output the generator operations
+8. From generator operations, create C/C++ header and source files, as well as line mapping files. Mapping files will record C source location to Cakelisp source location pairs, so debuggers, C compiler errors etc. all map back to the Cakelisp that caused that line
+9. Compile generated C/C++ files. If there are warnings or errors, use the mapping file to associate them back to the original Cakelisp lines that caused that code to be output
+
+This is somewhat inaccurate. The pipeline is a bit more complicated:
+- For each file (module) imported or included in the Cakelisp command
+- Tokenize and evaluate the module, making note of all unknown references (any function invocation not already in the environment)
+- After all modules are evaluated, resolve references
+
+** Resolving references
+Resolving references involves multiple stages:
+1. Determine which definitions (macros, generators, and functions) need to be built
+2. For each required definition, determine if it can be built (if all its references are loaded)
+3. Build all required definitions which can be built, guessing whether unknown references are C/C++ function calls
+4. For all definitions which are built successfully, resolve references to those definitions (evaluate knowing now what the reference is; macros, generators, and C/C++ function invocations all have different paths)
+5. Return to step 1 because definitions and references to them can create new definitions which resolve other references
+
+The "guessing" part of the resolving references stage is something I think is unique to Cakelisp. In order to avoid requiring bindings, Cakelisp must guess as to whether an invocation is a valid C/C++ function call. When the guess is incorrect, Cakelisp will not try to compile the referent definition until something about the environment changes, which makes the chances of a successful compilation for that definition increase. I call this "speculative compilation".
+
+The drawback to speculative compilation is costly failed compilations, but they can be minimized if hints are added. Additionally, it is only necessary during clean builds - partial builds will use definitions which have already been compiled. In this way, compile-time code execution can be imagined as extensions to the Cakelisp transpiler, written inline with "shipping" code.
