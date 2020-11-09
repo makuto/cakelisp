@@ -161,6 +161,9 @@ struct ObjectDefinition
 	// orders than invoked
 	std::vector<MacroExpansion> macroExpansions;
 
+	// If a definition is going to be modified, store its context for reevaluation
+	EvaluatorContext context;
+
 	// Both runtime and compile-time definitions use output. Runtime definitions use it to support
 	// compile-time code modification (post-macro-expansion), and compile-time definitions use it to
 	// stay out of runtime output (and be easily output to cache files for compilation)
@@ -219,10 +222,11 @@ struct EvaluatorEnvironment
 	CompileTimeFunctionTable compileTimeFunctions;
 	CompileTimeFunctionMetadataTable compileTimeFunctionInfo;
 
-	// We need to keep the tokens macros create around so they can be referenced by StringOperations
-	// Token vectors must not be changed after they are created or pointers to Tokens will become
-	// invalid. The const here is to protect from that. You can change the token contents, however
-	std::vector<const std::vector<Token>*> macroExpansions;
+	// We need to keep the tokens macros etc. create around so they can be referenced by
+	// StringOperations. Token vectors must not be changed after they are created or pointers to
+	// Tokens will become invalid. The const here is to protect from that. You can change the token
+	// contents, however
+	std::vector<const std::vector<Token>*> comptimeTokens;
 
 	ObjectDefinitionMap definitions;
 	ObjectReferencePoolMap referencePools;
@@ -281,6 +285,12 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, const StringOutput* delimiterTemplate,
                                   GeneratorOutput& output);
+
+// For compile-time code modification.
+// This destroys the old definition. Don't hold on to references to it for that reason
+bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
+                                  const char* definitionToReplaceName,
+                                  const std::vector<Token>& newDefinitionTokens);
 
 // Returns whether all references were resolved successfully
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment);

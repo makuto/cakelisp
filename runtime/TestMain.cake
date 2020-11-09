@@ -21,53 +21,81 @@
       (return 1)))
   (return 0))
 
-(defun-comptime build-text-adventure ()
-  (printf "Hello, comptime!\n"))
+;;
+;; Code modification tests
+;;
 
 (defmacro simple-macro ()
   (tokenize-push output (printf "Hello, macros!\\n") (magic-number))
   (return true))
 
 (defmacro magic-number ()
-  (tokenize-push output (printf "The magic number is 42"))
+  (tokenize-push output (printf "The magic number is 42\\n"))
   (return true))
 
-(defun-comptime modify-main (environment (& EvaluatorEnvironment)
-                                         was-code-modified (& bool)
-                                         &return bool)
+(defun-comptime sabotage-main-printfs (environment (& EvaluatorEnvironment)
+                                                   was-code-modified (& bool)
+                                                   &return bool)
+  (var old-definition-tags (<> std::vector std::string))
+  ;; Scope to ensure that definition-it and definition are not referred to after
+  ;; ReplaceAndEvaluateDefinition is called, because they will be invalid
+  (scope
+   (var definition-it (in ObjectDefinitionMap iterator)
+        (on-call (field environment definitions) find "main"))
+   (when (= definition-it (on-call (field environment definitions) end))
+     (printf "sabotage-main-printfs: could not find main!\n")
+     (return false))
+
+   (printf "sabotage-main-printfs: found main\n")
+   (var definition (& ObjectDefinition) (path definition-it > second))
+   (when (!= (FindInContainer (field definition tags) "sabotage-main-printfs-done")
+             (on-call (field definition tags) end))
+     (printf "sabotage-main-printfs: already modified\n")
+     (return true))
+
+   ;; Other modification functions should do this lazily, i.e. only create the expanded definition
+   ;; if a modification is necessary
+   ;; This must be allocated on the heap because it will be evaluated and needs to stick around
+   (var modified-main-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
+   (unless (CreateDefinitionCopyMacroExpanded definition (deref modified-main-tokens))
+     (delete modified-main-tokens)
+     (return false))
+
+   ;; Environment will handle freeing tokens for us
+   (on-call (field environment comptimeTokens) push_back modified-main-tokens)
+
+   ;; Before
+   (prettyPrintTokens (deref modified-main-tokens))
+
+   (var prev-token (* Token) nullptr)
+   (for-in token (& Token) (deref modified-main-tokens)
+           (when (and prev-token
+                      (= 0 (on-call (path prev-token > contents) compare "printf"))
+                      (ExpectTokenType "sabotage-main-printfs" token TokenType_String))
+             (set (field token contents) "I changed your print! Mwahahaha!\\n"))
+           (set prev-token (addr token)))
+
+   (printf "sabotage-main-printfs: modified main!\n")
+   ;; After
+   (prettyPrintTokens (deref modified-main-tokens))
+
+   ;; Copy tags for new definition
+   (PushBackAll old-definition-tags (field definition tags))
+
+   ;; Definition references invalid after this!
+   (unless (ReplaceAndEvaluateDefinition environment "main" (deref modified-main-tokens))
+     (return false))
+   (set was-code-modified true))
+
+  ;; Find the new (replacement) definition and add a tag saying it is done replacement
+  ;; Note that I also push the tags of the old definition
   (var definition-it (in ObjectDefinitionMap iterator)
-       (on-call (field environment definitions) find "main"))
+        (on-call (field environment definitions) find "main"))
   (when (= definition-it (on-call (field environment definitions) end))
-    (printf "modify-main: could not find main!\n")
+    (printf "sabotage-main-printfs: could not find main after replacement!\n")
     (return false))
-
-  (printf "modify-main: found main\n")
-  (var definition (& ObjectDefinition) (path definition-it > second))
-  (when (!= (FindInContainer (field definition tags) "modify-main-done")
-            (on-call (field definition tags) end))
-    (printf "modify-main: already modified\n")
-    (return true))
-
-  ;; Other modification functions should do this lazily, i.e. only create the expanded definition
-  ;; if a modification is necessary
-  (var modified-main-tokens (<> std::vector Token))
-  (unless (CreateDefinitionCopyMacroExpanded definition modified-main-tokens)
-    (return false))
-
-  (prettyPrintTokens modified-main-tokens)
-
-  (var prev-token (* Token) nullptr)
-  (for-in token (& Token) modified-main-tokens
-       (when (and prev-token
-                  (= 0 (on-call (path prev-token > contents) compare "printf"))
-                  (ExpectTokenType "modify-main" token TokenType_String))
-         (set (field token contents) "I changed your print! Mwahahaha!\\n"))
-       (set prev-token (addr token)))
-  ;; Next: Relocate old definition, evaluate new definition
-  (set was-code-modified true)
-  (on-call (field definition tags) push_back "modify-main-done")
-  (printf "modify-main: modified main!\n")
-  (prettyPrintTokens modified-main-tokens)
+  (PushBackAll (path definitionIt > second . tags) old-definition-tags)
+  (on-call (path definitionIt > second . tags) push_back "sabotage-main-printfs-done")
   (return true))
 
-(add-compile-time-hook post-references-resolved modify-main)
+(add-compile-time-hook post-references-resolved sabotage-main-printfs)

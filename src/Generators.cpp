@@ -630,6 +630,7 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		newFunctionDef.type = isCompileTime ? ObjectType_CompileTimeFunction : ObjectType_Function;
 		// Compile-time objects only get built with compile-time references
 		newFunctionDef.isRequired = isCompileTime ? false : context.isRequired;
+		newFunctionDef.context = context;
 		newFunctionDef.output = functionOutput;
 		if (!addObjectDefinition(environment, newFunctionDef))
 		{
@@ -1031,6 +1032,7 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	newMacroDef.type = ObjectType_CompileTimeMacro;
 	// Let the reference required propagation step handle this
 	newMacroDef.isRequired = false;
+	newMacroDef.context = context;
 	newMacroDef.output = compTimeOutput;
 	if (!addObjectDefinition(environment, newMacroDef))
 	{
@@ -1120,6 +1122,7 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	newGeneratorDef.type = ObjectType_CompileTimeGenerator;
 	// Let the reference required propagation step handle this
 	newGeneratorDef.isRequired = false;
+	newGeneratorDef.context = context;
 	newGeneratorDef.output = compTimeOutput;
 	if (!addObjectDefinition(environment, newGeneratorDef))
 	{
@@ -1939,6 +1942,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation breakStatement[] = {{KeywordNoSpace, "break", -1},
 	                                              {SmartEndStatement, nullptr, -1}};
 
+	// Arrays are handled by (new-array)
+	const CStatementOperation newStatement[] = {{Keyword, "new", -1}, {TypeNoArray, nullptr, 1}};
+
 	const CStatementOperation initializerList[] = {
 	    {OpenList, nullptr, -1}, {ExpressionList, nullptr, 1}, {CloseList, nullptr, -1}};
 
@@ -2052,6 +2058,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"scope", blockStatement, ArraySize(blockStatement)},
 	    {"block", blockStatement, ArraySize(blockStatement)},
 	    {"?", ternaryOperatorStatement, ArraySize(ternaryOperatorStatement)},
+	    {"new", newStatement, ArraySize(newStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
 	    {"addr", addressOf, ArraySize(addressOf)},
@@ -2216,7 +2223,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
 	    "while", "for-in", "return", "continue", "break", "when", "unless", "array", "set", "scope",
-	    "block", "?",
+	    "block", "?", "new",
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator

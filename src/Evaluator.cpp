@@ -261,7 +261,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// its Tokens are cleared. This means even if we fail while evaluating the tokens, we will
 		// keep the array around because the environment might still hold references to the tokens.
 		// It's also necessary for error reporting
-		environment.macroExpansions.push_back(macroOutputTokens);
+		environment.comptimeTokens.push_back(macroOutputTokens);
 
 		// Let the definition know about the expansion so it is easy to construct an expanded list
 		// of all tokens in the definition
@@ -489,11 +489,40 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 	return numErrors;
 }
 
-const char* objectTypeToString(ObjectType type);
+bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
+                                  const char* definitionToReplaceName,
+                                  const std::vector<Token>& newDefinitionTokens)
+{
+	ObjectDefinitionMap::iterator findIt = environment.definitions.find(definitionToReplaceName);
+	if (findIt == environment.definitions.end())
+	{
+		printf("error: ReplaceAndEvaluateDefinition() could not find definition '%s'\n",
+		       definitionToReplaceName);
+		return false;
+	}
+
+	EvaluatorContext definitionContext = findIt->second.context;
+	GeneratorOutput* definitionOutput = findIt->second.output;
+
+	// This makes me nervous because the user could have a reference to this when calling this
+	// function. I can't think of a safer way to get rid of the reference without deleting it
+	environment.definitions.erase(findIt);
+
+	definitionOutput->source.clear();
+	definitionOutput->header.clear();
+
+	bool isModuleScope = definitionContext.scope == EvaluatorScope_Module;
+	StringOutput moduleDelimiterTemplate = {};
+	moduleDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
+
+	return EvaluateGenerateAll_Recursive(
+	           environment, definitionContext, newDefinitionTokens, /*startTokenIndex=*/0,
+	           isModuleScope ? &moduleDelimiterTemplate : nullptr, *definitionOutput) == 0;
+}
 
 // Determine what needs to be built, iteratively
 // TODO This can be made faster. I did the most naive version first, for now
-void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
+static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 {
 	// Figure out what is required
 	// This needs to loop so long as it doesn't recurse to references
@@ -1151,13 +1180,6 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	{
 		const ObjectDefinition& definition = definitionPair.second;
 
-		// for (const MacroExpansion& macroExpansion : definition.macroExpansions)
-		// {
-		// 	NoteAtTokenf(*macroExpansion.atToken,
-		// 	             "%s: macro expansion below:", definitionPair.first.c_str());
-		// 	printTokens(*macroExpansion.tokens);
-		// }
-
 		if (definition.isRequired)
 		{
 			if (isCompileTimeObject(definition.type))
@@ -1224,7 +1246,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 // This serves only as a warning. I want to be very explicit with the lifetime of tokens
 EvaluatorEnvironment::~EvaluatorEnvironment()
 {
-	if (!macroExpansions.empty())
+	if (!comptimeTokens.empty())
 	{
 		printf(
 		    "Warning: environmentDestroyInvalidateTokens() has not been called. This will leak "
@@ -1252,9 +1274,9 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 	}
 	environment.definitions.clear();
 
-	for (const std::vector<Token>* macroExpansion : environment.macroExpansions)
-		delete macroExpansion;
-	environment.macroExpansions.clear();
+	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
+		delete comptimeTokens;
+	environment.comptimeTokens.clear();
 }
 
 const char* evaluatorScopeToString(EvaluatorScope expectedScope)

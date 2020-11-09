@@ -35,6 +35,18 @@ void moduleManagerInitialize(ModuleManager& manager)
 		moduleDefinition.definitionInvocation = &manager.globalPseudoInvocationName;
 		moduleDefinition.type = ObjectType_PseudoObject;
 		moduleDefinition.isRequired = true;
+
+		// The context on the definition shouldn't be used in this case unless this definition is
+		// going to be reevaluated or replaced, which doesn't make much sense. Let's put stuff in
+		// anyways, just to be sure
+		{
+			EvaluatorContext moduleContext = {};
+			moduleContext.scope = EvaluatorScope_Module;
+			moduleContext.definitionName = &manager.globalPseudoInvocationName;
+			moduleContext.isRequired = true;
+			moduleDefinition.context = moduleContext;
+		}
+
 		// Will be cleaned up when the environment is destroyed
 		GeneratorOutput* compTimeOutput = new GeneratorOutput;
 		moduleDefinition.output = compTimeOutput;
@@ -224,11 +236,11 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 	// TODO: Local functions can be left out if not referenced (in fact, they may warn in C if not)
 	moduleContext.isRequired = true;
 	// A delimiter isn't strictly necessary here, but it is nice to space out things
-	StringOutput bodyDelimiterTemplate = {};
-	bodyDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
+	StringOutput moduleDelimiterTemplate = {};
+	moduleDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
 	int numErrors = EvaluateGenerateAll_Recursive(
 	    manager.environment, moduleContext, *newModule->tokens,
-	    /*startTokenIndex=*/0, &bodyDelimiterTemplate, *newModule->generatedOutput);
+	    /*startTokenIndex=*/0, &moduleDelimiterTemplate, *newModule->generatedOutput);
 	// After this point, the module may have references to its tokens in the environmment, so we
 	// cannot destroy it until we're done evaluating everything
 	if (numErrors)
