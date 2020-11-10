@@ -218,6 +218,9 @@ struct EvaluatorEnvironment
 	// Compile-time-executable functions
 	MacroTable macros;
 	GeneratorTable generators;
+	// If the user renames a generator, store it under its old name here. This prevents repeated
+	// undefining of a generator, which might undefine generators which aren't built-in
+	GeneratorTable renamedGenerators;
 	// Dumping ground for functions without fixed signatures
 	CompileTimeFunctionTable compileTimeFunctions;
 	CompileTimeFunctionMetadataTable compileTimeFunctionInfo;
@@ -307,6 +310,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
                                                 const Token& referenceNameToken,
                                                 ObjectReference& reference);
 
+GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName);
 void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
 
 // Whether the (reference) cached file is more recent than the filename, meaning whatever operation

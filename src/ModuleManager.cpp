@@ -349,11 +349,27 @@ bool moduleManagerBuild(ModuleManager& manager)
 			}
 		}
 
-		ProcessCommand* buildCommandOverride =
-		    (!module->buildTimeBuildCommand.fileToExecute.empty() &&
-		     !module->buildTimeBuildCommand.arguments.empty()) ?
-		        &module->buildTimeBuildCommand :
-		        nullptr;
+		ProcessCommand* buildCommandOverride = nullptr;
+		{
+			int buildCommandState = 0;
+			if (!module->buildTimeBuildCommand.fileToExecute.empty())
+				++buildCommandState;
+			if (!module->buildTimeBuildCommand.arguments.empty())
+				++buildCommandState;
+			bool buildCommandValid = buildCommandState == 2;
+			if (!buildCommandValid && buildCommandState)
+			{
+				printf(
+				    "error: module build command override must be completely defined. Missing %s\n",
+				    module->buildTimeBuildCommand.fileToExecute.empty() ? "file to execute" :
+				                                                          "arguments");
+				builtObjectsFree(builtObjects);
+				return false;
+			}
+
+			if (buildCommandValid)
+				buildCommandOverride = &module->buildTimeBuildCommand;
+		}
 
 		if (log.buildProcess)
 			printf("Build module %s\n", module->sourceOutputName.c_str());

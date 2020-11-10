@@ -63,6 +63,7 @@ bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
 // NOT stack allocated)
 void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
                           Token* tokenToChange);
+
 void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
 
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);

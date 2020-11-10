@@ -29,7 +29,7 @@ const char* g_environmentPreLinkHookSignature =
 const char* g_environmentPostReferencesResolvedHookSignature =
     "('environment (& EvaluatorEnvironment) 'was-code-modified (& bool) &return bool)";
 
-static GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
+GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));
 	if (findIt != environment.generators.end())

@@ -1,5 +1,14 @@
 (set-cakelisp-option enable-hot-reloading true)
 
+;; Silly example, but shows user can replace built-in with a custom macro
+(rename-builtin "var" "badvar")
+(defmacro var ()
+  ;; (prettyPrintTokens output)
+  (PushBackTokenExpression output (addr (at startTokenIndex tokens)))
+  (set (field (at 1 output) contents) "badvar")
+  ;; (prettyPrintTokens output)
+  (return true))
+
 (set-module-option build-time-compiler "/usr/bin/clang++")
 ;; Include cakelisp source for DynamicLoader.hpp
 (set-module-option build-time-compile-arguments

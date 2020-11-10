@@ -418,6 +418,56 @@ bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 	return true;
 }
 
+// Allows users to rename built-in generators, making it possible to then define macros or
+// generators as replacements. It is dangerous though, because it may have been renamed after its
+// first invocation, causing differing outputs
+bool RenameBuiltinGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                            const std::vector<Token>& tokens, int startTokenIndex,
+                            GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int nameIndex = getExpectedArgument("expected built-in name", tokens, startTokenIndex, 1,
+	                                    endInvocationIndex);
+	if (nameIndex == -1)
+		return false;
+
+	int newNameIndex = getExpectedArgument("expected new name for builtin", tokens, startTokenIndex,
+	                                       2, endInvocationIndex);
+	if (newNameIndex == -1)
+		return false;
+
+	if (!ExpectTokenType("rename-builtin", tokens[nameIndex], TokenType_String) ||
+	    !ExpectTokenType("rename-builtin", tokens[newNameIndex], TokenType_String))
+		return false;
+
+	// Don't re-rename it; it might be a user's function at this point
+	GeneratorIterator findRenamedIt =
+	    environment.renamedGenerators.find(tokens[nameIndex].contents);
+	bool alreadyRenamed = findRenamedIt != environment.renamedGenerators.end();
+	if (alreadyRenamed)
+		return true;
+
+	GeneratorIterator findIt = environment.generators.find(tokens[nameIndex].contents);
+	if (findIt == environment.generators.end())
+	{
+		if (!alreadyRenamed)
+		{
+			ErrorAtToken(tokens[nameIndex], "built-in generator not found");
+			return false;
+		}
+
+		// Already renamed
+		return true;
+	}
+
+	GeneratorFunc generator = findIt->second;
+	environment.generators.erase(findIt);
+	environment.generators[tokens[newNameIndex].contents] = generator;
+	environment.renamedGenerators[tokens[nameIndex].contents] = generator;
+
+	return true;
+}
+
 enum ImportState
 {
 	WithDefinitions,
@@ -1014,6 +1064,13 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	const Token& nameToken = tokens[nameIndex];
 	if (!ExpectTokenType("defmacro", nameToken, TokenType_Symbol))
 		return false;
+
+	if (findGenerator(environment, nameToken.contents.c_str()))
+	{
+		ErrorAtToken(nameToken,
+		             "a generator by this name is defined. Generators always take precedence");
+		return false;
+	}
 
 	int argsIndex = nameIndex + 1;
 	if (!ExpectInInvocation("defmacro expected arguments", tokens, argsIndex,
@@ -2210,6 +2267,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	// Token manipulation
 	environment.generators["tokenize-push"] = TokenizePushGenerator;
+
+	environment.generators["rename-builtin"] = RenameBuiltinGenerator;
 
 	// Cakelisp options
 	environment.generators["set-cakelisp-option"] = SetCakelispOption;
