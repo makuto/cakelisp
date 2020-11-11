@@ -1,13 +1,19 @@
 (set-cakelisp-option enable-hot-reloading true)
 
-;; Silly example, but shows user can replace built-in with a custom macro
-(rename-builtin "var" "badvar")
-(defmacro var ()
-  ;; (prettyPrintTokens output)
-  (PushBackTokenExpression output (addr (at startTokenIndex tokens)))
-  (set (field (at 1 output) contents) "badvar")
-  ;; (prettyPrintTokens output)
-  (return true))
+;; ;; TODO: If this calls a function which needs var, that's a circular dependency
+;; ;; Silly example, but shows user can replace built-in with a custom macro
+;; (rename-builtin "var" "badvar")
+;; (defmacro var ()
+;;   (get-or-create-comptime-var var-replacements (<> std::vector (* (const Token))))
+;;   (for-in replaced-token (* (const Token)) (addr var-replacements)
+;;           (NoteAtToken (deref replaced-token) "Replaced already"))
+
+;;   ;; (prettyPrintTokens output)
+;;   (PushBackTokenExpression output (addr (at startTokenIndex tokens)))
+;;   (set (field (at 1 output) contents) "badvar")
+;;   ;; (prettyPrintTokens output)
+;;   (return true))
+
 
 (set-module-option build-time-compiler "/usr/bin/clang++")
 ;; Include cakelisp source for DynamicLoader.hpp

@@ -1,5 +1,44 @@
 (skip-build)
 
+;; Use a macro so that the type token address can be used
+;; Note that this causes the caller's function to return false if the binding failed
+(defmacro get-or-create-comptime-var ()
+  (destructure-arguments bound-var-name-index var-type-index)
+  (quick-token-at bound-var-name bound-var-name-index)
+  (quick-token-at var-type var-type-index)
+
+  (unless (ExpectTokenType "get-or-create-comptime-var" bound-var-name TokenType_Symbol)
+    (return false))
+
+  (var var-type-str Token var-type)
+  (set (field var-type-str type) TokenType_String)
+  ;; Convert type to string
+  (scope
+   (var type-to-string-buffer ([] 128 char) (array 0))
+   (var type-string-write-head (* char) type-to-string-buffer)
+   (var current-type-token (* (const Token)) (addr var-type))
+   (var end-type-token (* (const Token)) (FindTokenExpressionEnd current-type-token))
+   (while (<= current-type-token end-type-token)
+     (appendTokenToString (deref current-type-token) (addr type-string-write-head) type-to-string-buffer (sizeof type-to-string-buffer))
+     (incr current-type-token))
+   (set (field var-type-str contents) type-to-string-buffer))
+
+  (var var-name Token bound-var-name)
+  (set (field var-name type) TokenType_String)
+
+  (tokenize-push output
+                 (var (token-splice-addr bound-var-name) (* (token-splice-addr var-type)) nullptr)
+                 (unless (GetCompileTimeVariable environment
+                                                 (token-splice-addr var-name) (token-splice-addr var-type-str)
+                                                 (type-cast (addr (token-splice-addr bound-var-name)) (* (* void))))
+                   (set (token-splice-addr bound-var-name) (new (token-splice-addr var-type)))
+                   (unless (CreateCompileTimeVariable environment
+                                                      (token-splice-addr var-name) (token-splice-addr var-type-str)
+                                                      (type-cast (token-splice-addr bound-var-name) (* void)))
+                     (delete (token-splice-addr bound-var-name))
+                     (return false))))
+  (return true))
+
 ;; TODO: This should be builtin to macros and generators
 (defmacro destructure-arguments ()
   (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))

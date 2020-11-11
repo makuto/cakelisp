@@ -185,6 +185,45 @@ bool isCompileTimeObject(ObjectType type)
 	       type == ObjectType_CompileTimeFunction;
 }
 
+bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
+                               const char* typeExpression, void* data)
+{
+	CompileTimeVariableTableIterator findIt = environment.compileTimeVariables.find(name);
+	if (findIt != environment.compileTimeVariables.end())
+	{
+		printf("error: CreateCompileTimeVariable(): variable %s already defined\n", name);
+		return false;
+	}
+
+	CompileTimeVariable newCompileTimeVariable = {};
+	newCompileTimeVariable.type = typeExpression;
+	newCompileTimeVariable.data = data;
+	environment.compileTimeVariables[name] = newCompileTimeVariable;
+	return true;
+}
+
+bool GetCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
+                            const char* typeExpression, void** dataOut)
+{
+	*dataOut = nullptr;
+
+	CompileTimeVariableTableIterator findIt = environment.compileTimeVariables.find(name);
+	if (findIt == environment.compileTimeVariables.end())
+		return false;
+
+	if (findIt->second.type.compare(typeExpression) != 0)
+	{
+		printf(
+		    "error: GetCompileTimeVariable(): type does not match existing variable %s. Types must "
+		    "match exactly. Expected %s, got %s\n",
+		    name, findIt->second.type.c_str(), typeExpression);
+		return false;
+	}
+
+	*dataOut = findIt->second.data;
+	return true;
+}
+
 //
 // Evaluator
 //
@@ -1289,6 +1328,10 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
 		delete comptimeTokens;
 	environment.comptimeTokens.clear();
+
+	for (CompileTimeVariableTablePair& compileTimeVariablePair : environment.compileTimeVariables)
+		delete compileTimeVariablePair.second.data;
+	environment.compileTimeVariables.clear();
 }
 
 const char* evaluatorScopeToString(EvaluatorScope expectedScope)

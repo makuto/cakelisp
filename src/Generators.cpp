@@ -1675,10 +1675,12 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 		const Token& nextToken = tokens[i + 1];
 		if (currentToken.type == TokenType_OpenParen && nextToken.type == TokenType_Symbol &&
 		    (nextToken.contents.compare("token-splice") == 0 ||
+		     nextToken.contents.compare("token-splice-addr") == 0 ||
 		     nextToken.contents.compare("token-splice-array") == 0))
 		{
 			// TODO: Performance: remove extra string compare
 			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
+			bool tokenMakePointer = nextToken.contents.compare("token-splice-addr") == 0;
 
 			if (tokenToStringWrite != tokenToStringBuffer)
 			{
@@ -1705,6 +1707,9 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 				                &tokens[spliceArg]);
 
 				addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[spliceArg]);
+
+				if (tokenMakePointer)
+					addStringOutput(output.source, "&", StringOutMod_None, &tokens[spliceArg]);
 
 				// Evaluate token to start output expression
 				EvaluatorContext expressionContext = context;

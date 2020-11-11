@@ -30,12 +30,16 @@
   (return true))
 
 (defmacro magic-number ()
+  (get-or-create-comptime-var test-var std::string)
+  (set (deref test-var) "Yeah")
   (tokenize-push output (printf "The magic number is 42\\n"))
   (return true))
 
 (defun-comptime sabotage-main-printfs (environment (& EvaluatorEnvironment)
                                                    was-code-modified (& bool)
                                                    &return bool)
+  (get-or-create-comptime-var test-var std::string)
+  (printf "%s is the message\n" (on-call-ptr test-var c_str))
   (var old-definition-tags (<> std::vector std::string))
   ;; Scope to ensure that definition-it and definition are not referred to after
   ;; ReplaceAndEvaluateDefinition is called, because they will be invalid

@@ -210,6 +210,16 @@ extern const char* g_environmentPostReferencesResolvedHookSignature;
 typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment,
                                            bool& wasCodeModifiedOut);
 
+struct CompileTimeVariable
+{
+	// For runtime type checking
+	std::string type;
+	void* data;
+};
+typedef std::unordered_map<std::string, CompileTimeVariable> CompileTimeVariableTable;
+typedef CompileTimeVariableTable::iterator CompileTimeVariableTableIterator;
+typedef std::pair<const std::string, CompileTimeVariable> CompileTimeVariableTablePair;
+
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
@@ -217,10 +227,12 @@ struct EvaluatorEnvironment
 {
 	// Compile-time-executable functions
 	MacroTable macros;
+
 	GeneratorTable generators;
 	// If the user renames a generator, store it under its old name here. This prevents repeated
 	// undefining of a generator, which might undefine generators which aren't built-in
 	GeneratorTable renamedGenerators;
+
 	// Dumping ground for functions without fixed signatures
 	CompileTimeFunctionTable compileTimeFunctions;
 	CompileTimeFunctionMetadataTable compileTimeFunctionInfo;
@@ -247,6 +259,9 @@ struct EvaluatorEnvironment
 	// Used to load other files into the environment
 	// If this is null, it means other Cakelisp files will not be imported (which could be desired)
 	ModuleManager* moduleManager;
+
+	// User-specified variables usable by any compile-time macro/generator/function/hook
+	CompileTimeVariableTable compileTimeVariables;
 
 	// Generate code so that objects defined in Cakelisp can be reloaded at runtime
 	bool enableHotReloading;
@@ -312,6 +327,12 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName);
 void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
+
+// These must take type as string in order to be address agnostic, making caching possible
+bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
+                               const char* typeExpression, void* data);
+bool GetCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
+                            const char* typeExpression, void** dataOut);
 
 // Whether the (reference) cached file is more recent than the filename, meaning whatever operation
 // which made the cached file can be skipped. Basically fileIsMoreRecentlyModified(), but respects
