@@ -419,8 +419,7 @@ bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 }
 
 // Allows users to rename built-in generators, making it possible to then define macros or
-// generators as replacements. It is dangerous though, because it may have been renamed after its
-// first invocation, causing differing outputs
+// generators as replacements.
 bool RenameBuiltinGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                             const std::vector<Token>& tokens, int startTokenIndex,
                             GeneratorOutput& output)
@@ -458,6 +457,18 @@ bool RenameBuiltinGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 
 		// Already renamed
 		return true;
+	}
+
+	// TODO: Go back and reevaluate all places where the old version was used?
+	GeneratorLastReferenceTableIterator findReferenceIt =
+	    environment.lastGeneratorReferences.find(tokens[nameIndex].contents);
+	if (findReferenceIt != environment.lastGeneratorReferences.end())
+	{
+		ErrorAtToken(*findReferenceIt->second,
+		             "rename-builtin: found reference to generator built-in before it could be "
+		             "renamed. It is expected to rename built-ins before ever referenced, else "
+		             "invocations evaluated before the rename will have different output");
+		return false;
 	}
 
 	GeneratorFunc generator = findIt->second;

@@ -339,6 +339,9 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 	GeneratorFunc invokedGenerator = findGenerator(environment, invocationName.contents.c_str());
 	if (invokedGenerator)
 	{
+		environment.lastGeneratorReferences[invocationName.contents.c_str()] =
+		    &tokens[invocationStartIndex];
+
 		return invokedGenerator(environment, context, tokens, invocationStartIndex, output);
 	}
 

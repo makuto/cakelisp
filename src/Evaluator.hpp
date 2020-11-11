@@ -105,6 +105,9 @@ typedef std::unordered_map<std::string, GeneratorFunc> GeneratorTable;
 typedef MacroTable::iterator MacroIterator;
 typedef GeneratorTable::iterator GeneratorIterator;
 
+typedef std::unordered_map<std::string, const Token*> GeneratorLastReferenceTable;
+typedef GeneratorLastReferenceTable::iterator GeneratorLastReferenceTableIterator;
+
 struct ObjectReference
 {
 	const std::vector<Token>* tokens;
@@ -232,6 +235,9 @@ struct EvaluatorEnvironment
 	// If the user renames a generator, store it under its old name here. This prevents repeated
 	// undefining of a generator, which might undefine generators which aren't built-in
 	GeneratorTable renamedGenerators;
+	// More badness to protect from RenameBuiltinGenerator problems. This table allows the user to
+	// know they fully overrode the built-in before it was ever referenced (or not)
+	GeneratorLastReferenceTable lastGeneratorReferences;
 
 	// Dumping ground for functions without fixed signatures
 	CompileTimeFunctionTable compileTimeFunctions;
