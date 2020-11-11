@@ -213,11 +213,17 @@ extern const char* g_environmentPostReferencesResolvedHookSignature;
 typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment,
                                            bool& wasCodeModifiedOut);
 
+typedef void (*CompileTimeVariableDestroyFunc)(void* data);
+
 struct CompileTimeVariable
 {
 	// For runtime type checking
 	std::string type;
 	void* data;
+	// The type must be known if destructors are to be run. POD/C malloc'd types can use free()
+	// (which is used if destroyCompileTimeFuncName is empty), but C++ types need to cast the
+	// pointer to the appropriate type to make sure destructor is called
+	std::string destroyCompileTimeFuncName;
 };
 typedef std::unordered_map<std::string, CompileTimeVariable> CompileTimeVariableTable;
 typedef CompileTimeVariableTable::iterator CompileTimeVariableTableIterator;
@@ -335,8 +341,10 @@ GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* funct
 void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
 
 // These must take type as string in order to be address agnostic, making caching possible
+// destroyFunc is necessary for any C++ type with a destructor. If nullptr, free() is used
 bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
-                               const char* typeExpression, void* data);
+                               const char* typeExpression, void* data,
+                               const char* destroyCompileTimeFuncName);
 bool GetCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
                             const char* typeExpression, void** dataOut);
 

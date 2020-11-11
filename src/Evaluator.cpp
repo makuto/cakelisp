@@ -186,7 +186,8 @@ bool isCompileTimeObject(ObjectType type)
 }
 
 bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
-                               const char* typeExpression, void* data)
+                               const char* typeExpression, void* data,
+                               const char* destroyCompileTimeFuncName)
 {
 	CompileTimeVariableTableIterator findIt = environment.compileTimeVariables.find(name);
 	if (findIt != environment.compileTimeVariables.end())
@@ -198,6 +199,7 @@ bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* na
 	CompileTimeVariable newCompileTimeVariable = {};
 	newCompileTimeVariable.type = typeExpression;
 	newCompileTimeVariable.data = data;
+	newCompileTimeVariable.destroyCompileTimeFuncName = destroyCompileTimeFuncName;
 	environment.compileTimeVariables[name] = newCompileTimeVariable;
 	return true;
 }
@@ -1305,6 +1307,33 @@ EvaluatorEnvironment::~EvaluatorEnvironment()
 
 void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 {
+	for (CompileTimeVariableTablePair& compileTimeVariablePair : environment.compileTimeVariables)
+	{
+		const std::string& destroyFuncName =
+		    compileTimeVariablePair.second.destroyCompileTimeFuncName;
+		if (!destroyFuncName.empty())
+		{
+			// Search for the compile-time function. It needs to have been required in order to be
+			// built and loaded already
+			void* destroyFunc = findCompileTimeFunction(environment, destroyFuncName.c_str());
+			if (destroyFunc)
+			{
+				// TODO: Validate signature, then run!
+			}
+			else
+			{
+				printf(
+				    "error: destruction function '%s' for compile-time variable '%s' was not "
+				    "loaded before the environment started destruction. Was it ever defined, or "
+				    "defined but not required? Memory will leak\n",
+				    destroyFuncName.c_str(), compileTimeVariablePair.first.c_str());
+			}
+		}
+		else
+			free(compileTimeVariablePair.second.data);
+	}
+	environment.compileTimeVariables.clear();
+
 	for (ObjectReferencePoolPair& referencePoolPair : environment.referencePools)
 	{
 		for (ObjectReference& reference : referencePoolPair.second.references)
@@ -1331,10 +1360,6 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
 		delete comptimeTokens;
 	environment.comptimeTokens.clear();
-
-	for (CompileTimeVariableTablePair& compileTimeVariablePair : environment.compileTimeVariables)
-		delete compileTimeVariablePair.second.data;
-	environment.compileTimeVariables.clear();
 }
 
 const char* evaluatorScopeToString(EvaluatorScope expectedScope)

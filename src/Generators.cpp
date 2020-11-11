@@ -2055,6 +2055,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	                                             {Expression /*Thing to cast*/, nullptr, 1},
 	                                             {CloseParen, nullptr, -1}};
 
+	// Necessary to parse types correctly, because it's a DSL
+	const CStatementOperation typeStatement[] = {{TypeNoArray, nullptr, 1}};
+
 	const CStatementOperation scopeResolution[] = {{SpliceNoSpace, "::", 1}};
 
 	// Similar to progn, but doesn't necessarily mean things run in order (this doesn't add
@@ -2141,7 +2144,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	     ArraySize(dereferenceMemberFunctionInvocation)},
 	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
 	    {"in", scopeResolution, ArraySize(scopeResolution)},
-	    {"type-cast", castStatement, ArraySize(castStatement)},
+		{"type-cast", castStatement, ArraySize(castStatement)},
+		{"type", typeStatement, ArraySize(typeStatement)},
 	    // Expressions
 	    {"or", booleanOr, ArraySize(booleanOr)},
 	    {"and", booleanAnd, ArraySize(booleanAnd)},
@@ -2302,7 +2306,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
-	    "on-call", "on-call-ptr", "call", "in", "type-cast",
+	    "on-call", "on-call-ptr", "call", "in", "type-cast", "type",
 	    // Boolean
 	    "or", "and", "not",
 	    // Bitwise
