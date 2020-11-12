@@ -15,11 +15,20 @@
   ;; (prettyPrintTokens output)
   (return true))
 
+(set-cakelisp-option compile-time-compiler "/usr/bin/clang++")
+;; Include cakelisp source for DynamicLoader.hpp
+(set-cakelisp-option compile-time-compile-arguments
+                   ;; Precompiled headers give a ~60% speedup. See https://clang.llvm.org/docs/UsersManual.html#precompiled-headers
+                   ;; "-include" "src/Evaluator.hpp"
+                   "-Wall" "-Wextra" "-Wno-unused-parameter" "-O0"
+                   ;; TODO: Multiplatform support
+                   "-DUNIX"
+                   "-g" "-c" 'source-input "-o" 'object-output "-fPIC" "-Isrc/")
 
 (set-module-option build-time-compiler "/usr/bin/clang++")
 ;; Include cakelisp source for DynamicLoader.hpp
 (set-module-option build-time-compile-arguments
-                   "-std=c++11" "-Wall" "-Wextra" "-Wno-unused-parameter" "-O0"
+                   "-Wall" "-Wextra" "-Wno-unused-parameter" "-O0"
                    ;; TODO: Multiplatform support
                    "-DUNIX"
                    "-g" "-c" 'source-input "-o" 'object-output "-fPIC" "-Isrc/")

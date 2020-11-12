@@ -45,3 +45,5 @@ bool writeCharToBufferErrorToken(char c, char** at, char* bufferStart, int buffe
 bool writeStringToBufferErrorToken(const char* str, char** at, char* bufferStart, int bufferSize,
                                    const Token& token);
 bool appendTokenToString(const Token& token, char** at, char* bufferStart, int bufferSize);
+
+extern int g_totalLinesTokenized;

@@ -290,6 +290,8 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 			return false;
 	}
 
+	printf("Processed %d lines\n", g_totalLinesTokenized);
+
 	return true;
 }
 

@@ -11,6 +11,9 @@
 # jam -j4 && ./bin/cakelisp --ignore-cache --verbose-processes --verbose-build-process \
 			   # runtime/TestMain.cake runtime/TextAdventure.cake
 
+# TODO: Add precompiled headers to build system. They are a 60% speedup for compile-time building
+# clang -g -fPIC -x c++-header src/Evaluator.hpp -o src/Evaluator.hpp.pch
+
 jam -j4 && ./bin/cakelisp --ignore-cache \
 						  runtime/TestMain.cake runtime/TextAdventure.cake
 

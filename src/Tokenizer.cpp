@@ -15,10 +15,15 @@ enum TokenizeState
 	TokenizeState_InString
 };
 
+int g_totalLinesTokenized = 0;
+
 // Returns nullptr if no errors, else the error text
 const char* tokenizeLine(const char* inputLine, const char* source, unsigned int lineNumber,
                          std::vector<Token>& tokensOut)
 {
+	// For performance estimation only
+	++g_totalLinesTokenized;
+
 	const char* A_OK = nullptr;
 
 	TokenizeState tokenizeState = TokenizeState_Normal;

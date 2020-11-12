@@ -339,6 +339,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName);
 void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
+ObjectDefinition* findObjectDefinition(EvaluatorEnvironment& environment, const char* name);
 
 // These must take type as string in order to be address agnostic, making caching possible
 // destroyFunc is necessary for any C++ type with a destructor. If nullptr, free() is used

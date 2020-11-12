@@ -96,6 +96,14 @@ bool addObjectDefinition(EvaluatorEnvironment& environment, ObjectDefinition& de
 	}
 }
 
+ObjectDefinition* findObjectDefinition(EvaluatorEnvironment& environment, const char* name)
+{
+	ObjectDefinitionMap::iterator findIt = environment.definitions.find(name);
+	if (findIt != environment.definitions.end())
+		return &findIt->second;
+	return nullptr;
+}
+
 const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environment,
                                                 const Token& referenceNameToken,
                                                 ObjectReference& reference)
@@ -1154,6 +1162,12 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			objectToBuild.definition = &definition;
 			definitionsToBuild.push_back(objectToBuild);
 		}
+	}
+
+	if (!definitionsToBuild.empty())
+	{
+		int numToBuild = (int)definitionsToBuild.size();
+		printf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
 	}
 
 	numReferencesResolved +=
