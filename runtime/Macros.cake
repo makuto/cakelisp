@@ -30,20 +30,21 @@
   (var var-name Token bound-var-name)
   (set (field var-name type) TokenType_String)
 
-  ;; TODO: Only do this if one isn't already defined
-  (scope ;; Create destruction function
+  ;; TODO: Only do this if one for this type
+  (unless (or (findCompileTimeFunction environment "destroy-me")
+              (findObjectDefinition environment "destroy-me"))
    (var destruction-func-def (* (<> std::vector Token)) (new (<> std::vector Token)))
    ;; Need to have the environment delete this once it's safe
    (on-call (field environment comptimeTokens) push_back destruction-func-def)
    (tokenize-push (deref destruction-func-def)
                   (defun-comptime destroy-me (data (* void))
-                    (delete (type-cast data (* (token-splice-addr var-type))))
-                    (return true)))
+                    (printf "destroying thing\\n")
+                    (delete (type-cast data (* (token-splice-addr var-type))))))
 
+   ;; TODO: Why isn't this causing the required to propagate?
    (var destruction-func-context EvaluatorContext context)
    (set (field destruction-func-context isRequired) true)
    (set (field destruction-func-context scope) EvaluatorScope_Module)
-
    (set (field destruction-func-context definitionName)
         (addr (path environment . moduleManager > globalPseudoInvocationName)))
    ;; We are only outputting a compile-time function, which uses definition's output storage to be
@@ -65,7 +66,6 @@
                                                  (token-splice-addr var-name) (token-splice-addr var-type-str)
                                                  (type-cast (addr (token-splice-addr bound-var-name)) (* (* void))))
                    (set (token-splice-addr bound-var-name) (new (token-splice-addr var-type)))
-                   ;; TODO: Define destruction function
                    (var destroy-func-name (* (const char)) "destroy-me")
                    (unless (CreateCompileTimeVariable environment
                                                       (token-splice-addr var-name) (token-splice-addr var-type-str)

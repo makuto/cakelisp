@@ -29,6 +29,8 @@ const char* g_environmentPreLinkHookSignature =
 const char* g_environmentPostReferencesResolvedHookSignature =
     "('environment (& EvaluatorEnvironment) 'was-code-modified (& bool) &return bool)";
 
+static const char* g_environmentCompileTimeVariableDestroySignature = "('data (* void))";
+
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName)
 {
 	GeneratorIterator findIt = environment.generators.find(std::string(functionName));
@@ -207,8 +209,15 @@ bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* na
 	CompileTimeVariable newCompileTimeVariable = {};
 	newCompileTimeVariable.type = typeExpression;
 	newCompileTimeVariable.data = data;
-	newCompileTimeVariable.destroyCompileTimeFuncName = destroyCompileTimeFuncName;
+	if (destroyCompileTimeFuncName)
+		newCompileTimeVariable.destroyCompileTimeFuncName = destroyCompileTimeFuncName;
 	environment.compileTimeVariables[name] = newCompileTimeVariable;
+
+	// Make sure it gets built and loaded once it is defined
+	if (destroyCompileTimeFuncName)
+		environment.requiredCompileTimeFunctions[destroyCompileTimeFuncName] =
+		    "compile time variable destructor";
+
 	return true;
 }
 
@@ -591,10 +600,31 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 		for (ObjectDefinitionPair& definitionPair : environment.definitions)
 		{
 			ObjectDefinition& definition = definitionPair.second;
-			const char* status = definition.isRequired ? "(required)" : "(not required)";
+
+			// Automatically require a compile-time function if the environment needs it (typically
+			// because some other function was called that added the requirement before the
+			// definition was available)
+			if (definition.type == ObjectType_CompileTimeFunction && !definition.isRequired)
+			{
+				RequiredCompileTimeFunctionReasonsTableIterator findIt =
+				    environment.requiredCompileTimeFunctions.find(definition.name.c_str());
+
+				if (findIt != environment.requiredCompileTimeFunctions.end())
+				{
+					if (log.dependencyPropagation)
+						printf("Define %s promoted to required because %s\n",
+						       definition.name.c_str(), findIt->second);
+
+					definition.isRequired = true;
+					definition.environmentRequired = true;
+				}
+			}
 
 			if (log.dependencyPropagation)
+			{
+				const char* status = definition.isRequired ? "(required)" : "(not required)";
 				printf("Define %s %s\n", definition.name.c_str(), status);
+			}
 
 			for (ObjectReferenceStatusPair& reference : definition.references)
 			{
@@ -934,9 +964,10 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		    environment.referencePools.find(buildObject.definition->name);
 		if (referencePoolIt == environment.referencePools.end())
 		{
-			printf(
-			    "Error: built an object which had no references. It should not have been "
-			    "required. There must be a problem with Cakelisp internally\n");
+			if (!buildObject.definition->environmentRequired)
+				printf(
+				    "error: built an object which had no references. It should not have been "
+				    "required. There must be a problem with Cakelisp internally\n");
 			continue;
 		}
 
@@ -1332,7 +1363,42 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 			void* destroyFunc = findCompileTimeFunction(environment, destroyFuncName.c_str());
 			if (destroyFunc)
 			{
-				// TODO: Validate signature, then run!
+				static std::vector<Token> expectedSignature;
+				if (expectedSignature.empty())
+				{
+					if (!tokenizeLinePrintError(g_environmentCompileTimeVariableDestroySignature,
+					                            __FILE__, __LINE__, expectedSignature))
+					{
+						printf(
+						    "error: failed to tokenize "
+						    "g_environmentCompileTimeVariableDestroySignature! Internal code "
+						    "error. Compile time variable memory will leak\n");
+						continue;
+					}
+				}
+
+				ObjectDefinition* destroyFuncDefinition =
+				    findObjectDefinition(environment, destroyFuncName.c_str());
+				if (!destroyFuncDefinition)
+				{
+					printf(
+					    "error: could not find compile-time variable destroy function to verify "
+					    "signature. Internal code error?\n");
+					continue;
+				}
+
+				// If it got this far, it's a safe bet that the signature is valid. Skip the open
+				// paren, defun-comptime, and name
+				const Token* startSignatureToken = destroyFuncDefinition->definitionInvocation + 3;
+
+				if (!CompileTimeFunctionSignatureMatches(environment, *startSignatureToken,
+				                                         destroyFuncName.c_str(),
+				                                         expectedSignature))
+				{
+					continue;
+				}
+
+				((CompileTimeVariableDestroyFunc)destroyFunc)(compileTimeVariablePair.second.data);
 			}
 			else
 			{

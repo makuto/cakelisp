@@ -155,6 +155,9 @@ struct ObjectDefinition
 	// Objects can be referenced by other objects, but something in the chain must be required in
 	// order for the objects to be built. Required-ness spreads from the top level module scope
 	bool isRequired;
+	// The user's code might not require it, but the environment does, so don't error if this
+	// definition has no references
+	bool environmentRequired;
 	// Unique references, for dependency checking
 	ObjectReferenceStatusMap references;
 
@@ -213,6 +216,7 @@ extern const char* g_environmentPostReferencesResolvedHookSignature;
 typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment,
                                            bool& wasCodeModifiedOut);
 
+// Update g_environmentCompileTimeVariableDestroySignature if you change this signature
 typedef void (*CompileTimeVariableDestroyFunc)(void* data);
 
 struct CompileTimeVariable
@@ -228,6 +232,10 @@ struct CompileTimeVariable
 typedef std::unordered_map<std::string, CompileTimeVariable> CompileTimeVariableTable;
 typedef CompileTimeVariableTable::iterator CompileTimeVariableTableIterator;
 typedef std::pair<const std::string, CompileTimeVariable> CompileTimeVariableTablePair;
+
+typedef std::unordered_map<std::string, const char*> RequiredCompileTimeFunctionReasonsTable;
+typedef RequiredCompileTimeFunctionReasonsTable::iterator
+    RequiredCompileTimeFunctionReasonsTableIterator;
 
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -248,6 +256,7 @@ struct EvaluatorEnvironment
 	// Dumping ground for functions without fixed signatures
 	CompileTimeFunctionTable compileTimeFunctions;
 	CompileTimeFunctionMetadataTable compileTimeFunctionInfo;
+	RequiredCompileTimeFunctionReasonsTable requiredCompileTimeFunctions;
 
 	// We need to keep the tokens macros etc. create around so they can be referenced by
 	// StringOperations. Token vectors must not be changed after they are created or pointers to
