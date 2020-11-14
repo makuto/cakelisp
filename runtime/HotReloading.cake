@@ -1,7 +1,8 @@
 (set-cakelisp-option enable-hot-reloading true)
 
-;; ;; TODO: If this calls a function which needs var, that's a circular dependency
-;; ;; Silly example, but shows user can replace built-in with a custom macro
+;; TODO: If this calls a function which needs var, that's a circular dependency
+;; Silly example, but shows user can replace built-in with a custom macro
+;; Would this be better as a code-modification thing?
 (rename-builtin "var" "badvar")
 (defmacro var ()
   ;; Var cannot be used within var, because it's undefined. This excludes a lot of macros

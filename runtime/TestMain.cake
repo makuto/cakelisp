@@ -31,6 +31,7 @@
 
 (defmacro magic-number ()
   (get-or-create-comptime-var test-var std::string)
+  (get-or-create-comptime-var test-crazy-var (* (const (* (<> std::vector int)))))
   (set (deref test-var) "Yeah")
   (tokenize-push output (printf "The magic number is 42\\n"))
   (return true))

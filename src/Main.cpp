@@ -55,6 +55,9 @@ int main(int numArguments, char* arguments[])
 	     "Output why objects are or are not being built in each compile-time build cycle"},
 	    {"--verbose-build-process", &log.buildProcess,
 	     "Output object statuses as they move through the compile-time pipeline"},
+	    {"--verbose-compile-time-build-objects", &log.compileTimeBuildObjects,
+	     "Output when a compile-time object is being built/loaded. Like --verbose-build-process, "
+	     "but less verbose"},
 	    {"--verbose-processes", &log.processes,
 	     "Output full command lines and other information about all child processes created during "
 	     "the compile-time build process"},

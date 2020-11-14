@@ -1195,10 +1195,15 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		}
 	}
 
-	if (!definitionsToBuild.empty())
+	if (log.compileTimeBuildObjects && !definitionsToBuild.empty())
 	{
 		int numToBuild = (int)definitionsToBuild.size();
 		printf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
+
+		for (BuildObject& buildObject : definitionsToBuild)
+		{
+			printf("\t%s\n", buildObject.definition->name.c_str());
+		}
 	}
 
 	numReferencesResolved +=
