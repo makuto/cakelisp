@@ -1,30 +1,43 @@
 #include "OutputPreambles.hpp"
 
-// Must use extern "C" for dynamic symbols, because otherwise name mangling makes things hard
-const char* macroSourceHeading =
-    "#include \"Evaluator.hpp\""
-	"\n#include \"EvaluatorEnums.hpp\""
-    "\n#include \"Tokenizer.hpp\""
-    "\n#include \"GeneratorHelpers.hpp\""
-    "\n#include \"Utilities.hpp\""
-	"\n#include \"ModuleManager.hpp\""
-	"\nextern \"C\"\n{\n";
-// Close extern "C" block
-const char* macroSourceFooter = "}\n";
+#include "Evaluator.hpp"
+#include "GeneratorHelpers.hpp"
+#include "Utilities.hpp"
 
-// Must use extern "C" for dynamic symbols, because otherwise name mangling makes things hard
-const char* generatorSourceHeading =
-    "#include \"Evaluator.hpp\""
-	"\n#include \"EvaluatorEnums.hpp\""
-	"\n#include \"Tokenizer.hpp\""
-	"\n#include \"GeneratorHelpers.hpp\""
-	"\n#include \"Utilities.hpp\""
-	"\n#include \"ModuleManager.hpp\""
-	"\nextern \"C\"\n{\n";
-// Close extern "C" block
-const char* generatorSourceFooter = "}\n";
+void makeCompileTimeHeaderFooter(GeneratorOutput& headerOut, GeneratorOutput& footerOut,
+                                 GeneratorOutput* spliceAfterHeaders, const Token* blameToken)
+{
+	const char* defaultIncludes[] = {
+	    "Evaluator.hpp",        "EvaluatorEnums.hpp", "Tokenizer.hpp",
+	    "GeneratorHelpers.hpp", "Utilities.hpp",      "ModuleManager.hpp",
+	};
 
-const char* generatedSourceHeading = nullptr;
-const char* generatedSourceFooter = nullptr;
-const char* generatedHeaderHeading = "#pragma once\n";
-const char* generatedHeaderFooter = nullptr;
+	for (unsigned int i = 0; i < ArraySize(defaultIncludes); ++i)
+	{
+		addStringOutput(headerOut.source, "#include", StringOutMod_SpaceAfter, blameToken);
+		addStringOutput(headerOut.source, defaultIncludes[i], StringOutMod_SurroundWithQuotes,
+		                blameToken);
+		addLangTokenOutput(headerOut.source, StringOutMod_NewlineAfter, blameToken);
+	}
+
+	addLangTokenOutput(headerOut.source, StringOutMod_NewlineAfter, blameToken);
+
+	// Allow the caller space to add things after the includes but before the extern "C"
+	if (spliceAfterHeaders)
+	{
+		addSpliceOutput(headerOut, spliceAfterHeaders, blameToken);
+
+		addLangTokenOutput(headerOut.source, StringOutMod_NewlineAfter, blameToken);
+	}
+
+	// Must use extern "C" for dynamic symbols, because otherwise name mangling makes things hard
+	addStringOutput(headerOut.source, "extern \"C\" {", StringOutMod_NewlineAfter, blameToken);
+
+	addStringOutput(footerOut.source, "}", StringOutMod_None, blameToken);
+}
+
+void makeRunTimeHeaderFooter(GeneratorOutput& headerOut, GeneratorOutput& footerOut,
+                             const Token* blameToken)
+{
+	addStringOutput(headerOut.header, "#pragma once", StringOutMod_NewlineAfter, blameToken);
+}

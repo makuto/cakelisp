@@ -27,8 +27,10 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 
 #ifdef UNIX
 	// RTLD_LAZY: Don't look up symbols the shared library needs until it encounters them
+	// RTLD_GLOBAL: Allow subsequently loaded libraries to resolve from this library (mainly for
+	// compile-time function execution)
 	// Note that this requires linking with -Wl,-rpath,. in order to turn up relative path .so files
-	libHandle = dlopen(libraryPath, RTLD_LAZY);
+	libHandle = dlopen(libraryPath, RTLD_LAZY | RTLD_GLOBAL);
 
 	if (!libHandle)
 	{

@@ -369,8 +369,6 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 	{
 		bool isHeader;
 		const char* outputFilename;
-		const char* heading;
-		const char* footer;
 
 		StringOutputState outputState;
 		// To determine if anything was actually written
@@ -378,16 +376,12 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		char tempFilename[MAX_PATH_LENGTH];
 	} outputs[] = {{/*isHeader=*/false,
 	                outputSettings.sourceOutputName,
-	                outputSettings.sourceHeading,
-	                outputSettings.sourceFooter,
 	                {},
 	                {},
 	                {0}},
 	               {
 	                   /*isHeader=*/true,
 	                   outputSettings.headerOutputName,
-	                   outputSettings.headerHeading,
-	                   outputSettings.headerFooter,
 	                   {},
 	                   {},
 	                   {0},
@@ -400,16 +394,25 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		// TODO: If this fails to open, Writer_Writef just won't write to the file, it'll print
 		outputs[i].outputState.fileOut = fileOpen(outputs[i].tempFilename, "w");
 
-		if (outputs[i].heading)
+		if (outputSettings.heading)
 		{
-			Writer_Writef(outputs[i].outputState, outputs[i].heading);
-			// TODO: Put this in Writer_Writef
-			for (const char* c = outputs[i].heading; *c != '\0'; ++c)
-			{
-				if (*c == '\n')
-					++outputs[i].outputState.currentLine;
-			}
+			writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputs[i].outputState,
+			                                   outputs[i].isHeader ?
+			                                       outputSettings.heading->header :
+			                                       outputSettings.heading->source,
+			                                   outputs[i].isHeader);
 		}
+
+		// if (outputs[i].heading)
+		// {
+		// 	Writer_Writef(outputs[i].outputState, outputs[i].heading);
+		// 	// TODO: Put this in Writer_Writef
+		// 	for (const char* c = outputs[i].heading; *c != '\0'; ++c)
+		// 	{
+		// 		if (*c == '\n')
+		// 			++outputs[i].outputState.currentLine;
+		// 	}
+		// }
 
 		outputs[i].stateBeforeOutputWrite = outputs[i].outputState;
 	}
@@ -441,16 +444,24 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 			continue;
 		}
 
-		if (outputs[i].footer)
+		if (outputSettings.footer)
 		{
-			Writer_Writef(outputs[i].outputState, outputs[i].footer);
-			// TODO: Put this in Writer_Writef
-			for (const char* c = outputs[i].footer; *c != '\0'; ++c)
-			{
-				if (*c == '\n')
-					++outputs[i].outputState.currentLine;
-			}
+			writeOutputFollowSplices_Recursive(
+			    nameSettings, formatSettings, outputs[i].outputState,
+			    outputs[i].isHeader ? outputSettings.footer->header : outputSettings.footer->source,
+			    outputs[i].isHeader);
 		}
+
+		// if (outputs[i].footer)
+		// {
+		// 	Writer_Writef(outputs[i].outputState, outputs[i].footer);
+		// 	// TODO: Put this in Writer_Writef
+		// 	for (const char* c = outputs[i].footer; *c != '\0'; ++c)
+		// 	{
+		// 		if (*c == '\n')
+		// 			++outputs[i].outputState.currentLine;
+		// 	}
+		// }
 
 		if (outputs[i].outputState.fileOut)
 		{

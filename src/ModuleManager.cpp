@@ -6,6 +6,7 @@
 #include "Evaluator.hpp"
 #include "EvaluatorEnums.hpp"
 #include "FileUtilities.hpp"
+#include "GeneratorHelpers.hpp"
 #include "Generators.hpp"
 #include "Logging.hpp"
 #include "OutputPreambles.hpp"
@@ -157,6 +158,13 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 	if (log.tokenization)
 		printf("Tokenized %d lines\n", lineNumber - 1);
 
+	if (tokens->empty())
+	{
+		printf("error: empty file. Please remove from system, or add (ignore)\n");
+		delete tokens;
+		return false;
+	}
+
 	if (!validateParentheses(*tokens))
 	{
 		delete tokens;
@@ -265,16 +273,25 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		WriterOutputSettings outputSettings;
 		outputSettings.sourceCakelispFilename = module->filename;
 
-		// TODO: hpp to h support
-		char relativeIncludeBuffer[MAX_PATH_LENGTH];
-		getFilenameFromPath(module->filename, relativeIncludeBuffer, sizeof(relativeIncludeBuffer));
-		char sourceHeadingBuffer[1024] = {0};
-		PrintfBuffer(sourceHeadingBuffer, "#include \"%s.hpp\"\n%s", relativeIncludeBuffer,
-		             generatedSourceHeading ? generatedSourceHeading : "");
-		outputSettings.sourceHeading = sourceHeadingBuffer;
-		outputSettings.sourceFooter = generatedSourceFooter;
-		outputSettings.headerHeading = generatedHeaderHeading;
-		outputSettings.headerFooter = generatedHeaderFooter;
+		GeneratorOutput header;
+		GeneratorOutput footer;
+		// Something to attach the reason for generating this output
+		const Token* blameToken = &(*module->tokens)[0];
+		// Always include my header file
+		{
+			char relativeIncludeBuffer[MAX_PATH_LENGTH];
+			getFilenameFromPath(module->filename, relativeIncludeBuffer,
+			                    sizeof(relativeIncludeBuffer));
+			// TODO: hpp to h support
+			strcat(relativeIncludeBuffer, ".hpp");
+			addStringOutput(header.source, "#include", StringOutMod_SpaceAfter, blameToken);
+			addStringOutput(header.source, relativeIncludeBuffer, StringOutMod_SurroundWithQuotes,
+			                blameToken);
+			addLangTokenOutput(header.source, StringOutMod_NewlineAfter, blameToken);
+		}
+		makeRunTimeHeaderFooter(header, footer, blameToken);
+		outputSettings.heading = &header;
+		outputSettings.footer = &footer;
 
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);

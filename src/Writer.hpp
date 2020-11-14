@@ -24,10 +24,11 @@ struct WriterOutputSettings
 	const char* sourceOutputName;
 	const char* headerOutputName;
 
-	const char* sourceHeading;
-	const char* sourceFooter;
-	const char* headerHeading;
-	const char* headerFooter;
+	// User code has less control over these outputs. These are more internal/automatic, e.g.
+	// handling automatic includes or extern "C" wrapping
+	// Note that these cover both the source and header heading and footer
+	const GeneratorOutput* heading;
+	const GeneratorOutput* footer;
 };
 
 const char* importLanguageToString(ImportLanguage type);

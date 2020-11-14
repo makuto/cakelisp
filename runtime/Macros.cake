@@ -126,7 +126,8 @@
       (return false)))
 
   ;; Create the binding and lazy-variable creation
-  ;; TODO: Any way to make this less code for each ref? There's a lot here
+  ;; TODO: Any way to make this less code for each ref? There's a lot here.
+  ;; Yes: Auto-generate construction function and call it instead of copy-pasting
   (tokenize-push output
                  (var (token-splice-addr bound-var-name) (* (token-splice-addr var-type)) nullptr)
                  (scope (unless (GetCompileTimeVariable environment

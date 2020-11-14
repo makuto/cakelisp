@@ -366,6 +366,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 
 	// Check for known Cakelisp functions
 	ObjectDefinitionMap::iterator findIt = environment.definitions.find(invocationName.contents);
+	// Compile-time function calls are handled by resolve references
 	if (findIt != environment.definitions.end() && !isCompileTimeObject(findIt->second.type))
 	{
 		return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
@@ -404,7 +405,9 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// instances, and stored a status on each one. I don't like the duplication here, but it
 		// does match the other HandleInvocation_Recursive() invocation types, which are handled as
 		// soon as the environment has enough information to resolve the invocation
-		if (referenceStatus->guessState == GuessState_Guessed)
+		if (referenceStatus->guessState == GuessState_Guessed ||
+		    (findIt != environment.definitions.end() &&
+		     findIt->second.type == ObjectType_CompileTimeFunction))
 		{
 			// Guess now, because BuildEvaluateReferences thinks it has already guessed all refs
 			bool result =
@@ -727,26 +730,51 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		WriterFormatSettings formatSettings;
 		WriterOutputSettings outputSettings = {};
 
-		switch (definition->type)
+		GeneratorOutput header;
+		GeneratorOutput footer;
+		GeneratorOutput autoIncludes;
+		makeCompileTimeHeaderFooter(header, footer, &autoIncludes,
+		                            definition->definitionInvocation);
+		outputSettings.heading = &header;
+		outputSettings.footer = &footer;
+
+		// Automatically include referenced compile-time function headers
+		bool foundHeaders = true;
+		for (ObjectReferenceStatusPair& reference : definition->references)
 		{
-			case ObjectType_CompileTimeMacro:
-				outputSettings.sourceHeading = macroSourceHeading;
-				outputSettings.sourceFooter = macroSourceFooter;
-				break;
-			case ObjectType_CompileTimeGenerator:
-				outputSettings.sourceHeading = generatorSourceHeading;
-				outputSettings.sourceFooter = generatorSourceFooter;
-				break;
-			case ObjectType_CompileTimeFunction:
-				// TODO Right now this is the same as generators, but I don't know what I really
-				// want yet. Should each compile-time function have the ability to specify this,
-				// e.g. &with-build-tools or something? Figure it out automatically?
-				outputSettings.sourceHeading = generatorSourceHeading;
-				outputSettings.sourceFooter = generatorSourceFooter;
-				break;
-			default:
-				break;
+			ObjectReferenceStatus& referenceStatus = reference.second;
+
+			ObjectDefinitionMap::iterator findIt =
+			    environment.definitions.find(referenceStatus.name->contents);
+			// Ignore unknown references, because we only care about already-loaded compile-time
+			// functions in this case
+			if (findIt == environment.definitions.end())
+				continue;
+
+			ObjectDefinition* requiredDefinition = &findIt->second;
+			// It's not really possible to invoke macros or generators because the evaluator will
+			// expand them on the spot (while evaluating this definition's body)
+			if (requiredDefinition->type != ObjectType_CompileTimeFunction)
+				continue;
+
+			if (requiredDefinition->compileTimeHeaderName.empty())
+			{
+				ErrorAtToken(*referenceStatus.name,
+				             "could not find generated header for referenced compile-time "
+				             "function. Internal code error?\n");
+				foundHeaders = false;
+				continue;
+			}
+
+			addStringOutput(autoIncludes.source, "#include", StringOutMod_SpaceAfter,
+			                referenceStatus.name);
+			addStringOutput(autoIncludes.source, requiredDefinition->compileTimeHeaderName.c_str(),
+			                StringOutMod_SurroundWithQuotes, referenceStatus.name);
+			addLangTokenOutput(autoIncludes.source, StringOutMod_NewlineAfter,
+			                   referenceStatus.name);
 		}
+		if (!foundHeaders)
+			continue;
 
 		outputSettings.sourceCakelispFilename = fileOutputName;
 		{
@@ -756,6 +784,11 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			PrintfBuffer(writerHeaderOutputName, "%s.hpp", fileOutputName);
 			outputSettings.sourceOutputName = writerSourceOutputName;
 			outputSettings.headerOutputName = writerHeaderOutputName;
+
+			// Facilitates this function being used later by other compile-time functions
+			char localHeaderOutputName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(localHeaderOutputName, "%s.hpp", artifactsName);
+			definition->compileTimeHeaderName = localHeaderOutputName;
 		}
 		// Use the separate output prepared specifically for this compile-time object
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
@@ -971,7 +1004,6 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			continue;
 		}
 
-		// TODO: Performance: Iterate backwards and quit as soon as any resolved refs are found?
 		bool hasErrors = false;
 		for (ObjectReference& reference : referencePoolIt->second.references)
 		{

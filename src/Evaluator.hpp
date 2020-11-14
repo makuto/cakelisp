@@ -178,6 +178,8 @@ struct ObjectDefinition
 	// For compile time functions, whether they have finished loading successfully. Mainly just a
 	// shortcut to what isCompileTimeCodeLoaded() would return
 	bool isLoaded;
+	// Used by other compile-time functions to include this function's already output header
+	std::string compileTimeHeaderName;
 
 	// Arbitrary tags user may add for compile-time reference
 	std::vector<std::string> tags;

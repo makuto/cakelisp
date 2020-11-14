@@ -4,7 +4,6 @@
 (defun main (&return int)
   (printf "Hello Hot-reloading!\n")
   (simple-macro)
-
   (def-function-signature reload-entry-point-signature (&return bool))
   (var hot-reload-entry-point-func reload-entry-point-signature nullptr)
   (register-function-pointer (type-cast (addr hot-reload-entry-point-func) (* (* void)))
@@ -25,9 +24,16 @@
 ;; Code modification tests
 ;;
 
+(defun-comptime compile-time-call-before (&return int)
+    (return 42))
+
 (defmacro simple-macro ()
+  (printf "simple-macro: %d, %d!\n" (compile-time-call) (compile-time-call-before))
   (tokenize-push output (printf "Hello, macros!\\n") (magic-number))
   (return true))
+
+(defun-comptime compile-time-call (&return int)
+  (return 42))
 
 (defmacro magic-number ()
   (get-or-create-comptime-var test-var std::string)
