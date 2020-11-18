@@ -1799,6 +1799,7 @@ enum CStatementOperationType
 
 	// Evaluate argument(s)
 	Expression,
+	ExpressionOptional,
 	ExpressionList,
 	// Body will read the remaining arguments; argumentIndex will tell it where to start
 	Body,
@@ -1904,6 +1905,27 @@ bool cStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 					return false;
 
 				PushBackAll(output.source, typeOutput);
+				break;
+			}
+			case ExpressionOptional:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				int startExpressionIndex =
+				    getArgument(tokens, startTokenIndex, operation[i].argumentIndex, endTokenIndex);
+				if (startExpressionIndex == -1)
+				{
+					// Fine by us, it's optional
+					break;
+				}
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               startExpressionIndex, output) != 0)
+					return false;
 				break;
 			}
 			case Expression:
@@ -2016,8 +2038,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {Expression, nullptr, 3},          {SmartEndStatement, nullptr, -1}};
 
 	// Control flow
-	const CStatementOperation returnStatement[] = {
-	    {Keyword, "return", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
+	const CStatementOperation returnStatement[] = {{Keyword, "return", -1},
+	                                               {ExpressionOptional, nullptr, 1},
+	                                               {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation continueStatement[] = {{KeywordNoSpace, "continue", -1},
 	                                                 {SmartEndStatement, nullptr, -1}};
@@ -2094,9 +2117,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	                                          {Expression, nullptr, 1},
 	                                          {CloseParen, nullptr, -1}};
 
-	const CStatementOperation bitwiseOr[] = {{Splice, "|", 1}};
-	const CStatementOperation bitwiseAnd[] = {{Splice, "&", 1}};
-	const CStatementOperation bitwiseXOr[] = {{Splice, "&", 1}};
+	const CStatementOperation bitwiseOr[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "|", 1}, {CloseParen, nullptr, -1}};
+	const CStatementOperation bitwiseAnd[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "&", 1}, {CloseParen, nullptr, -1}};
+	const CStatementOperation bitwiseXOr[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "^", 1}, {CloseParen, nullptr, -1}};
 	const CStatementOperation bitwiseOnesComplement[] = {{Keyword, "~", -1},
 	                                                     {Expression, nullptr, 1}};
 	const CStatementOperation bitwiseLeftShift[] = {{Splice, "<<", 1}};
@@ -2109,11 +2135,20 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation relationalLessThan[] = {{Splice, "<", 1}};
 	const CStatementOperation relationalGreaterThan[] = {{Splice, ">", 1}};
 
-	const CStatementOperation add[] = {{Splice, "+", 1}};
-	const CStatementOperation subtract[] = {{Splice, "-", 1}};
-	const CStatementOperation multiply[] = {{Splice, "*", 1}};
-	const CStatementOperation divide[] = {{Splice, "/", 1}};
-	const CStatementOperation modulus[] = {{Splice, "%", 1}};
+	// Parentheses are especially necessary because the user's expectation will be broken without
+	// For example: (/ (- a b) c)
+	// Without parentheses, that outputs a - b / c, which due to operator precedence, is a - (b/c)
+	// With parentheses, we get the correct ((a - b) / c)
+	const CStatementOperation add[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "+", 1}, {CloseParen, nullptr, -1}};
+	const CStatementOperation subtract[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "-", 1}, {CloseParen, nullptr, -1}};
+	const CStatementOperation multiply[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "*", 1}, {CloseParen, nullptr, -1}};
+	const CStatementOperation divide[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "/", 1}, {CloseParen, nullptr, -1}};
+	const CStatementOperation modulus[] = {
+	    {OpenParen, nullptr, -1}, {Splice, "%", 1}, {CloseParen, nullptr, -1}};
 	// Always pre-increment, which matches what you'd expect given the invocation comes before
 	// the expression. It's also slightly faster, yadda yadda
 	const CStatementOperation increment[] = {
@@ -2154,8 +2189,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	     ArraySize(dereferenceMemberFunctionInvocation)},
 	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
 	    {"in", scopeResolution, ArraySize(scopeResolution)},
-		{"type-cast", castStatement, ArraySize(castStatement)},
-		{"type", typeStatement, ArraySize(typeStatement)},
+	    {"type-cast", castStatement, ArraySize(castStatement)},
+	    {"type", typeStatement, ArraySize(typeStatement)},
 	    // Expressions
 	    {"or", booleanOr, ArraySize(booleanOr)},
 	    {"and", booleanAnd, ArraySize(booleanAnd)},

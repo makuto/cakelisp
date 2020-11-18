@@ -32,6 +32,7 @@ bool isSpecialSymbol(const Token& token);
 // from. For example, you should pass in the opening paren of a function invocation to get its name
 // as argument 0 and first arg as argument 1 This function would be simpler and faster if there was
 // an actual syntax tree, because we wouldn't be repeatedly traversing all the arguments
+// Returns -1 if argument is not within range
 int getArgument(const std::vector<Token>& tokens, int startTokenIndex, int desiredArgumentIndex,
                 int endTokenIndex);
 int getExpectedArgument(const char* message, const std::vector<Token>& tokens, int startTokenIndex,

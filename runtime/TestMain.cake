@@ -1,9 +1,17 @@
 (import "HotReloading.cake")
 (c-import "stdio.h")
 
+(defun secret-print ()
+  (if false
+      (return))
+  (printf "I got away\n"))
+
 (defun main (&return int)
   (printf "Hello Hot-reloading!\n")
+
   (simple-macro)
+  (secret-print)
+
   (def-function-signature reload-entry-point-signature (&return bool))
   (var hot-reload-entry-point-func reload-entry-point-signature nullptr)
   (register-function-pointer (type-cast (addr hot-reload-entry-point-func) (* (* void)))
@@ -25,7 +33,7 @@
 ;;
 
 (defun-comptime compile-time-call-before (&return int)
-    (return 42))
+    (return (/ (- 4 2) 2)))
 
 (defmacro simple-macro ()
   (printf "simple-macro: %d, %d!\n" (compile-time-call) (compile-time-call-before))
