@@ -562,14 +562,24 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 					            "module cannot track dependency (potential internal error)");
 				}
 
-				char relativePathBuffer[MAX_PATH_LENGTH] = {0};
-				getDirectoryFromPath(currentToken.source, relativePathBuffer,
-				                     sizeof(relativePathBuffer));
-				strcat(relativePathBuffer, "/");
-				strcat(relativePathBuffer, currentToken.contents.c_str());
+				char resolvedPathBuffer[MAX_PATH_LENGTH] = {0};
+				if (!searchForFileInPaths(currentToken.contents.c_str(),
+				                          /*encounteredInFile=*/currentToken.source,
+				                          environment.searchPaths, environment.numSearchPaths,
+				                          resolvedPathBuffer, ArraySize(resolvedPathBuffer)))
+				{
+					ErrorAtToken(currentToken, "file not found! Checked the following paths:");
+					printf("Checked if relative to %s\n", currentToken.source);
+					printf("Checked environment search paths:\n");
+					for (int pathIndex = 0; pathIndex < environment.numSearchPaths; ++pathIndex)
+					{
+						printf("\t%s", environment.searchPaths[pathIndex]);
+					}
+					return false;
+				}
 
 				// Evaluate the import!
-				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, relativePathBuffer))
+				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, resolvedPathBuffer))
 				{
 					ErrorAtToken(currentToken, "failed to import Cakelisp module");
 					return false;

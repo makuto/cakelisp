@@ -17,7 +17,7 @@ FILE* fileOpen(const char* filename, const char* mode)
 	file = fopen(filename, mode);
 	if (!file)
 	{
-		printf("Error: Could not open %s\n", filename);
+		printf("error: Could not open %s\n", filename);
 		return nullptr;
 	}
 	else

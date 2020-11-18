@@ -43,7 +43,7 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 	FILE* newFile = fopen(tempFilename, "r");
 	if (!newFile)
 	{
-		printf("Error: Could not open %s\n", tempFilename);
+		printf("error: Could not open %s\n", tempFilename);
 		return false;
 	}
 	FILE* oldFile = fopen(outputFilename, "r");

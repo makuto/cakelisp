@@ -102,6 +102,12 @@ void moduleManagerInitialize(ModuleManager& manager)
 	manager.environment.useCachedFiles = true;
 	makeDirectory(cakelispWorkingDir);
 	printf("Using cache at %s\n", cakelispWorkingDir);
+
+	// By always searching relative to CWD, any subsequent imports with the module filename will
+	// resolve correctly
+	manager.environment.numSearchPaths = 1;
+	manager.environment.searchPaths = (const char**)calloc(sizeof(char*), manager.environment.numSearchPaths);
+	manager.environment.searchPaths[0] = strdup(".");
 }
 
 void moduleManagerDestroy(ModuleManager& manager)
@@ -216,21 +222,68 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 
 bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 {
+	// TODO: Do I really want absolute paths, or should I make everything relative to working dir?
+	// If it is within working dir, make it relative. Else, absolute path (so no ridiculous
+	// ../../../ making everything bad)
+	const char* normalizedFilename = strdup(filename);
+	// Enabling this makes all file:line messages really long. For now, I'll keep it as relative to
+	// current working directory of this executable.
+	// const char* normalizedFilename = makeAbsolutePath_Allocated(".", filename);
+	if (!normalizedFilename)
+	{
+#ifdef UNIX
+		perror("failed to normalize filename: ");
+#else
+		printf("error: could not normalize filename, or file not found: %s\n", filename);
+#endif
+		return false;
+	}
+
+	// Check for already loaded module. Make sure to use absolute paths to protect the user from
+	// multiple includes in case they got tricky with their import path
 	for (Module* module : manager.modules)
 	{
-		if (strcmp(module->filename, filename) == 0)
+		const char* normalizedProspectiveModuleFilename = makeAbsolutePath_Allocated(".", filename);
+		if (!normalizedProspectiveModuleFilename)
 		{
-			printf("Already loaded %s\n", filename);
+			printf("error: failed to normalize path %s", filename);
+			free((void*)normalizedFilename);
+			return false;
+		}
+
+		const char* normalizedModuleFilename = makeAbsolutePath_Allocated(".", module->filename);
+
+		if (!normalizedModuleFilename)
+		{
+			printf("error: failed to normalize path %s", module->filename);
+			free((void*)normalizedProspectiveModuleFilename);
+			free((void*)normalizedFilename);
+			return false;
+		}
+
+		if (strcmp(normalizedModuleFilename, normalizedProspectiveModuleFilename) == 0)
+		{
+			printf("Already loaded %s\n", normalizedFilename);
+			free((void*)normalizedFilename);
+			free((void*)normalizedProspectiveModuleFilename);
+			free((void*)normalizedModuleFilename);
 			return true;
 		}
+
+		free((void*)normalizedProspectiveModuleFilename);
+		free((void*)normalizedModuleFilename);
 	}
 
 	Module* newModule = new Module();
 	// We need to keep this memory around for the lifetime of the token, regardless of relocation
-	newModule->filename = strdup(filename);
+	newModule->filename = normalizedFilename;
 	// This stage cleans up after itself if it fails
 	if (!moduleLoadTokenizeValidate(newModule->filename, &newModule->tokens))
+	{
+		delete newModule;
+		free((void*)normalizedFilename);
 		return false;
+	}
 
 	newModule->generatedOutput = new GeneratorOutput;
 

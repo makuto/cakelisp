@@ -8,6 +8,10 @@
 #ifdef UNIX
 #include <libgen.h>
 #include <sys/stat.h>
+// realpath
+#include <stdlib.h>
+// access
+#include <unistd.h>
 #else
 #error Need to implement file utilities for this platform
 #endif
@@ -34,6 +38,11 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 	// block should prevent this from ever being compiled anyways
 	return true;
 #endif
+}
+
+bool fileExists(const char* filename)
+{
+	return access(filename, F_OK) != -1;
 }
 
 void makeDirectory(const char* path)
@@ -77,4 +86,24 @@ void makePathRelativeToFile(const char* filePath, const char* referencedFilePath
 	// TODO: Need to make this safe!
 	strcat(bufferOut, "/");
 	strcat(bufferOut, referencedFilePath);
+}
+
+const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* filePath)
+{
+#ifdef UNIX
+	// Second condition allows for absolute paths
+	if (fromDirectory && filePath[0] != '/')
+	{
+		char relativePath[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(relativePath, "%s/%s", fromDirectory, filePath);
+		return realpath(relativePath, nullptr);
+	}
+	else
+	{
+		// The path will be relative to the binary's working directory
+		return realpath(filePath, nullptr);
+	}
+#else
+#error Need to be able to normalize path on this platform
+#endif
 }

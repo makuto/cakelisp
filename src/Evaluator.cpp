@@ -366,8 +366,10 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 
 	// Check for known Cakelisp functions
 	ObjectDefinitionMap::iterator findIt = environment.definitions.find(invocationName.contents);
-	// Compile-time function calls are handled by resolve references
-	if (findIt != environment.definitions.end() && !isCompileTimeObject(findIt->second.type))
+	if (findIt != environment.definitions.end() &&
+	    (!isCompileTimeObject(findIt->second.type) ||
+	     (findIt->second.type == ObjectType_CompileTimeFunction &&
+	      findCompileTimeFunction(environment, invocationName.contents.c_str()))))
 	{
 		return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
 		                                   output);
@@ -1005,31 +1007,54 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		}
 
 		bool hasErrors = false;
-		for (ObjectReference& reference : referencePoolIt->second.references)
+		std::vector<ObjectReference>& references = referencePoolIt->second.references;
+		// The old-style loop must be used here because EvaluateGenerate_Recursive can add to this
+		// list, which invalidates iterators
+		for (int i = 0; i < (int)references.size(); ++i)
 		{
-			if (reference.isResolved)
+			const int maxNumReferences = 1 << 13;
+			if (i >= maxNumReferences)
+			{
+				ErrorAtTokenf(*buildObject.definition->definitionInvocation,
+				              "error: definition %s exceeded max number of references (%d). Is it "
+				              "in an infinite loop?",
+				              buildObject.definition->name.c_str(), maxNumReferences);
+				for (int n = 0; n < 10; ++n)
+				{
+					ErrorAtToken((*references[n].tokens)[references[n].startIndex],
+					             "Reference here");
+				}
+				hasErrors = true;
+				break;
+			}
+
+			if (references[i].isResolved)
 				continue;
 
-			if (reference.type == ObjectReferenceResolutionType_Splice && reference.spliceOutput)
+			if (references[i].type == ObjectReferenceResolutionType_Splice &&
+			    references[i].spliceOutput)
 			{
+				ObjectReference* referenceValidPreEval = &references[i];
 				// In case a compile-time function has already guessed the invocation was a C/C++
 				// function, clear that invocation output
-				resetGeneratorOutput(*reference.spliceOutput);
+				resetGeneratorOutput(*referenceValidPreEval->spliceOutput);
 
 				if (log.buildProcess)
-					NoteAtToken((*reference.tokens)[reference.startIndex], "resolving reference");
+					NoteAtToken((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
+					            "resolving reference");
 
 				// Evaluate from that reference
-				int result =
-				    EvaluateGenerate_Recursive(environment, reference.context, *reference.tokens,
-				                               reference.startIndex, *reference.spliceOutput);
+				int result = EvaluateGenerate_Recursive(
+				    environment, referenceValidPreEval->context, *referenceValidPreEval->tokens,
+				    referenceValidPreEval->startIndex, *referenceValidPreEval->spliceOutput);
+				referenceValidPreEval = nullptr;
 				hasErrors |= result > 0;
 				numErrorsOut += result;
 			}
 			else
 			{
 				// Do not resolve, we don't know how to resolve this type of reference
-				ErrorAtToken((*reference.tokens)[reference.startIndex],
+				ErrorAtToken((*references[i].tokens)[references[i].startIndex],
 				             "do not know how to resolve this reference (internal code error?)");
 				hasErrors = true;
 				continue;
@@ -1043,7 +1068,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			// Note that if new references emerge to this definition, they will automatically be
 			// recognized as the definition and handled then and there, so we don't need to make
 			// more than one pass
-			reference.isResolved = true;
+			references[i].isResolved = true;
+
 			++numReferencesResolved;
 		}
 
@@ -1477,6 +1503,13 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
 		delete comptimeTokens;
 	environment.comptimeTokens.clear();
+
+	if (environment.searchPaths)
+	{
+		for (int i = 0; i < environment.numSearchPaths; ++i)
+			free((void*)environment.searchPaths[i]);
+		free(environment.searchPaths);
+	}
 }
 
 const char* evaluatorScopeToString(EvaluatorScope expectedScope)
@@ -1528,4 +1561,35 @@ bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
 		return !fileIsMoreRecentlyModified(filename, reference);
 	else
 		return false;
+}
+
+bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
+                          const char** searchPaths, int numSearchPaths, char* foundFilePathOut,
+                          int foundFilePathOutSize)
+{
+	// First, check if it's relative to the file it was encountered in
+	{
+		char relativePathBuffer[MAX_PATH_LENGTH] = {0};
+		getDirectoryFromPath(encounteredInFile, relativePathBuffer, sizeof(relativePathBuffer));
+		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", relativePathBuffer, shortPath);
+
+		if (log.fileSearch)
+			printf("File exists? %s\n", foundFilePathOut);
+
+		if (fileExists(foundFilePathOut))
+			return true;
+	}
+
+	for (int i = 0; i < numSearchPaths; ++i)
+	{
+		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", searchPaths[i], shortPath);
+
+		if (log.fileSearch)
+			printf("File exists? %s\n", foundFilePathOut);
+
+		if (fileExists(foundFilePathOut))
+			return true;
+	}
+
+	return false;
 }

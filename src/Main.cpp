@@ -63,6 +63,8 @@ int main(int numArguments, char* arguments[])
 	     "the compile-time build process"},
 	    {"--verbose-file-system", &log.fileSystem,
 	     "Output why files are being written, the status of comparing files, etc."},
+	    {"--verbose-file-search", &log.fileSearch,
+	     "Output when paths are being investigated for a file"},
 	    {"--verbose-metadata", &log.metadata, "Output generated metadata"},
 	};
 

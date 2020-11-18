@@ -10,10 +10,9 @@
   ;; (for-in replaced-token (* (const Token)) (addr var-replacements)
           ;; (NoteAtToken (deref replaced-token) "Replaced already"))
 
-  ;; (prettyPrintTokens output)
   (PushBackTokenExpression output (addr (at startTokenIndex tokens)))
+  ;; TODO: This is no good, because var looks at its invocation name
   (set (field (at 1 output) contents) "badvar")
-  ;; (prettyPrintTokens output)
   (return true))
 
 (set-cakelisp-option compile-time-compiler "/usr/bin/clang++")

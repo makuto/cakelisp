@@ -8,6 +8,7 @@ struct LoggingSettings
 	bool buildProcess;
 	bool compileTimeBuildObjects;
 	bool fileSystem;
+	bool fileSearch;
 	bool metadata;
 	bool processes;
 };

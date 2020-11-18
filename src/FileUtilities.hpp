@@ -5,9 +5,14 @@
 // than the previous build (or the source has never been built)
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference);
 
+bool fileExists(const char* filename);
+
 void makeDirectory(const char* path);
 
 void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize);
 void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize);
 void makePathRelativeToFile(const char* filePath, const char* referencedFilePath, char* bufferOut,
                             int bufferSize);
+// Returns null if the file does not exist
+// Use free() on the returned value if non-null
+const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* filePath);

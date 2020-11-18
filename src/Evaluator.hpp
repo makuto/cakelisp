@@ -296,6 +296,10 @@ struct EvaluatorEnvironment
 	// Added as a search directory for compile time code execution
 	std::string cakelispSrcDir;
 
+	// Search paths for Cakelisp files, not C includes
+	const char** searchPaths;
+	int numSearchPaths;
+
 	// When using the default build system, the path to output the final executable
 	std::string executableOutput;
 
@@ -367,6 +371,13 @@ bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
                       const char* reference);
 
 const char* objectTypeToString(ObjectType type);
+
+// shortPath can be "Example.cake" or e.g. "../tests/Example.cake"
+// encounteredInFile becomes an automatic relative search path
+// Returns false if the file does not exist in any of the paths searched
+bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
+                          const char** searchPaths, int numSearchPaths, char* foundFilePathOut,
+                          int foundFilePathOutSize);
 
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;
