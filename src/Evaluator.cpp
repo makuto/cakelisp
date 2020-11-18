@@ -464,6 +464,15 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 			{
 				case TokenType_Symbol:
 				{
+					// Special case: C requires NULL, C++ encourages nullptr. Let's handle them both
+					// automatically with null
+					if (token.contents.compare("null") == 0)
+					{
+						// TODO: C vs. C++
+						addStringOutput(output.source, "nullptr", StringOutMod_None, &token);
+						break;
+					}
+
 					// We need to convert what look like names in case they are lispy, but not
 					// integer, character, or floating point constants
 					char firstChar = token.contents[0];

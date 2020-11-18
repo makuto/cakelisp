@@ -13,7 +13,7 @@
   (secret-print)
 
   (def-function-signature reload-entry-point-signature (&return bool))
-  (var hot-reload-entry-point-func reload-entry-point-signature nullptr)
+  (var hot-reload-entry-point-func reload-entry-point-signature null)
   (register-function-pointer (type-cast (addr hot-reload-entry-point-func) (* (* void)))
                              ;; TODO Support name conversion at runtime (conversion requires tokens)
                              "reloadableEntryPoint")
@@ -86,7 +86,7 @@
    ;; Before
    (prettyPrintTokens (deref modified-main-tokens))
 
-   (var prev-token (* Token) nullptr)
+   (var prev-token (* Token) null)
    (for-in token (& Token) (deref modified-main-tokens)
            (when (and prev-token
                       (= 0 (on-call (path prev-token > contents) compare "printf"))

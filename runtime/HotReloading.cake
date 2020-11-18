@@ -70,7 +70,7 @@
 
 (var registered-functions FunctionReferenceMap)
 
-(var current-lib DynamicLibHandle nullptr)
+(var current-lib DynamicLibHandle null)
 
 (var hot-reload-lib-path (* (const char)) "libGeneratedCakelisp.so")
 
@@ -116,7 +116,7 @@
   (quick-args var-name var-type &optional var-initializer)
   ;; Add regular variable declaration but with pointerized type, then add initializer function for
   ;; first time variable setup
-  (tokenize-push (var (splice var-name) (* (splice var-type)) nullptr)
+  (tokenize-push (var (splice var-name) (* (splice var-type)) null)
                  (defun (token-str-concat init- var-name) ()
                    (set (splice var-name) (splice var-initializer))))
   ;; Variable stored on the environment. This will auto (new) whatever my type is
@@ -139,7 +139,7 @@
       ;; Already processed this function
         (return true))
 
-  (var modified-definition (* (<> std::vector Token)) nullptr)
+  (var modified-definition (* (<> std::vector Token)) null)
 
   (for-in token (const Token) definition-body
           (when (and (not (is-invocation token)) ;; Only pay attention to symbols

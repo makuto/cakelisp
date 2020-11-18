@@ -129,7 +129,7 @@
   ;; TODO: Any way to make this less code for each ref? There's a lot here.
   ;; Yes: Auto-generate construction function and call it instead of copy-pasting
   (tokenize-push output
-                 (var (token-splice-addr bound-var-name) (* (token-splice-addr var-type)) nullptr)
+                 (var (token-splice-addr bound-var-name) (* (token-splice-addr var-type)) null)
                  (scope (unless (GetCompileTimeVariable environment
                                                         (token-splice-addr var-name) (token-splice-addr var-type-str)
                                                         (type-cast (addr (token-splice-addr bound-var-name)) (* (* void))))
