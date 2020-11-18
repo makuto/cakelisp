@@ -139,7 +139,12 @@ int main(int numArguments, char* arguments[])
 			moduleManager.environment.enableHotReloading = true;
 
 		if (ignoreCachedFiles)
+		{
+			printf(
+			    "cache will be used for output, but files from previous runs will be ignored "
+			    "(--ignore-cache)\n");
 			moduleManager.environment.useCachedFiles = false;
+		}
 	}
 
 	for (const char* filename : filesToEvaluate)

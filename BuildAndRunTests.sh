@@ -17,7 +17,10 @@
 # jam -j4 && ./bin/cakelisp --ignore-cache \
 						  # runtime/TestMain.cake runtime/TextAdventure.cake
 
-jam -j4 && ./bin/cakelisp --ignore-cache --verbose-compile-time-build-objects \
-						  runtime/TestMain.cake runtime/TextAdventure.cake
+# jam -j4 && ./bin/cakelisp --ignore-cache --verbose-compile-time-build-objects --verbose-file-search \
+						  # runtime/TestMain.cake runtime/TextAdventure.cake
 # jam -j4 && ./bin/cakelisp \
 			   # runtime/TestMain.cake runtime/TextAdventure.cake
+
+jam -j4 && ./bin/cakelisp --ignore-cache --verbose-compile-time-build-objects \
+						  test/CodeModification.cake

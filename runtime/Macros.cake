@@ -7,6 +7,16 @@
   (tokenize-push output (= 0 (on-call (token-splice-addr std-string-var) compare (token-splice-addr str))))
   (return true))
 
+(defmacro array-size ()
+  (destructure-arguments array-index)
+  (quick-token-at array-token array-index)
+  ;; This should evaluate its argument, but I'm just hacking it in right now anyways
+  (unless (ExpectTokenType "array-size" array-token TokenType_Symbol)
+    (return false))
+  (tokenize-push output (/ (sizeof (token-splice (addr array-token)))
+                           (sizeof (at 0 (token-splice (addr array-token))))))
+  (return true))
+
 ;; Binds the variable's address to the named var
 ;; Note that this causes the caller's function to return false if the binding failed
 ;; TODO: This is madness, or close to it. All this for every comptime variable reference...
@@ -183,12 +193,62 @@
                              (at (token-splice (addr (at index tokens))) tokens)))
   (return true))
 
-(defmacro array-size ()
-  (destructure-arguments array-index)
-  (quick-token-at array-token array-index)
-  ;; This should evaluate its argument, but I'm just hacking it in right now anyways
-  (unless (ExpectTokenType "array-size" array-token TokenType_Symbol)
-    (return false))
-  (tokenize-push output (/ (sizeof (token-splice (addr array-token)))
-                           (sizeof (at 0 (token-splice (addr array-token))))))
+;; Creates forward declarations in header files.
+;; Example usage:
+;; (forward-declare (namespace Ogre (class item) (struct my-struct)))
+;; Outputs namespace Ogre { class item; struct my-struct;}
+(defgenerator forward-declare ()
+  ;; TODO: Support global vs local?
+  (var is-global bool true)
+  (var output-dest (& (<> std::vector StringOutput))
+       (? is-global (field output header) (field output source)))
+
+  (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
+  (var start-body-index int (+ 2 startTokenIndex))
+  (var current-index int start-body-index)
+  (var namespace-stack (<> std::vector int))
+  (while (< current-index end-invocation-index)
+    (var current-token (& (const Token)) (at current-index tokens))
+    ;; Invocations
+    (when (= TokenType_OpenParen (field current-token type))
+      (var invocation-token (& (const Token)) (at (+ 1 current-index) tokens))
+      (cond
+        ((= 0 (on-call (field invocation-token contents) compare "namespace"))
+         (unless (< (+ 3 current-index) end-invocation-index)
+           (ErrorAtToken invocation-token "missing name or body arguments")
+           (return false))
+         (var namespace-name-token (& (const Token)) (at (+ 2 current-index) tokens))
+         (addStringOutput output-dest "namespace"
+                          StringOutMod_SpaceAfter (addr invocation-token))
+         (addStringOutput output-dest (field namespace-name-token contents)
+                          StringOutMod_None (addr namespace-name-token))
+         (addLangTokenOutput output-dest StringOutMod_OpenBlock (addr namespace-name-token))
+         (on-call namespace-stack push_back (FindCloseParenTokenIndex tokens current-index)))
+
+        ((or (= 0 (on-call (field invocation-token contents) compare "class"))
+             (= 0 (on-call (field invocation-token contents) compare "struct")))
+         (unless (< (+ 2 current-index) end-invocation-index)
+           (ErrorAtToken invocation-token "missing name argument")
+           (return false))
+         (var type-name-token (& (const Token)) (at (+ 2 current-index) tokens))
+         (unless (ExpectTokenType "forward-declare" type-name-token TokenType_Symbol)
+           (return false))
+         (addStringOutput output-dest (field invocation-token contents)
+                          StringOutMod_SpaceAfter (addr invocation-token))
+         (addStringOutput output-dest (field type-name-token contents)
+                          StringOutMod_None (addr type-name-token))
+         (addLangTokenOutput output-dest StringOutMod_EndStatement (addr type-name-token)))
+        (true
+         (ErrorAtToken invocation-token "unknown forward-declare type")
+         (return false))))
+
+    (when (= TokenType_CloseParen (field current-token type))
+      (for-in close-block-index int namespace-stack
+              (when (= close-block-index current-index)
+                (addLangTokenOutput output-dest StringOutMod_CloseBlock
+                                    (addr (at current-index tokens))))))
+    ;; TODO: Support function calls so we can do this recursively?
+    ;; (set current-index
+    ;; (getNextArgument tokens current-index end-invocation-index))
+    (incr current-index))
   (return true))

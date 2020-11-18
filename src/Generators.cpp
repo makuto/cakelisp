@@ -730,7 +730,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
 		return false;
 
-	if (environment.enableHotReloading)
+	// Compile-time functions need to be exposed with C bindings so they can be found
+	if (isCompileTime || environment.enableHotReloading)
 	{
 		addStringOutput(isModuleLocal ? functionOutput->source : functionOutput->header,
 		                "extern \"C\"", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
