@@ -62,8 +62,14 @@ bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
 // it is still documented as to what it represents. Make sure your generated tokenToChange is
 // allocated such that it won't go away until environmentDestroyInvalidateTokens() is called (i.e.
 // NOT stack allocated)
+// This isn't stable - if a different cakelisp command is run, that could result in different order
+// of unique name acquisition
 void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
                           Token* tokenToChange);
+// This should be stable as long as the context is managed properly. Code modification may make it
+// unstable unless they reset the context on reevaluate, etc.
+void MakeContextUniqueSymbolName(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                                 const char* prefix, Token* tokenToChange);
 
 void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
 

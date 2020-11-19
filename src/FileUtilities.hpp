@@ -11,8 +11,12 @@ void makeDirectory(const char* path);
 
 void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize);
 void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize);
+// Given e.g. filepath = thing/src/MyCode.cake, referencedFilePath = MyCode.cpp, sets bufferOut to
+// "thing/src/MyCode.cpp"
 void makePathRelativeToFile(const char* filePath, const char* referencedFilePath, char* bufferOut,
                             int bufferSize);
 // Returns null if the file does not exist
 // Use free() on the returned value if non-null
 const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* filePath);
+// Will be absolute if above working dir, else, normalized relative
+void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, int bufferSize);

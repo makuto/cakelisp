@@ -183,6 +183,10 @@ struct ObjectDefinition
 
 	// Arbitrary tags user may add for compile-time reference
 	std::vector<std::string> tags;
+
+	// In order to have context-unique symbols, this number is incremented for each unique name
+	// requested. This is only relevant for compile-time function bodies
+	int nextFreeUniqueSymbolNum;
 };
 
 struct ObjectReferencePool

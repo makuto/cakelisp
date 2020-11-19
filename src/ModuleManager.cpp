@@ -222,10 +222,12 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 
 bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 {
-	// TODO: Do I really want absolute paths, or should I make everything relative to working dir?
-	// If it is within working dir, make it relative. Else, absolute path (so no ridiculous
-	// ../../../ making everything bad)
-	const char* normalizedFilename = strdup(filename);
+	if (!filename)
+		return false;
+
+	char resolvedPath[MAX_PATH_LENGTH] = {0};
+	makeAbsoluteOrRelativeToWorkingDir(filename, resolvedPath, ArraySize(resolvedPath));
+	const char* normalizedFilename = strdup(resolvedPath);
 	// Enabling this makes all file:line messages really long. For now, I'll keep it as relative to
 	// current working directory of this executable.
 	// const char* normalizedFilename = makeAbsolutePath_Allocated(".", filename);

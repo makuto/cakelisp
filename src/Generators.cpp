@@ -1667,7 +1667,7 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	// TODO: This token can't actually be referred to later. Rather than passing a token, take a
 	// std::string instead?
 	Token evaluateOutputTempVar = tokens[startTokenIndex + 1];
-	MakeUniqueSymbolName(environment, "outputEvalHandle", &evaluateOutputTempVar);
+	MakeContextUniqueSymbolName(environment, context, "outputEvalHandle", &evaluateOutputTempVar);
 	// Evaluate output variable
 	{
 		addStringOutput(output.source, "std::vector<Token>&", StringOutMod_SpaceAfter,

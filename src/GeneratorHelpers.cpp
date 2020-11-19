@@ -214,6 +214,31 @@ void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
 	environment.nextFreeUniqueSymbolNum++;
 }
 
+void MakeContextUniqueSymbolName(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                                 const char* prefix, Token* tokenToChange)
+{
+	if (!context.definitionName)
+	{
+		MakeUniqueSymbolName(environment, prefix, tokenToChange);
+		return;
+	}
+
+	ObjectDefinition* definition =
+	    findObjectDefinition(environment, context.definitionName->contents.c_str());
+	if (!definition)
+	{
+		MakeUniqueSymbolName(environment, prefix, tokenToChange);
+		return;
+	}
+
+	char symbolNameBuffer[64] = {0};
+	PrintfBuffer(symbolNameBuffer, "%s_%d", prefix, definition->nextFreeUniqueSymbolNum);
+
+	tokenToChange->type = TokenType_Symbol;
+	tokenToChange->contents = symbolNameBuffer;
+	definition->nextFreeUniqueSymbolNum++;
+}
+
 const Token* FindTokenExpressionEnd(const Token* startToken)
 {
 	if (startToken->type != TokenType_OpenParen)

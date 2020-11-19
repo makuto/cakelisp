@@ -107,3 +107,73 @@ const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* fi
 #error Need to be able to normalize path on this platform
 #endif
 }
+
+void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, int bufferSize)
+{
+#ifdef UNIX
+	// If it's already absolute, keep it that way
+	// Accept a lone . as well, for current working directory
+	if (filePath[0] == '/' || (filePath[0] == '.' && filePath[1] == '\0') ||
+	    (filePath[0] == '.' && filePath[1] == '/' && filePath[2] == '\0'))
+	{
+		SafeSnprinf(bufferOut, bufferSize, "%s", filePath);
+		return;
+	}
+
+	const char* workingDirAbsolute = realpath(".", nullptr);
+	if (!workingDirAbsolute)
+	{
+		SafeSnprinf(bufferOut, bufferSize, "%s", filePath);
+		return;
+	}
+
+	const char* filePathAbsolute = realpath(filePath, nullptr);
+	if (!filePathAbsolute)
+	{
+		free((void*)workingDirAbsolute);
+		SafeSnprinf(bufferOut, bufferSize, "%s", filePath);
+		return;
+	}
+
+	// printf("workingDirAbsolute %s\nfilePathAbsolute %s\n", workingDirAbsolute, filePathAbsolute);
+
+	size_t workingDirPathLength = strlen(workingDirAbsolute);
+	if (strncmp(workingDirAbsolute, filePathAbsolute, workingDirPathLength) == 0)
+	{
+		// The resolved path is within working dir
+		int trimTrailingSlash = filePathAbsolute[workingDirPathLength] == '/' ? 1 : 0;
+		const char* startRelativePath = &filePathAbsolute[workingDirPathLength + trimTrailingSlash];
+		SafeSnprinf(bufferOut, bufferSize, "%s", startRelativePath);
+	}
+	else
+	{
+		// Resolved path is above working dir
+		// Could still make this relative with ../ up to differing directory, if I find it's desired
+		SafeSnprinf(bufferOut, bufferSize, "%s", filePathAbsolute);
+	}
+
+	free((void*)workingDirAbsolute);
+	free((void*)filePathAbsolute);
+#else
+#error Need to be able to normalize path on this platform
+#endif
+
+	// // Test example
+	// {
+	// 	const char* testCases[] = {"../gamelib/RunProfiler.sh",
+	// 	                           "runtime/HotReloading.cake",
+	// 	                           "runtime/../src/Evaluator.hpp",
+	// 	                           "src/../badfile",
+	// 	                           "ReadMe.org",
+	// 							   ".", "./",
+	// 	                           "/home/macoy/delme.txt"};
+	// 	for (int i = 0; i < ArraySize(testCases); ++i)
+	// 	{
+	// 		char resultBuffer[MAX_PATH_LENGTH] = {0};
+	// 		makeAbsoluteOrRelativeToWorkingDir(testCases[i], resultBuffer, ArraySize(resultBuffer));
+	// 		printf("%s = %s\n\n", testCases[i], resultBuffer);
+	// 	}
+	// 	return 0;
+	// }
+
+}
