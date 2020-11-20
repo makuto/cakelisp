@@ -689,6 +689,7 @@ struct BuildObject
 	int buildId = -1;
 	int status = -1;
 	BuildStage stage = BuildStage_None;
+	bool hasAnyRefs = false;
 	std::string artifactsName;
 	std::string dynamicLibraryPath;
 	std::string buildObjectName;
@@ -896,8 +897,18 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (buildObject.status != 0)
 		{
 			ErrorAtTokenf(*buildObject.definition->definitionInvocation,
-			              "Failed to compile definition '%s' with status %d",
+			              "failed to compile definition '%s' with status %d",
 			              buildObject.definition->name.c_str(), buildObject.status);
+			// Special case: If the definition has no references, prevent it from ever having a
+			// chance to fail again, because there's nothing we can do if it fails
+			if (!buildObject.hasAnyRefs)
+			{
+				buildObject.definition->forbidBuild = true;
+				NoteAtToken(*buildObject.definition->definitionInvocation,
+				            "definition has no missing references. It must be a legitimate error "
+				            "Cakelisp cannot correct. It will not be rebuilt");
+			}
+
 			continue;
 		}
 
@@ -1122,6 +1133,9 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		if (definition.isLoaded)
 			continue;
 
+		if (definition.forbidBuild)
+			continue;
+
 		definitionsToCheck.push_back(&definition);
 	}
 
@@ -1137,12 +1151,19 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		bool canBuild = true;
 		bool hasRelevantChangeOccurred = false;
 		bool hasGuessedRefs = false;
+		bool hasAnyRefs = false;
 		// If there were new guesses, we will do another pass over this definition's references in
 		// case new references turned up
 		bool guessMaybeDirtiedReferences = false;
 		do
 		{
 			guessMaybeDirtiedReferences = false;
+
+			if (definition.references.empty())
+			{
+				hasAnyRefs = false;
+				break;
+			}
 
 			// Copy pointers to refs in case of iterator invalidation
 			std::vector<ObjectReferenceStatus*> referencesToCheck;
@@ -1258,6 +1279,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 			BuildObject objectToBuild = {};
 			objectToBuild.buildId = getNextFreeBuildId(environment);
 			objectToBuild.definition = &definition;
+			objectToBuild.hasAnyRefs = hasAnyRefs;
 			definitionsToBuild.push_back(objectToBuild);
 		}
 	}

@@ -152,12 +152,16 @@ struct ObjectDefinition
 	// The generator invocation that actually triggered the definition of this object
 	const Token* definitionInvocation;
 	ObjectType type;
+
 	// Objects can be referenced by other objects, but something in the chain must be required in
 	// order for the objects to be built. Required-ness spreads from the top level module scope
 	bool isRequired;
 	// The user's code might not require it, but the environment does, so don't error if this
 	// definition has no references
 	bool environmentRequired;
+	// If we learn this will always fail compilation, prevent it from continuously being recompiled
+	bool forbidBuild;
+
 	// Unique references, for dependency checking
 	ObjectReferenceStatusMap references;
 

@@ -19,7 +19,7 @@
 ;;
 
 (defun-comptime compile-time-call-before (&return int)
-    (return (/ (- 4 2) 2)))
+  (return (/ (- 4 2) 2)))
 
 (defmacro simple-macro ()
   (printf "simple-macro: %d, %d!\n" (compile-time-call) (compile-time-call-before))
@@ -28,6 +28,11 @@
 
 (defun-comptime compile-time-call (&return int)
   (return 42))
+
+;; Uncomment to test special case bad build (and reference it somewhere)
+;; (defun-comptime bad-compile-time-call ()
+;;   ;; (reference) ;; Comment and this function will build every round
+;;   (return 42))
 
 (defmacro magic-number ()
   (get-or-create-comptime-var test-var std::string)
