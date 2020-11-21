@@ -22,5 +22,8 @@
 # jam -j4 && ./bin/cakelisp \
 			   # runtime/TestMain.cake runtime/TextAdventure.cake
 
+# jam -j4 && ./bin/cakelisp --ignore-cache --verbose-compile-time-build-objects \
+						  # test/CodeModification.cake
+
 jam -j4 && ./bin/cakelisp --ignore-cache --verbose-compile-time-build-objects \
-						  test/CodeModification.cake
+						  test/BuildOptions.cake

@@ -85,7 +85,9 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
-		    {ProcessCommandArgumentType_String, "-fPIC"}};
+		    {ProcessCommandArgumentType_String, "-fPIC"},
+		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
 		manager.environment.buildTimeLinkCommand.arguments = {
@@ -391,6 +393,8 @@ struct BuiltObject
 	std::string filename;
 
 	ProcessCommand* buildCommandOverride;
+	std::vector<std::string> includesSearchDirs;
+	std::vector<std::string> additionalOptions;
 };
 
 void builtObjectsFree(std::vector<BuiltObject*>& objects)
@@ -433,7 +437,8 @@ bool moduleManagerBuild(ModuleManager& manager)
 			bool buildCommandValid = buildCommandState == 2;
 			if (!buildCommandValid && buildCommandState)
 			{
-				printf(
+				ErrorAtTokenf(
+				    (*module->tokens)[0],
 				    "error: module build command override must be completely defined. Missing %s\n",
 				    module->buildTimeBuildCommand.fileToExecute.empty() ? "file to execute" :
 				                                                          "arguments");
@@ -501,6 +506,16 @@ bool moduleManagerBuild(ModuleManager& manager)
 		newBuiltObject->sourceFilename = module->sourceOutputName.c_str();
 		newBuiltObject->filename = buildObjectName;
 		newBuiltObject->buildCommandOverride = buildCommandOverride;
+
+		for (const std::string& searchDir : module->cSearchDirectories)
+		{
+			char searchDirToArgument[MAX_PATH_LENGTH + 2];
+			PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
+			newBuiltObject->includesSearchDirs.push_back(searchDirToArgument);
+		}
+
+		PushBackAll(newBuiltObject->additionalOptions, module->additionalBuildOptions);
+
 		builtObjects.push_back(newBuiltObject);
 	}
 
@@ -515,13 +530,27 @@ bool moduleManagerBuild(ModuleManager& manager)
 		}
 		else
 		{
+			std::vector<const char*> searchDirArgs;
+			for (const std::string& searchDirArg : object->includesSearchDirs)
+			{
+				searchDirArgs.push_back(searchDirArg.c_str());
+			}
+
+			std::vector<const char*> additionalOptions;
+			for (const std::string& option : object->additionalOptions)
+			{
+				additionalOptions.push_back(option.c_str());
+			}
+
 			ProcessCommand& buildCommand = object->buildCommandOverride ?
 			                                   *object->buildCommandOverride :
 			                                   manager.environment.buildTimeBuildCommand;
 
 			ProcessCommandInput buildTimeInputs[] = {
 			    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
-			    {ProcessCommandArgumentType_ObjectOutput, {object->filename.c_str()}}};
+			    {ProcessCommandArgumentType_ObjectOutput, {object->filename.c_str()}},
+			    {ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
+			    {ProcessCommandArgumentType_AdditionalOptions, std::move(additionalOptions)}};
 			const char** buildArguments = MakeProcessArgumentsFromCommand(
 			    buildCommand, buildTimeInputs, ArraySize(buildTimeInputs));
 			if (!buildArguments)

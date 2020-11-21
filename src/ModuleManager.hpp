@@ -29,6 +29,8 @@ struct Module
 
 	// Build system
 	std::vector<ModuleDependency> dependencies;
+	std::vector<std::string> cSearchDirectories;
+	std::vector<std::string> additionalBuildOptions;
 	bool skipBuild;
 
 	// These make sense to overload if you want a compile-time dependency

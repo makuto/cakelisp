@@ -1,14 +1,15 @@
 #include "Generators.hpp"
 
+#include <string.h>
+
+#include <algorithm>
+
 #include "Evaluator.hpp"
 #include "FileUtilities.hpp"
 #include "GeneratorHelpers.hpp"
 #include "ModuleManager.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
-
-#include <string.h>
-#include <algorithm>
 
 typedef bool (*ProcessCommandOptionFunc)(EvaluatorEnvironment& environment,
                                          const std::vector<Token>& tokens, int startTokenIndex,
@@ -62,6 +63,8 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			    {"'source-input", ProcessCommandArgumentType_SourceInput},
 			    {"'object-output", ProcessCommandArgumentType_ObjectOutput},
 			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
+			    {"'include-search-dirs", ProcessCommandArgumentType_IncludeSearchDirs},
+			    {"'additional-options", ProcessCommandArgumentType_AdditionalOptions},
 			    {"'object-input", ProcessCommandArgumentType_ObjectInput},
 			    {"'library-output", ProcessCommandArgumentType_DynamicLibraryOutput},
 			    {"'executable-output", ProcessCommandArgumentType_ExecutableOutput},
@@ -78,7 +81,13 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			}
 			if (!found)
 			{
-				ErrorAtToken(argumentToken, "unrecognized symbol");
+				ErrorAtToken(argumentToken,
+				             "unrecognized argument symbol. Recognized options (some may not be "
+				             "suitable for this command):");
+				for (unsigned int i = 0; i < ArraySize(symbolsToCommandTypes); ++i)
+				{
+					printf("\t%s\n", symbolsToCommandTypes[i].symbolName);
+				}
 				return false;
 			}
 		}
@@ -96,6 +105,11 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
                        const std::vector<Token>& tokens, int startTokenIndex,
                        GeneratorOutput& output)
 {
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("set-cakelisp-option", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
 	int optionNameIndex =
@@ -205,6 +219,11 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                      const std::vector<Token>& tokens, int startTokenIndex, GeneratorOutput& output)
 {
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("set-module-option", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
 	if (!context.module)
 	{
 		ErrorAtToken(tokens[startTokenIndex], "modules not supported (internal code error?)");
@@ -259,8 +278,9 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
                                  const std::vector<Token>& tokens, int startTokenIndex,
                                  GeneratorOutput& output)
 {
-	if (IsForbiddenEvaluatorScope("add-compile-time-hook", tokens[startTokenIndex], context,
-	                              EvaluatorScope_ExpressionsOnly))
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("add-compile-time-hook", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
 		return false;
 
 	// Without "-module", the hook is executed at environment-level
@@ -403,10 +423,91 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	return false;
 }
 
+bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("add-c-search-directory", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex], "cannot find module (internal code error?)");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	for (int i = startTokenIndex + 2; i < endInvocationIndex;
+	     i = getNextArgument(tokens, i, endInvocationIndex))
+	{
+		if (!ExpectTokenType("add-c-search-directory", tokens[i], TokenType_String))
+			return false;
+
+		bool found = false;
+		for (const std::string& dir : context.module->cSearchDirectories)
+		{
+			if (dir.compare(tokens[i].contents) == 0)
+			{
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			context.module->cSearchDirectories.push_back(tokens[i].contents);
+	}
+
+	return true;
+}
+
+bool AddBuildOptionGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                             const std::vector<Token>& tokens, int startTokenIndex,
+                             GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("add-build-option", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex], "cannot find module (internal code error?)");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	for (int i = startTokenIndex + 2; i < endInvocationIndex;
+	     i = getNextArgument(tokens, i, endInvocationIndex))
+	{
+		if (!ExpectTokenType("add-build-option", tokens[i], TokenType_String))
+			return false;
+
+		bool found = false;
+		for (const std::string& option : context.module->additionalBuildOptions)
+		{
+			if (option.compare(tokens[i].contents) == 0)
+			{
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			context.module->additionalBuildOptions.push_back(tokens[i].contents);
+	}
+
+	return true;
+}
+
 bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                         const std::vector<Token>& tokens, int startTokenIndex,
                         GeneratorOutput& output)
 {
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("skip-build", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
 	if (context.module)
 		context.module->skipBuild = true;
 	else
@@ -633,6 +734,11 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
                             const std::vector<Token>& tokens, int startTokenIndex,
                             GeneratorOutput& output)
 {
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("add-cpp-build-dependency", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
 	if (!context.module)
 	{
 		ErrorAtToken(tokens[startTokenIndex],
@@ -2342,8 +2448,10 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["skip-build"] = SkipBuildGenerator;
 	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
+	environment.generators["add-build-options"] = AddBuildOptionGenerator;
 	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
 	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
+	environment.generators["add-c-search-directory"] = AddCSearchDirectoryGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

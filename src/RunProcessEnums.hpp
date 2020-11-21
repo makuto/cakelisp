@@ -7,6 +7,8 @@ enum ProcessCommandArgumentType
 	ProcessCommandArgumentType_SourceInput,
 	ProcessCommandArgumentType_ObjectOutput,
 	ProcessCommandArgumentType_CakelispHeadersInclude,
+	ProcessCommandArgumentType_IncludeSearchDirs,
+	ProcessCommandArgumentType_AdditionalOptions,
 
 	ProcessCommandArgumentType_ObjectInput,
 	ProcessCommandArgumentType_DynamicLibraryOutput,
