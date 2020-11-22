@@ -2166,8 +2166,14 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	                                                   {Expression, nullptr, 2},
 	                                                   {SmartEndStatement, nullptr, -1}};
 
-	const CStatementOperation dereference[] = {{KeywordNoSpace, "*", -1}, {Expression, nullptr, 1}};
-	const CStatementOperation addressOf[] = {{KeywordNoSpace, "&", -1}, {Expression, nullptr, 1}};
+	const CStatementOperation dereference[] = {{OpenParen, nullptr, -1},
+	                                           {KeywordNoSpace, "*", -1},
+	                                           {Expression, nullptr, 1},
+	                                           {CloseParen, nullptr, -1}};
+	const CStatementOperation addressOf[] = {{OpenParen, nullptr, -1},
+	                                         {KeywordNoSpace, "&", -1},
+	                                         {Expression, nullptr, 1},
+	                                         {CloseParen, nullptr, -1}};
 
 	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
 
