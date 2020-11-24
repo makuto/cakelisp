@@ -484,6 +484,15 @@ bool moduleManagerBuild(ModuleManager& manager)
 				newBuiltObject->filename = buildObjectName;
 				// TODO: This is a bit weird to automatically use the parent module's build command
 				newBuiltObject->buildCommandOverride = buildCommandOverride;
+
+				for (const std::string& searchDir : module->cSearchDirectories)
+				{
+					char searchDirToArgument[MAX_PATH_LENGTH + 2];
+					PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
+					newBuiltObject->includesSearchDirs.push_back(searchDirToArgument);
+				}
+				PushBackAll(newBuiltObject->additionalOptions, module->additionalBuildOptions);
+
 				builtObjects.push_back(newBuiltObject);
 			}
 		}
