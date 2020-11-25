@@ -1,6 +1,7 @@
 #include "RunProcess.hpp"
 
 #include <stdio.h>
+
 #include <vector>
 
 #ifdef UNIX
@@ -113,8 +114,21 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 			nonConstArguments[numArgs] = nullptr;
 		}
 
+		if (arguments.workingDir)
+		{
+			if (chdir(arguments.workingDir) != 0)
+			{
+				perror("RunProcess chdir: ");
+				goto childProcessFailed;
+			}
+
+			if (log.processes)
+				printf("Set working directory to %s\n", arguments.workingDir);
+		}
+
 		systemExecute(arguments.fileToExecute, nonConstArguments);
 
+	childProcessFailed:
 		// This shouldn't happen unless the execution failed or soemthing
 		for (char** arg = nonConstArguments; *arg != nullptr; ++arg)
 			delete *arg;

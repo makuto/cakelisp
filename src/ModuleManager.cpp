@@ -405,7 +405,7 @@ void builtObjectsFree(std::vector<BuiltObject*>& objects)
 	objects.clear();
 }
 
-bool moduleManagerBuild(ModuleManager& manager)
+bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs)
 {
 	int currentNumProcessesSpawned = 0;
 
@@ -637,6 +637,7 @@ bool moduleManagerBuild(ModuleManager& manager)
 			printf("Skipping linking (no built objects are newer than cached executable)\n");
 
 		printf("Successfully built and linked %s (no changes)\n", outputExecutableName.c_str());
+		builtOutputs.push_back(outputExecutableName);
 
 		builtObjectsFree(builtObjects);
 		return true;
@@ -700,6 +701,7 @@ bool moduleManagerBuild(ModuleManager& manager)
 	}
 
 	printf("Successfully built and linked %s\n", outputExecutableName.c_str());
+	builtOutputs.push_back(outputExecutableName);
 
 	builtObjectsFree(builtObjects);
 	return true;

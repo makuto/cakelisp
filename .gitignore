@@ -34,6 +34,7 @@ src/dynamicLoadTest
 src/runProcessTest
 src/dependencyTest
 runtime/HotReloadingTest
+test/ExecuteMe
 
 *.cake.cpp
 *.cake.hpp

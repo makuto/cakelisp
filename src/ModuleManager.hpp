@@ -59,4 +59,4 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename);
 bool moduleManagerEvaluateResolveReferences(ModuleManager& manager);
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager);
-bool moduleManagerBuild(ModuleManager& manager);
+bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs);

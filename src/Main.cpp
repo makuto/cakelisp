@@ -3,8 +3,10 @@
 
 #include <vector>
 
+#include "FileUtilities.hpp"
 #include "Logging.hpp"
 #include "ModuleManager.hpp"
+#include "RunProcess.hpp"
 #include "Utilities.hpp"
 
 struct CommandLineOption
@@ -31,10 +33,15 @@ void printHelp(const CommandLineOption* options, int numOptions)
 	}
 }
 
+void OnExecuteProcessOutput(const char* output)
+{
+}
+
 int main(int numArguments, char* arguments[])
 {
 	bool enableHotReloading = false;
 	bool ignoreCachedFiles = false;
+	bool executeOutput = false;
 
 	const CommandLineOption options[] = {
 	    {"--ignore-cache", &ignoreCachedFiles,
@@ -43,6 +50,10 @@ int main(int numArguments, char* arguments[])
 	     "build without having to delete the Cakelisp cache directory"},
 	    {"--enable-hot-reloading", &enableHotReloading,
 	     "Generate code so that objects defined in Cakelisp can be reloaded at runtime"},
+	    {"--execute", &executeOutput,
+	     "If building completes successfully, run the output executable. Its working directory "
+	     "will be the final location of the executable. This allows Cakelisp code to be run as if "
+	     "it were a script"},
 	    // Logging
 	    {"--verbose-tokenization", &log.tokenization,
 	     "Output details about the conversion from file text to tokens"},
@@ -172,10 +183,61 @@ int main(int numArguments, char* arguments[])
 
 	printf("\nBuild:\n");
 
-	if (!moduleManagerBuild(moduleManager))
+	std::vector<std::string> builtOutputs;
+	if (!moduleManagerBuild(moduleManager, builtOutputs))
 	{
 		moduleManagerDestroy(moduleManager);
 		return 1;
+	}
+
+	if (executeOutput)
+	{
+		printf("\nExecute:\n");
+
+		if (builtOutputs.empty())
+		{
+			printf("error: --execute: No executables were output\n");
+			moduleManagerDestroy(moduleManager);
+			return 1;
+		}
+
+		// TODO: Allow user to forward arguments to executable
+		for (const std::string& output : builtOutputs)
+		{
+			RunProcessArguments arguments = {};
+			// Need to use absolute path when executing
+			const char* executablePath = makeAbsolutePath_Allocated(nullptr, output.c_str());
+			arguments.fileToExecute = executablePath;
+			const char* commandLineArguments[] = {strdup(arguments.fileToExecute), nullptr};
+			arguments.arguments = commandLineArguments;
+			char workingDirectory[MAX_PATH_LENGTH] = {0};
+			getDirectoryFromPath(arguments.fileToExecute, workingDirectory,
+			                     ArraySize(workingDirectory));
+			arguments.workingDir = workingDirectory;
+			int status = 0;
+
+			if (runProcess(arguments, &status) != 0)
+			{
+				printf("error: execution of %s failed\n", output.c_str());
+				free((void*)executablePath);
+				free((void*)commandLineArguments[0]);
+				moduleManagerDestroy(moduleManager);
+				return 1;
+			}
+
+			waitForAllProcessesClosed(OnExecuteProcessOutput);
+
+			free((void*)executablePath);
+			free((void*)commandLineArguments[0]);
+
+			if (status != 0)
+			{
+				printf("error: execution of %s returned non-zero exit code %d\n", output.c_str(),
+				       status);
+				moduleManagerDestroy(moduleManager);
+				return status;
+			}
+		}
 	}
 
 	moduleManagerDestroy(moduleManager);
