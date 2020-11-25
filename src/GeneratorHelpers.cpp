@@ -864,3 +864,194 @@ bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, cons
 
 	return true;
 }
+
+//
+// C Statement generation
+//
+
+bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      const CStatementOperation* operation, int numOperations,
+                      GeneratorOutput& output)
+{
+	// TODO: Add expects for scope
+	int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int nameTokenIndex = startTokenIndex + 1;
+	// int startArgsIndex = nameTokenIndex + 1;
+	const Token& nameToken = tokens[nameTokenIndex];
+	for (int i = 0; i < numOperations; ++i)
+	{
+		switch (operation[i].type)
+		{
+			case Keyword:
+				addStringOutput(output.source, operation[i].keywordOrSymbol,
+				                StringOutMod_SpaceAfter, &nameToken);
+				break;
+			case KeywordNoSpace:
+				addStringOutput(output.source, operation[i].keywordOrSymbol, StringOutMod_None,
+				                &nameToken);
+				break;
+			case SpliceNoSpace:
+			case Splice:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for start of splice list\n");
+					return false;
+				}
+				int startSpliceListIndex =
+				    getExpectedArgument("expected expressions", tokens, startTokenIndex,
+				                        operation[i].argumentIndex, endTokenIndex);
+				if (startSpliceListIndex == -1)
+					return false;
+				EvaluatorContext bodyContext = context;
+				bodyContext.scope = EvaluatorScope_ExpressionsOnly;
+				StringOutput spliceDelimiterTemplate = {};
+				spliceDelimiterTemplate.output = operation[i].keywordOrSymbol;
+				if (operation[i].type == Splice)
+				{
+					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
+					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
+				}
+				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
+				                                              startSpliceListIndex,
+				                                              &spliceDelimiterTemplate, output);
+				if (numErrors)
+					return false;
+				break;
+			}
+			case OpenParen:
+				addLangTokenOutput(output.source, StringOutMod_OpenParen, &nameToken);
+				break;
+			case CloseParen:
+				addLangTokenOutput(output.source, StringOutMod_CloseParen, &nameToken);
+				break;
+			case OpenBlock:
+				addLangTokenOutput(output.source, StringOutMod_OpenBlock, &nameToken);
+				break;
+			case CloseBlock:
+				addLangTokenOutput(output.source, StringOutMod_CloseBlock, &nameToken);
+				break;
+			case OpenList:
+				addLangTokenOutput(output.source, StringOutMod_OpenList, &nameToken);
+				break;
+			case CloseList:
+				addLangTokenOutput(output.source, StringOutMod_CloseList, &nameToken);
+				break;
+			case SmartEndStatement:
+				if (context.scope != EvaluatorScope_ExpressionsOnly)
+					addLangTokenOutput(output.source, StringOutMod_EndStatement, &nameToken);
+				break;
+			case TypeNoArray:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				int startTypeIndex = getExpectedArgument("expected type", tokens, startTokenIndex,
+				                                         operation[i].argumentIndex, endTokenIndex);
+				if (startTypeIndex == -1)
+					return false;
+				std::vector<StringOutput> typeOutput;
+				std::vector<StringOutput> typeAfterNameOutput;
+				if (!tokenizedCTypeToString_Recursive(tokens, startTypeIndex,
+				                                      /*allowArray=*/false, typeOutput,
+				                                      typeAfterNameOutput))
+					return false;
+
+				PushBackAll(output.source, typeOutput);
+				break;
+			}
+			case ExpressionOptional:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				int startExpressionIndex =
+				    getArgument(tokens, startTokenIndex, operation[i].argumentIndex, endTokenIndex);
+				if (startExpressionIndex == -1)
+				{
+					// Fine by us, it's optional
+					break;
+				}
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               startExpressionIndex, output) != 0)
+					return false;
+				break;
+			}
+			case Expression:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				int startExpressionIndex =
+				    getExpectedArgument("expected expression", tokens, startTokenIndex,
+				                        operation[i].argumentIndex, endTokenIndex);
+				if (startExpressionIndex == -1)
+					return false;
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               startExpressionIndex, output) != 0)
+					return false;
+				break;
+			}
+			case ExpressionList:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for expression\n");
+					return false;
+				}
+				// We're actually fine with no arguments
+				int startExpressionIndex =
+				    getArgument(tokens, startTokenIndex, operation[i].argumentIndex, endTokenIndex);
+				if (startExpressionIndex == -1)
+					break;
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				StringOutput listDelimiterTemplate = {};
+				listDelimiterTemplate.modifiers = StringOutMod_ListSeparator;
+
+				if (EvaluateGenerateAll_Recursive(environment, expressionContext, tokens,
+				                                  startExpressionIndex, &listDelimiterTemplate,
+				                                  output) != 0)
+					return false;
+				break;
+			}
+			case Body:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					printf("Error: Expected valid argument index for body\n");
+					return false;
+				}
+				int startBodyIndex = getExpectedArgument("expected body", tokens, startTokenIndex,
+				                                         operation[i].argumentIndex, endTokenIndex);
+				if (startBodyIndex == -1)
+					return false;
+				EvaluatorContext bodyContext = context;
+				bodyContext.scope = EvaluatorScope_Body;
+				// The statements will need to handle their ;
+				int numErrors =
+				    EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
+				                                  /*delimiterTemplate=*/nullptr, output);
+				if (numErrors)
+					return false;
+				break;
+			}
+			default:
+				printf("Output type not handled\n");
+				return false;
+		}
+	}
+
+	return true;
+}

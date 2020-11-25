@@ -5,6 +5,7 @@
 
 #include "EvaluatorEnums.hpp"
 #include "TokenEnums.hpp"
+#include "GeneratorHelpersEnums.hpp"
 
 struct Token;
 struct EvaluatorContext;
@@ -106,3 +107,18 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, const Token& errorToken,
                                          const char* compileTimeFunctionName,
                                          const std::vector<Token>& expectedSignature);
+
+// An interface for building simple generators
+struct CStatementOperation
+{
+	CStatementOperationType type;
+	const char* keywordOrSymbol;
+	// 0 = operation name
+	// 1 = first argument to operation (etc.)
+	int argumentIndex;
+};
+
+bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                      const std::vector<Token>& tokens, int startTokenIndex,
+                      const CStatementOperation* operation, int numOperations,
+                      GeneratorOutput& output);
