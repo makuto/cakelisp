@@ -19,6 +19,8 @@ It is a transpiler which generates C/C++ from a Lisp dialect.
 - *Output human-readable C/C++ source and header files:* This makes it possible to use Cakelisp in a subset of your project. It also means Cakelisp will work on any platform C/C++ works on. Generated code closely resembles the source Cakelisp code whenever possible
 - *Build system:* Simple projects will automatically be built and linked into an executable. Complex projects can use compile-time code execution to override stages of the build process. The code essentially knows how to build itself!
 
+For more advantages, see [[file:doc/NeatUses.org][doc/NeatUses.org]].
+
 Some of these features come naturally from using C as the backend. Eventually it would be cool to not have to generate C (e.g. generate LLVM bytecode instead), but that can a project for another time.
 * Building Cakelisp itself
 Install [[https://www.perforce.com/documentation/jam-documentation][Jam]]:

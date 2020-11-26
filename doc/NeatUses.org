@@ -1,0 +1,20 @@
+#+TITLE:Fun with Cakelisp
+
+Here are a list of things I did with Cakelisp which I thought showcase its niceties. Nothing is too small, because small things can make a big difference!
+
+* No more header files
+They're such an annoyance to manage, which causes me to not want to create separate files. Cakelisp still retains the concept of declarations vs. definitions via ~local~ and other keywords. This gives you the control to expose limited parts of a module, without having to declare those parts in a separate file.
+* Code modification
+I made [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/AutoTest.cake][AutoTest.cake]], which automatically finds functions preceded by ~test--~ and compiles them all into a single ~main~ function, calling them one by one. It's a dead-simple way to embed high-level tests.
+* The feel of scripts, the performance of C
+~cakelisp --execute~ makes it possible to run ~.cake~ files as if they were simple scripts. Cakelisp will handle all the building and caching for you. No more error-prone and tedious "compile, link, run, make change, compile..." which you get with C/C++ files.
+
+With a simple ~"hello world"~ application, I found Cakelisp to be about half as fast as Python to build and run the program. You only pay this price when the code changes, however. If there are no changes, the Cakelisp version evaluates and executes an order of magnitude faster than Python (which isn't saying much, admittedly - Python is known for being slow).
+* No more build system woes
+I got rid of external build systems! I used to use [[https://swarm.workshop.perforce.com/view/guest/perforce_software/jam/src/Jam.html][Jam]] (which is still used to build Cakelisp itself). Now, Cakelisp can handle it all internally.
+
+This has made it much more fun to program with, because all I need to do to use a new dependency like SDL is ~(import "SDL.cake")~. It's the responsibility of the module to know how it needs to be built, which makes all that complexity stay there instead of spreading into every new project. I got this idea from [[https://www.youtube.com/watch?v=3TwEaRZ4H3w][Jai]].
+
+In [[https://macoy.me/code/macoy/gamelib][GameLib]], I have simple modules for [[https://github.com/wolfpld/tracy][Tracy]], [[https://www.libsdl.org/][SDL]], and [[https://www.ogre3d.org/][Ogre]] already set up.
+* Build performance seems promising
+I have not yet seen the need for partial builds. Partial builds make the Cakelisp internals much more complicated. So far, the high-level performance of Cakelisp has me optimistic that I will be able to continue fully parsing and evaluating the files without resorting to partial loading. Note that this does not include compiling and linking, which are handled by external processes, and dominate the total time when building clean.
