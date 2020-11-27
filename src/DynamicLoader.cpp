@@ -19,7 +19,7 @@ struct DynamicLibrary
 };
 
 typedef std::unordered_map<std::string, DynamicLibrary> DynamicLibraryMap;
-static  DynamicLibraryMap dynamicLibraries;
+static DynamicLibraryMap dynamicLibraries;
 
 DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 {
