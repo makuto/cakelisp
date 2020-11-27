@@ -1821,10 +1821,12 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	char tokenToStringBuffer[1024] = {0};
 	char* tokenToStringWrite = tokenToStringBuffer;
 	const Token* tokenToStringStartToken = nullptr;
+	int startOutputToken = getExpectedArgument("tokenize-push expected tokens to output", tokens,
+	                                           startTokenIndex, 2, endInvocationIndex);
+	if (startOutputToken == -1)
+		return false;
 
-	for (int i = getExpectedArgument("tokenize-push expected tokens to output", tokens,
-	                                 startTokenIndex, 2, endInvocationIndex);
-	     i < endInvocationIndex; ++i)
+	for (int i = startOutputToken; i < endInvocationIndex; ++i)
 	{
 		const Token& currentToken = tokens[i];
 		const Token& nextToken = tokens[i + 1];

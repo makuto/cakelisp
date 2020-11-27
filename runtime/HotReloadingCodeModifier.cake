@@ -12,8 +12,9 @@
 (defun-comptime make-code-hot-reloadable (environment (& EvaluatorEnvironment)
                                                       was-code-modified (& bool)
                                                       &return bool)
-  (get-or-create-comptime-var stage int)
-  (when (= (deref stage) 0) ;; Modify variables only once
+  (get-or-create-comptime-var stage int 1)
+  (printf "stage %d\n" (deref stage))
+  (when (= (deref stage) 1) ;; Modify variables only once
     (for-in definition-pair (& ObjectDefinitionPair) (field environment definitions)
             (unless (= (field definition-pair second type) ObjectType_Variable)
               (continue))
@@ -26,6 +27,24 @@
             (on-call (field environment comptimeTokens) push_back modified-main-tokens)
             ;; Before
             (prettyPrintTokens (deref modified-main-tokens))
+
+            (var start-token-index int 0)
+            (var end-invocation-index int (- (on-call-ptr modified-main-tokens size) 1))
+            (var var-name-index int
+                 (getExpectedArgument "expected variable name"
+                                      (deref modified-main-tokens)
+                                      start-token-index 1
+	                                  end-invocation-index))
+	        (when (= var-name-index -1)
+		      (return false))
+
+	        (var type-index int
+                 (getExpectedArgument "expected variable type"
+                                      (deref modified-main-tokens)
+                                      start-token-index 2
+	                                  end-invocation-index))
+	        (when (= type-index -1)
+	          (return false))
 
             ;; After
             (prettyPrintTokens (deref modified-main-tokens))))

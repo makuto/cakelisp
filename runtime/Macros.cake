@@ -20,7 +20,6 @@
 ;; Binds the variable's address to the named var
 ;; Note that this causes the caller's function to return false if the binding failed
 ;; TODO: This is madness, or close to it. All this for every comptime variable reference...
-;; TODO: Default initialization?
 (defmacro get-or-create-comptime-var ()
   (unless (field environment moduleManager)
     (return false))
@@ -28,6 +27,11 @@
   (destructure-arguments bound-var-name-index var-type-index)
   (quick-token-at bound-var-name bound-var-name-index)
   (quick-token-at var-type var-type-index)
+
+  (var initializer-index int -1)
+  (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
+  (when (>= (getNumArguments tokens startTokenIndex end-invocation-index) 4)
+    (set initializer-index (getArgument tokens startTokenIndex 3 end-invocation-index)))
 
   (unless (ExpectTokenType "get-or-create-comptime-var" bound-var-name TokenType_Symbol)
     (return false))
@@ -136,6 +140,11 @@
                                              (deref throwaway-output)))
       (return false)))
 
+  (var initializer (<> std::vector Token))
+  (when (!= initializer-index -1)
+    (tokenize-push initializer (set (deref (token-splice-addr bound-var-name))
+                                    (token-splice-addr (at initializer-index tokens)))))
+
   ;; Create the binding and lazy-variable creation
   ;; TODO: Any way to make this less code for each ref? There's a lot here.
   ;; Yes: Auto-generate construction function and call it instead of copy-pasting
@@ -145,6 +154,7 @@
                                                         (token-splice-addr var-name) (token-splice-addr var-type-str)
                                                         (type-cast (addr (token-splice-addr bound-var-name)) (* (* void))))
                           (set (token-splice-addr bound-var-name) (new (token-splice-addr var-type)))
+                          (token-splice-array initializer)
                           (var destroy-func-name (* (const char)) (token-splice-addr destroy-var-func-name-str))
                           (unless (CreateCompileTimeVariable environment
                                                              (token-splice-addr var-name) (token-splice-addr var-type-str)

@@ -1,5 +1,5 @@
 #!/bin/sh
 
 jam -j4 || exit $?
-./bin/cakelisp \
+./bin/cakelisp --verbose-processes \
 			   runtime/HotReloadingCodeModifier.cake runtime/TextAdventure.cake
