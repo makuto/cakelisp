@@ -252,3 +252,27 @@
     ;; (getNextArgument tokens current-index end-invocation-index))
     (incr current-index))
   (return true))
+
+;; TODO
+;; See https://www.tutorialspoint.com/lisp/lisp_file_io.htm
+;; (defmacro with-open-file ()
+;;   (destructure-arguments var-name-index file-name-index mode-index)
+;;   (quick-token-at var-name var-name-index)
+;;   (quick-token-at file-name file-name-index)
+;;   (quick-token-at mode mode-index)
+;;   (tokenize-push output
+;;                  (scope
+;;                   (var (token-splice-addr var-name) (* FILE)
+;;                        (fopen (token-splice-addr file-name-index) (token-splice-addr mode-index)))))
+;;Example
+;; (defun-local audio-dump-recorded-buffer ()
+;;   (var i int 0)
+;;   (var dest-file (* FILE) (fopen "out.dat" "w"))
+;;   (unless dest-file
+;;     (printf "Could not open file to write data\n")
+;;     (return))
+
+;;   (while (< i (array-size audio-input-buffer))
+;;     (fprintf dest-file "%d %d\n" i (at i audio-input-buffer))
+;;     (incr i))
+;;   (fclose dest-file))
