@@ -60,6 +60,7 @@ enum ObjectType
 {
 	ObjectType_PseudoObject,
 	ObjectType_Function,
+	ObjectType_Variable,
 
 	ObjectType_CompileTimeMacro,
 	ObjectType_CompileTimeGenerator,

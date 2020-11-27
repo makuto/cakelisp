@@ -1566,6 +1566,8 @@ const char* objectTypeToString(ObjectType type)
 			return "Pseudo-object";
 		case ObjectType_Function:
 			return "Function";
+		case ObjectType_Variable:
+			return "Variable";
 		case ObjectType_CompileTimeMacro:
 			return "Macro";
 		case ObjectType_CompileTimeGenerator:

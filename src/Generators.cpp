@@ -1062,29 +1062,52 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	// At this point, we probably have a valid variable. Start outputting
 	addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
 
+	// Create separate output and definition to support compile-time modification
+	GeneratorOutput* variableOutput = new GeneratorOutput;
+	{
+		ObjectDefinition newVariableDef = {};
+		newVariableDef.definitionInvocation = &tokens[startTokenIndex];
+		newVariableDef.name = tokens[varNameIndex].contents.c_str();
+		newVariableDef.type = ObjectType_Variable;
+		// Required only relevant for compile-time things
+		newVariableDef.isRequired = false;
+		newVariableDef.context = context;
+		newVariableDef.output = variableOutput;
+		if (!addObjectDefinition(environment, newVariableDef))
+		{
+			delete variableOutput;
+			return false;
+		}
+		// Past this point, output will be handled by environment destruction
+
+		// Regardless of how much the definition is modified, it will still be output at this place
+		// in the module's generated file
+		addSpliceOutput(output, variableOutput, &tokens[startTokenIndex]);
+	}
+
 	if (isGlobal)
-		addStringOutput(output.header, "extern", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(variableOutput->header, "extern", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 	// else because no variable may be declared extern while also being static
 	// Automatically make module-declared variables static, reserving "static-var" for functions
 	else if (isStatic || context.scope == EvaluatorScope_Module)
-		addStringOutput(output.source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(variableOutput->source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	// Type
-	PushBackAll(output.source, typeOutput);
+	PushBackAll(variableOutput->source, typeOutput);
 	if (isGlobal)
-		PushBackAll(output.header, typeOutput);
+		PushBackAll(variableOutput->header, typeOutput);
 
 	// Name
-	addStringOutput(output.source, tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
+	addStringOutput(variableOutput->source, tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
 	                &tokens[varNameIndex]);
 	if (isGlobal)
-		addStringOutput(output.header, tokens[varNameIndex].contents,
+		addStringOutput(variableOutput->header, tokens[varNameIndex].contents,
 		                StringOutMod_ConvertVariableName, &tokens[varNameIndex]);
 
 	// Array
-	PushBackAll(output.source, typeAfterNameOutput);
+	PushBackAll(variableOutput->source, typeAfterNameOutput);
 	if (isGlobal)
-		PushBackAll(output.header, typeAfterNameOutput);
+		PushBackAll(variableOutput->header, typeAfterNameOutput);
 
 	// Possibly find whether it is initialized
 	int valueIndex = getNextArgument(tokens, typeIndex, endInvocationIndex);
@@ -1092,19 +1115,19 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	// Initialized
 	if (valueIndex < endInvocationIndex)
 	{
-		addLangTokenOutput(output.source, StringOutMod_SpaceAfter, &tokens[valueIndex]);
-		addStringOutput(output.source, "=", StringOutMod_SpaceAfter, &tokens[valueIndex]);
+		addLangTokenOutput(variableOutput->source, StringOutMod_SpaceAfter, &tokens[valueIndex]);
+		addStringOutput(variableOutput->source, "=", StringOutMod_SpaceAfter, &tokens[valueIndex]);
 
 		EvaluatorContext expressionContext = context;
 		expressionContext.scope = EvaluatorScope_ExpressionsOnly;
 		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, valueIndex,
-		                               output) != 0)
+		                               *variableOutput) != 0)
 			return false;
 	}
 
-	addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
+	addLangTokenOutput(variableOutput->source, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 	if (isGlobal)
-		addLangTokenOutput(output.header, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
+		addLangTokenOutput(variableOutput->header, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 
 	return true;
 }
@@ -1353,10 +1376,7 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	    EvaluateGenerateAll_Recursive(environment, generatorBodyContext, tokens, startBodyIndex,
 	                                  /*delimiterTemplate=*/nullptr, *compTimeOutput);
 	if (numErrors)
-	{
-		delete compTimeOutput;
 		return false;
-	}
 
 	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
 
