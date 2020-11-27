@@ -1062,27 +1062,33 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	// At this point, we probably have a valid variable. Start outputting
 	addModifierToStringOutput(typeOutput.back(), StringOutMod_SpaceAfter);
 
-	// Create separate output and definition to support compile-time modification
-	GeneratorOutput* variableOutput = new GeneratorOutput;
-	{
-		ObjectDefinition newVariableDef = {};
-		newVariableDef.definitionInvocation = &tokens[startTokenIndex];
-		newVariableDef.name = tokens[varNameIndex].contents.c_str();
-		newVariableDef.type = ObjectType_Variable;
-		// Required only relevant for compile-time things
-		newVariableDef.isRequired = false;
-		newVariableDef.context = context;
-		newVariableDef.output = variableOutput;
-		if (!addObjectDefinition(environment, newVariableDef))
-		{
-			delete variableOutput;
-			return false;
-		}
-		// Past this point, output will be handled by environment destruction
+	GeneratorOutput* variableOutput = &output;
 
-		// Regardless of how much the definition is modified, it will still be output at this place
-		// in the module's generated file
-		addSpliceOutput(output, variableOutput, &tokens[startTokenIndex]);
+	// Create separate output and definition to support compile-time modification
+	// For now, don't bother with variables in functions
+	if (context.scope == EvaluatorScope_Module)
+	{
+		variableOutput = new GeneratorOutput;
+		{
+			ObjectDefinition newVariableDef = {};
+			newVariableDef.definitionInvocation = &tokens[startTokenIndex];
+			newVariableDef.name = tokens[varNameIndex].contents.c_str();
+			newVariableDef.type = ObjectType_Variable;
+			// Required only relevant for compile-time things
+			newVariableDef.isRequired = false;
+			newVariableDef.context = context;
+			newVariableDef.output = variableOutput;
+			if (!addObjectDefinition(environment, newVariableDef))
+			{
+				delete variableOutput;
+				return false;
+			}
+			// Past this point, output will be handled by environment destruction
+
+			// Regardless of how much the definition is modified, it will still be output at this
+			// place in the module's generated file
+			addSpliceOutput(output, variableOutput, &tokens[startTokenIndex]);
+		}
 	}
 
 	if (isGlobal)

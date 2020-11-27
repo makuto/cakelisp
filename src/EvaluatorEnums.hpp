@@ -60,6 +60,7 @@ enum ObjectType
 {
 	ObjectType_PseudoObject,
 	ObjectType_Function,
+	// Note: Does not include stack variables, i.e. variables in function bodies
 	ObjectType_Variable,
 
 	ObjectType_CompileTimeMacro,

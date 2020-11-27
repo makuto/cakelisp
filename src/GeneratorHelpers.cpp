@@ -298,7 +298,7 @@ static void CopyTokensWithMacrosExpanded_Recursive(const Token* startToken, cons
 bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
                                        std::vector<Token>& tokensOut)
 {
-	if (definition.type != ObjectType_Function || definition.type != ObjectType_Variable)
+	if (!(definition.type == ObjectType_Function || definition.type == ObjectType_Variable))
 	{
 		printf(
 		    "error: CreateDefinitionCopyMacroExpanded() called on definition type %s which is not "

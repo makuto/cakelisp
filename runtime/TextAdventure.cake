@@ -21,6 +21,8 @@
                      "inside home" "Surprise! Your home is filled with cake. You look at your hands. You are cake."
                      (array))))))
 
+(var num-times-loaded int 0)
+
 (defun print-help ()
   (printf "At any point, enter 'r' to reload the code, 'h' for help, or 'q' to quit\n")
   (printf "Enter room number for desired room\n\n"))
@@ -43,6 +45,9 @@
 
   (var current-room (* (const room)) (addr (at 0 rooms)))
   (print-room current-room)
+
+  (incr num-times-loaded)
+  (printf "Loaded %d times\n" num-times-loaded)
 
   (var input char 0)
   (var previous-room (* (const room)) current-room)

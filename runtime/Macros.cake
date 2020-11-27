@@ -118,8 +118,9 @@
                    (defun-comptime (token-splice-addr destroy-var-func-name-symbol) (data (* void))
                      (delete (type-cast data (* (token-splice-addr var-type))))))
 
-    ;; TODO: Why isn't this causing the required to propagate?
     (var destruction-func-context EvaluatorContext context)
+    ;; This doesn't cause the required to propagate because comptime functions are lazily required,
+    ;; even in module scope, because they're super slow to build (don't build if you don't use)
     (set (field destruction-func-context isRequired) true)
     (set (field destruction-func-context scope) EvaluatorScope_Module)
     (set (field destruction-func-context definitionName)
@@ -128,7 +129,7 @@
     ;; built. This throwaway will essentially only have a splice to that output, so we don't really
     ;; need to keep track of it, except to destroy it once everything is done
     (var throwaway-output (* GeneratorOutput) (new GeneratorOutput))
-    (on-call (field environment orphanedOutputs) push_back  throwaway-output)
+    (on-call (field environment orphanedOutputs) push_back throwaway-output)
     (unless (= 0 (EvaluateGenerate_Recursive environment
                                              destruction-func-context
                                              (deref destruction-func-def) 0
