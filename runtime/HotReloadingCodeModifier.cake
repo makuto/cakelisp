@@ -63,7 +63,8 @@
 
 (defun-comptime hot-reload-lib-link-hook (manager (& ModuleManager)
                                                   linkCommand (& ProcessCommand)
-                                                  linkTimeInputs (* ProcessCommandInput) numLinkTimeInputs int
+                                                  linkTimeInputs (* ProcessCommandInput)
+                                                  numLinkTimeInputs int
                                                   &return bool)
   (command-add-string-argument "-shared")
   ;; (command-add-string-argument "--export-all-symbols")
