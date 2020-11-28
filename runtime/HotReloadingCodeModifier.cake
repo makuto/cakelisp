@@ -24,19 +24,17 @@
               (continue))
             (printf ">>> Variable %s\n" (on-call (field definition-pair first) c_str))
             (var definition (& ObjectDefinition) (field definition-pair second))
-            (var modified-var-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
-            (unless (CreateDefinitionCopyMacroExpanded definition (deref modified-var-tokens))
-              (delete modified-var-tokens)
+            (var expanded-var-tokens (<> std::vector Token))
+            (unless (CreateDefinitionCopyMacroExpanded definition expanded-var-tokens)
               (return false))
-            (on-call (field environment comptimeTokens) push_back modified-var-tokens)
             ;; Before
-            (prettyPrintTokens (deref modified-var-tokens))
+            (prettyPrintTokens expanded-var-tokens)
 
             (var start-token-index int 0)
-            (var end-invocation-index int (- (on-call-ptr modified-var-tokens size) 1))
+            (var end-invocation-index int (- (on-call expanded-var-tokens size) 1))
             (var var-name-index int
                  (getExpectedArgument "expected variable name"
-                                      (deref modified-var-tokens)
+                                      expanded-var-tokens
                                       start-token-index 1
 	                                  end-invocation-index))
 	        (when (= var-name-index -1)
@@ -44,25 +42,27 @@
 
 	        (var type-index int
                  (getExpectedArgument "expected variable type"
-                                      (deref modified-var-tokens)
+                                      expanded-var-tokens
                                       start-token-index 2
 	                                  end-invocation-index))
 	        (when (= type-index -1)
 	          (return false))
 
-            (var var-invocation (& Token) (at 1 (deref modified-var-tokens)))
-            (var var-name (& Token) (at var-name-index (deref modified-var-tokens)))
-            (var type-start (& Token) (at type-index (deref modified-var-tokens)))
+            (var var-invocation (& Token) (at 1 expanded-var-tokens))
+            (var var-name (& Token) (at var-name-index expanded-var-tokens))
+            (var type-start (& Token) (at type-index expanded-var-tokens))
 
             ;; Pointerify, remove intializer
-            (var new-var-tokens (<> std::vector Token))
-            (tokenize-push new-var-tokens ((token-splice-addr var-invocation)
-                                           (token-splice-addr var-name)
-                                           (* (token-splice-addr type-start))
-                                           null))
+            (var new-var-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
+            (on-call (field environment comptimeTokens) push_back new-var-tokens)
+            (tokenize-push (deref new-var-tokens)
+                           ((token-splice-addr var-invocation)
+                            (token-splice-addr var-name)
+                            (* (token-splice-addr type-start))
+                            null))
 
             ;; After
-            (prettyPrintTokens new-var-tokens)
+            (prettyPrintTokens (deref new-var-tokens))
 
             ;; Create intiailizer function
             (var init-function-name Token var-name)
@@ -82,9 +82,9 @@
             (var assignment-tokens (<> std::vector Token))
             (scope ;; Optional assignment
              (var assignment-index int
-                  (getArgument (deref modified-var-tokens) start-token-index 3 endInvocationIndex))
+                  (getArgument expanded-var-tokens start-token-index 3 endInvocationIndex))
              (when (!= assignment-index -1)
-               (var assignment-token (* Token) (addr (at assignment-index (deref modified-var-tokens))))
+               (var assignment-token (* Token) (addr (at assignment-index expanded-var-tokens)))
                (tokenize-push assignment-tokens
                               (set (deref (token-splice-addr var-name)) (token-splice assignment-token)))))
 
@@ -109,8 +109,11 @@
             ;; Make the changes
 
             ;; Definition references invalid after this!
+
+            ;; TODO: Why isn't this replacing the definition?
+            
             (unless (ReplaceAndEvaluateDefinition environment (on-call (field var-name contents) c_str)
-                                                  (deref modified-var-tokens))
+                                                  (deref new-var-tokens))
               (return false))
             (set was-code-modified true)
             (scope ;; Evaluate initializer
@@ -126,15 +129,15 @@
              ;; Make sure HotReloading header is included
              (var module-filename (* (const char)) (path definition . context . module > filename))
              (when (= (on-call (deref modules-with-import) find module-filename)
-                        (on-call-ptr modules-with-import end))
+                      (on-call-ptr modules-with-import end))
                (var import-hot-reloading-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
                (on-call (field environment comptimeTokens) push_back import-hot-reloading-tokens)
                (tokenize-push (deref import-hot-reloading-tokens) (import "HotReloading.cake"))
                (unless (= 0 (EvaluateGenerate_Recursive
-                           environment initializer-context
-                           (deref import-hot-reloading-tokens) 0
-                           (deref (path definition . context . module > generatedOutput))))
-               (return false))
+                             environment initializer-context
+                             (deref import-hot-reloading-tokens) 0
+                             (deref (path definition . context . module > generatedOutput))))
+                 (return false))
                ;; Meaningless number, only using hash table for fast lookup
                (set (at module-filename (deref modules-with-import)) 1))
 
