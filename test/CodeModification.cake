@@ -109,3 +109,18 @@
   (return true))
 
 (add-compile-time-hook post-references-resolved sabotage-main-printfs)
+
+;; ;; TODO: If this calls a function which needs var, that's a circular dependency
+;; ;; Silly example, but shows user can replace built-in with a custom macro
+;; ;; Would this be better as a code-modification thing?
+;; (rename-builtin "var" "badvar")
+;; (defmacro var ()
+;;   ;; Var cannot be used within var, because it's undefined. This excludes a lot of macros
+;;   ;; (get-or-create-comptime-var var-replacements (<> std::vector (* (const Token))))
+;;   ;; (for-in replaced-token (* (const Token)) (addr var-replacements)
+;;           ;; (NoteAtToken (deref replaced-token) "Replaced already"))
+
+;;   (PushBackTokenExpression output (addr (at startTokenIndex tokens)))
+;;   ;; TODO: This is no good, because var looks at its invocation name
+;;   (set (field (at 1 output) contents) "badvar")
+;;   (return true))
