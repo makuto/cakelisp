@@ -11,6 +11,11 @@
 ;; - Create initializers for these pointers, which are called right after loading/reloading.
 ;; - Change all references to those variables to automatic pointer dereferencing. This is the expensive part
 ;; - Create a function for the loader to call to initialize all the pointers
+;;
+;; TODO: Arrays
+;; TODO: Destructors
+;; TODO: Initializers which reference other modified variables
+;; TODO: Automatically convert main if found to entry point? A NoReload.cake could also be made (easy)
 (defun-comptime make-code-hot-reloadable (environment (& EvaluatorEnvironment)
                                                       was-code-modified (& bool)
                                                       &return bool)
@@ -254,14 +259,6 @@
   ;; rebuilds if different subsets of files are built. If it is housed here, only this file will
   ;; need to be recompiled
   (scope
-   ;; (var definition-it (in ObjectDefinitionMap iterator)
-   ;;      (on-call (field environment definitions) find "hot-reload-initialize-state"))
-   ;; (when (= definition-it (on-call (field environment definitions) end))
-   ;;   (printf "error: could not find hot-reload-initialize-state!\n")
-   ;;   (return false))
-
-   ;; (var definition (& ObjectDefinition) (path definition-it > second))
-
    (var new-initializer-def (* (<> std::vector Token)) (new (<> std::vector Token)))
    ;; Environment will handle freeing tokens for us
    (on-call (field environment comptimeTokens) push_back new-initializer-def)
@@ -293,6 +290,10 @@
 
   (return true))
 
+;;
+;; Building
+;;
+
 (add-compile-time-hook post-references-resolved make-code-hot-reloadable)
 
 (defmacro command-add-string-argument ()
@@ -309,10 +310,9 @@
                                                   numLinkTimeInputs int
                                                   &return bool)
   (command-add-string-argument "-shared")
-  ;; (command-add-string-argument "--export-all-symbols")
   (return true))
 
 (add-compile-time-hook pre-link hot-reload-lib-link-hook)
 
-;; TODO: Automatically make library if no main found
+;; TODO: Automatically make library if no main found?
 (set-cakelisp-option executable-output "libGeneratedCakelisp.so")
