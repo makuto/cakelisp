@@ -81,6 +81,9 @@
 
   (var initializer-names (<> std::vector Token))
 
+  ;; First = module filename. Second = initializer name token (for blaming)
+  (var modules-to-import (<> std::unordered_map std::string Token))
+
   ;; Pointerify variables and create initializer functions
   (for-in var-to-modify (& modify-definition) variables-to-modify
           (var expanded-var-tokens (& (<> std::vector Token))
@@ -137,9 +140,11 @@
 
            (var init-function-name-buffer ([] 256 char) (array 0))
            (PrintfBuffer init-function-name-buffer "%sInitialize" converted-name-buffer)
-           (set (field init-function-name contents) init-function-name-buffer)
-           ;; Store it for making the global initializer, which will call all initializers
-           (on-call initializer-names push_back init-function-name))
+           (set (field init-function-name contents) init-function-name-buffer))
+
+          ;; Store it for making the global initializer, which will call all initializers
+          (on-call initializer-names push_back init-function-name)
+          (set (at (path module > filename) modules-to-import) init-function-name)
 
           (var assignment-tokens (<> std::vector Token))
           (scope ;; Optional assignment
@@ -265,8 +270,17 @@
            (tokenize-push invocations ((token-splice-addr initializer-name))))
 
    (var imports (<> std::vector Token))
+   (for-in module-to-import (& (<> std::pair (const std::string) Token)) modules-to-import
+           (var module-name Token (field module-to-import second))
+           (set (field module-name contents) (field module-to-import first))
+           (set (field module-name type) TokenType_String)
+           (tokenize-push imports (import (token-splice-addr module-name))))
+
+   (prettyPrintTokens imports)
 
    (tokenize-push (deref new-initializer-def)
+                  ;; TODO: This is a hack. Make sure imports work by adding working dir as search
+                  (add-c-search-directory ".")
                   (token-splice-array imports)
                   (defun hot-reload-initialize-state ()
                     (token-splice-array invocations)))

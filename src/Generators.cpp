@@ -639,7 +639,7 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 		}
 		else if (!ExpectTokenType("import file", currentToken, TokenType_String) ||
 		         currentToken.contents.empty())
-			continue;
+			return false;
 
 		if (isCakeImport)
 		{

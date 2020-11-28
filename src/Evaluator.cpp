@@ -596,9 +596,17 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 	StringOutput moduleDelimiterTemplate = {};
 	moduleDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
 
-	return EvaluateGenerateAll_Recursive(
-	           environment, definitionContext, newDefinitionTokens, /*startTokenIndex=*/0,
-	           isModuleScope ? &moduleDelimiterTemplate : nullptr, *definitionOutput) == 0;
+	bool result = EvaluateGenerateAll_Recursive(
+	                  environment, definitionContext, newDefinitionTokens, /*startTokenIndex=*/0,
+	                  isModuleScope ? &moduleDelimiterTemplate : nullptr, *definitionOutput) == 0;
+
+	if (!result)
+	{
+		printf("note: encountered error while evaluating the following replacement definition:\n");
+		prettyPrintTokens(newDefinitionTokens);
+	}
+
+	return result;
 }
 
 // Determine what needs to be built, iteratively
