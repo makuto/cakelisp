@@ -85,6 +85,15 @@
   (unless current-lib
     (return false))
 
+  ;; Intialize variables
+  (var global-initializer (* void)
+       (getSymbolFromDynamicLibrary current-lib "hotReloadInitializeState"))
+  (if global-initializer
+      (block
+          (def-function-signature global-initializer-signature ())
+        (call (type-cast global-initializer global-initializer-signature)))
+      (printf "warning: global initializer 'hotReloadInitializeState' not found!"))
+
   (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions
           (var loaded-symbol (* void)
                (getSymbolFromDynamicLibrary current-lib
@@ -104,14 +113,14 @@
 (def-type-alias StateVariableMapIterator (in StateVariableMap iterator))
 
 (var registered-state-variables StateVariableMap)
-(var verbose-variables bool true)
+(var verbose-variables bool false)
 
 (defun hot-reload-find-variable (name (* (const char)) variable-address-out (* (* void)) &return bool)
   (var find-it StateVariableMapIterator (on-call registered-state-variables find name))
   (unless (!= find-it (on-call registered-state-variables end))
     (set variable-address-out nullptr)
     (when verbose-variables
-      (printf "Did not find variable %s\n" name))
+      (printf "Did wtfnot find variable ??? %s\n" name))
     (return false))
   (when verbose-variables
     (printf "Found variable %s at %p\n" name (path find-it > second)))

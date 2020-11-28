@@ -30,5 +30,5 @@
 # jam -j4 && ./bin/cakelisp --verbose-processes --execute \
 	# test/Execute.cake
 # TestMain is the loader. It doesn't care at all about fancy hot reloading macros, it just loads libs
-jam -j4 && ./bin/cakelisp --verbose-build-process --verbose-processes --ignore-cache \
+jam -j4 && ./bin/cakelisp --verbose-build-process --verbose-processes \
 						  runtime/TestMain.cake
