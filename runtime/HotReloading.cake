@@ -1,4 +1,5 @@
-;; (set-cakelisp-option enable-hot-reloading true)
+;; TODO: Need to rename this "use C linkage" or something
+(set-cakelisp-option enable-hot-reloading true)
 
 ;; ;; TODO: If this calls a function which needs var, that's a circular dependency
 ;; ;; Silly example, but shows user can replace built-in with a custom macro
@@ -29,7 +30,8 @@
                      ;; "-shared" ;; This causes c++ initializers to fail and no linker errors. Need to only enable on lib?
                      "-o" 'executable-output 'object-input
                      ;; TODO: OS dependent
-                     "-ldl" "-lpthread" "-Wl,-rpath,.")
+                     ;; Need --export-dynamic so the loaded library can use our symbols
+                     "-ldl" "-lpthread" "-Wl,-rpath,.,--export-dynamic")
 
 ;; TODO: Relative vs. absolute paths
 (add-cpp-build-dependency "../src/DynamicLoader.cpp")
@@ -120,7 +122,7 @@
   (unless (!= find-it (on-call registered-state-variables end))
     (set variable-address-out nullptr)
     (when verbose-variables
-      (printf "Did wtfnot find variable ??? %s\n" name))
+      (printf "Did not find variable %s\n" name))
     (return false))
   (when verbose-variables
     (printf "Found variable %s at %p\n" name (path find-it > second)))

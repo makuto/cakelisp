@@ -197,7 +197,8 @@
                     (on-call-ptr modules-with-import end))
              (var import-hot-reloading-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
              (on-call (field environment comptimeTokens) push_back import-hot-reloading-tokens)
-             (tokenize-push (deref import-hot-reloading-tokens) (import "HotReloading.cake"))
+             ;; Make sure we don't build our own version of this. The loader needs to manage it
+             (tokenize-push (deref import-hot-reloading-tokens) (c-import "HotReloading.cake.hpp"))
              (unless (= 0 (EvaluateGenerate_Recursive
                            environment initializer-context
                            (deref import-hot-reloading-tokens) 0
