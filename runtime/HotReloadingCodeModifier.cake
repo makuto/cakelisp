@@ -6,7 +6,7 @@
 ;; High-level explanation:
 ;; - Find all global and module-local variables
 ;; - Convert them to pointers so they can be stored on the heap, surviving reloads
-;; - Create initializers for these pointers, which are called right after loading/reloading
+;; - Create initializers for these pointers, which are called right after loading/reloading.
 ;; - Change all references to those variables to automatic pointer dereferencing. This is the expensive part
 ;; - Create a function for the loader to call to initialize the pointers
 (defun-comptime make-code-hot-reloadable (environment (& EvaluatorEnvironment)
@@ -46,8 +46,19 @@
 	        (when (= type-index -1)
 	          (return false))
 
+            (var var-invocation (& Token) (at 1 (deref modified-main-tokens)))
+            (var var-name (& Token) (at var-name-index (deref modified-main-tokens)))
+            (var type-start (& Token) (at type-index (deref modified-main-tokens)))
+
+            ;; Pointerify, remove intializer
+            (var new-var-tokens (<> std::vector Token))
+            (tokenize-push new-var-tokens ((token-splice-addr var-invocation)
+                                           (token-splice-addr var-name)
+                                           (* (token-splice-addr type-start))
+                                           null))
+
             ;; After
-            (prettyPrintTokens (deref modified-main-tokens))))
+            (prettyPrintTokens new-var-tokens)))
   (incr (deref stage))
   (return true))
 
