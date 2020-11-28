@@ -1,3 +1,19 @@
+;; Hot-reloading library code modifier
+;; - Changes all module and global variables to use the heap, thereby persisting state across reloads
+;;   (in case it isn't obvious, you cannot persist state on the stack of code you're going to reload)
+;; - Enables C-linkage and shared library toggles so functions can be discovered by the loader
+;;
+;; To use:
+;; - Build the "loader" with HotReloading.cake. See TestMain for an example loader
+;; - The loader should link libraries that you need to use and shouldn't reload
+;; - Now, modify the library which will be reloaded:
+;; - Define the following function: (defun reloadable-entry-point (&return bool))
+;;   (return true to reload, false to exit). This is the library's "main"
+;; - Don't link any libraries which shouldn't be reloaded (they're in the loader)
+;; - When building the library, put HotReloadingCodeModifier.cake as the *first* import
+;;   (this ensures your functions will output c-linkage, and that a library will be built)
+;;
+;; It seems a bit complicated, but it's a really awesome feature, which makes it worth the price
 (set-cakelisp-option use-c-linkage true)
 
 (import &comptime-only "Macros.cake")
