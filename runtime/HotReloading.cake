@@ -1,5 +1,5 @@
 ;; TODO: Need to rename this "use C linkage" or something
-(set-cakelisp-option enable-hot-reloading true)
+;; (set-cakelisp-option enable-hot-reloading true)
 
 ;; ;; TODO: If this calls a function which needs var, that's a circular dependency
 ;; ;; Silly example, but shows user can replace built-in with a custom macro
