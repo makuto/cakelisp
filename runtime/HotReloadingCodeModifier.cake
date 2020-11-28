@@ -1,4 +1,4 @@
-(set-cakelisp-option enable-hot-reloading true)
+(set-cakelisp-option use-c-linkage true)
 
 (import &comptime-only "Macros.cake")
 

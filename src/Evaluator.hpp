@@ -294,8 +294,8 @@ struct EvaluatorEnvironment
 	// User-specified variables usable by any compile-time macro/generator/function/hook
 	CompileTimeVariableTable compileTimeVariables;
 
-	// Generate code so that objects defined in Cakelisp can be reloaded at runtime
-	bool enableHotReloading;
+	// Generate code so that objects defined in Cakelisp can be loaded at runtime
+	bool useCLinkage;
 
 	// Whether it is okay to skip an operation if the resultant file is already in the cache (and
 	// the source file hasn't been modified more recently)

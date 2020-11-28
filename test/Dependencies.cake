@@ -1,5 +1,4 @@
 (set-cakelisp-option cakelisp-src-dir "src")
-(set-cakelisp-option enable-hot-reloading false)
 (c-import "<stdio.h>")
 (import "DependenciesModule.cake")
 

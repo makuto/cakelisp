@@ -157,7 +157,7 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 	}
 
 	// This needs to be defined early, else things will only be partially supported
-	if (tokens[optionNameIndex].contents.compare("enable-hot-reloading") == 0)
+	if (tokens[optionNameIndex].contents.compare("use-c-linkage") == 0)
 	{
 		int enableStateIndex =
 		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
@@ -166,13 +166,13 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 
 		const Token& enableStateToken = tokens[enableStateIndex];
 
-		if (!ExpectTokenType("enable-hot-reloading", enableStateToken, TokenType_Symbol))
+		if (!ExpectTokenType("use-c-linkage", enableStateToken, TokenType_Symbol))
 			return false;
 
 		if (enableStateToken.contents.compare("true") == 0)
-			environment.enableHotReloading = true;
+			environment.useCLinkage = true;
 		else if (enableStateToken.contents.compare("false") == 0)
-			environment.enableHotReloading = false;
+			environment.useCLinkage = false;
 		else
 		{
 			ErrorAtToken(enableStateToken, "expected true or false");
@@ -838,13 +838,12 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		return false;
 
 	// Compile-time functions need to be exposed with C bindings so they can be found
-	if (isCompileTime || environment.enableHotReloading)
+	if (isCompileTime || environment.useCLinkage)
 	{
 		addStringOutput(isModuleLocal ? functionOutput->source : functionOutput->header,
 		                "extern \"C\"", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 	}
 
-	// TODO: Hot-reloading functions shouldn't be declared static, right?
 	if (isModuleLocal)
 		addStringOutput(functionOutput->source, "static", StringOutMod_SpaceAfter,
 		                &tokens[startTokenIndex]);

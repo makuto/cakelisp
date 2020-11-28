@@ -39,7 +39,6 @@ void OnExecuteProcessOutput(const char* output)
 
 int main(int numArguments, char* arguments[])
 {
-	bool enableHotReloading = false;
 	bool ignoreCachedFiles = false;
 	bool executeOutput = false;
 
@@ -48,8 +47,6 @@ int main(int numArguments, char* arguments[])
 	     "Prohibit skipping an operation if the resultant file is already in the cache (and the "
 	     "source file hasn't been modified more recently). This is a good way to test a 'clean' "
 	     "build without having to delete the Cakelisp cache directory"},
-	    {"--enable-hot-reloading", &enableHotReloading,
-	     "Generate code so that objects defined in Cakelisp can be reloaded at runtime"},
 	    {"--execute", &executeOutput,
 	     "If building completes successfully, run the output executable. Its working directory "
 	     "will be the final location of the executable. This allows Cakelisp code to be run as if "
@@ -146,9 +143,6 @@ int main(int numArguments, char* arguments[])
 
 	// Set options after initialization
 	{
-		if (enableHotReloading)
-			moduleManager.environment.enableHotReloading = true;
-
 		if (ignoreCachedFiles)
 		{
 			printf(
