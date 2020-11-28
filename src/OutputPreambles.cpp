@@ -8,9 +8,8 @@ void makeCompileTimeHeaderFooter(GeneratorOutput& headerOut, GeneratorOutput& fo
                                  GeneratorOutput* spliceAfterHeaders, const Token* blameToken)
 {
 	const char* defaultIncludes[] = {
-	    "Evaluator.hpp",        "EvaluatorEnums.hpp", "Tokenizer.hpp",
-	    "GeneratorHelpers.hpp", "Utilities.hpp",      "ModuleManager.hpp",
-	};
+	    "Evaluator.hpp", "EvaluatorEnums.hpp", "Tokenizer.hpp", "GeneratorHelpers.hpp",
+	    "Utilities.hpp", "ModuleManager.hpp",  "Converters.hpp"};
 
 	for (unsigned int i = 0; i < ArraySize(defaultIncludes); ++i)
 	{

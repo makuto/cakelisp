@@ -98,6 +98,31 @@
 
 
 ;;
+;; Data/state management
+;;
+(def-type-alias StateVariableMap (<> std::unordered_map std::string (* void)))
+(def-type-alias StateVariableMapIterator (in StateVariableMap iterator))
+
+(var registered-state-variables StateVariableMap)
+(var verbose-variables bool true)
+
+(defun hot-reload-find-variable (name (* (const char)) variable-address-out (* (* void)) &return bool)
+  (var find-it StateVariableMapIterator (on-call registered-state-variables find name))
+  (unless (!= find-it (on-call registered-state-variables end))
+    (set variable-address-out nullptr)
+    (when verbose-variables
+      (printf "Did not find variable %s\n" name))
+    (return false))
+  (when verbose-variables
+    (printf "Found variable %s at %p\n" name (path find-it > second)))
+  (set (deref variable-address-out) (path find-it > second))
+  (return true))
+
+;; TODO: Free variables. They'll need generated destructors for C++ types (see compile-time vars)
+(defun hot-reload-register-variable (name (* (const char)) variable-address (* void))
+  (set (at name registered-state-variables) variable-address))
+
+;;
 ;; Prospective compile-time modification
 ;;
 
