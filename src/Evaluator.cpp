@@ -1433,7 +1433,8 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 		else
 		{
-			NoteAtToken(*definition.definitionInvocation, "omitted (not required by module)");
+			if (isCompileTimeObject(definition.type))
+				NoteAtToken(*definition.definitionInvocation, "omitted (not required by module)");
 		}
 	}
 

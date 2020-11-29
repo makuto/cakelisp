@@ -174,7 +174,7 @@
                                       converted-name-buffer (sizeof converted-name-buffer) var-name)
 
            (var init-function-name-buffer ([] 256 char) (array 0))
-           (PrintfBuffer init-function-name-buffer "%sInitialize" converted-name-buffer)
+           (PrintfBuffer init-function-name-buffer "hotReloadInitVar_%s" converted-name-buffer)
            (set (field init-function-name contents) init-function-name-buffer))
 
           ;; Store it for making the global initializer, which will call all initializers
