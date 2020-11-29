@@ -838,10 +838,11 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		return false;
 
 	// Compile-time functions need to be exposed with C bindings so they can be found
-	if (isCompileTime || environment.useCLinkage)
+	// Module-local functions are always marked static, which hides them from linking
+	if (!isModuleLocal && (isCompileTime || environment.useCLinkage))
 	{
-		addStringOutput(isModuleLocal ? functionOutput->source : functionOutput->header,
-		                "extern \"C\"", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(functionOutput->header, "extern \"C\"", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 	}
 
 	if (isModuleLocal)

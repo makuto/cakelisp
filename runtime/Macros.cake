@@ -264,6 +264,14 @@
     (incr current-index))
   (return true))
 
+(defmacro command-add-string-argument ()
+  (destructure-arguments new-argument-index)
+  (quick-token-at new-argument new-argument-index)
+  (tokenize-push output (on-call (field linkCommand arguments) push_back
+                                 (array ProcessCommandArgumentType_String
+                                        (token-splice (addr new-argument)))))
+  (return true))
+
 ;; TODO
 ;; See https://www.tutorialspoint.com/lisp/lisp_file_io.htm
 ;; (defmacro with-open-file ()

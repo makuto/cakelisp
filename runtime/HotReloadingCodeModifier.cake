@@ -14,6 +14,17 @@
 ;;   (this ensures your functions will output c-linkage, and that a library will be built)
 ;;
 ;; It seems a bit complicated, but it's a really awesome feature, which makes it worth the price
+;; Note that this will increase build times, because all affected functions and variables need to be
+;; re-evaluated. There will be no macro expansions, however, which saves some time
+;;
+;; The goal is to be plug-and-play, but there are some modifications you'll need to do to your program:
+;; - Variables with state which needs to be persisted across reloads need to be in module or global
+;;   variables. This likely means moving function-local state variables into module scope
+;; - Initialization needs to be gated by a module scope or global scope variable so the app doesn't
+;;   re-initialize after each reload. It could also be a separate function which the loader calls once
+;; - Change your main function to match the reload entry point signature
+;; - Add some control within the program to instruct it to reload (return true from entry point)
+;; - TODO: Array sizes are different when hot-reloading
 (set-cakelisp-option use-c-linkage true)
 
 (import &comptime-only "Macros.cake")
@@ -32,6 +43,9 @@
 ;; TODO: Destructors
 ;; TODO: Initializers which reference other modified variables
 ;; TODO: Automatically convert main if found to entry point? A NoReload.cake could also be made (easy)
+;; TODO: Potential bug if vars miss modified-vars stage. Need to store list of modified vars instead
+;;       (would also need to keep track of modified references...yikes)
+;; TODO: Need to take scope into account before changing a symbol (was it actually a module-private var)
 (defun-comptime make-code-hot-reloadable (environment (& EvaluatorEnvironment)
                                                       was-code-modified (& bool)
                                                       &return bool)
@@ -311,14 +325,6 @@
 ;;
 
 (add-compile-time-hook post-references-resolved make-code-hot-reloadable)
-
-(defmacro command-add-string-argument ()
-  (destructure-arguments new-argument-index)
-  (quick-token-at new-argument new-argument-index)
-  (tokenize-push output (on-call (field linkCommand arguments) push_back
-                                 (array ProcessCommandArgumentType_String
-                                        (token-splice (addr new-argument)))))
-  (return true))
 
 (defun-comptime hot-reload-lib-link-hook (manager (& ModuleManager)
                                                   linkCommand (& ProcessCommand)
