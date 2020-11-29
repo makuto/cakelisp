@@ -25,6 +25,9 @@
 ;; - Change your main function to match the reload entry point signature
 ;; - Add some control within the program to instruct it to reload (return true from entry point)
 ;; - TODO: Array sizes are different when hot-reloading
+
+;; Make all non-module-local functions dynamically loadable (we mainly care about our entry point
+;; and initializer function, but the user could have a customized loader which hooks more)
 (set-cakelisp-option use-c-linkage true)
 
 (import &comptime-only "Macros.cake")
@@ -49,10 +52,15 @@
 (defun-comptime make-code-hot-reloadable (environment (& EvaluatorEnvironment)
                                                       was-code-modified (& bool)
                                                       &return bool)
+  (var verbose bool false)
+
   (get-or-create-comptime-var modified-vars bool false)
   (when (deref modified-vars) ;; Modify variables only once
     (return true))
   (set (deref modified-vars) true)
+
+  (printf "HotReloading: Modifying code for hot-reloading.\n")
+  (printf "Subsequent modifications will not be hot-reloading safe\n")
 
   (get-or-create-comptime-var modules-with-import (<> std::unordered_map std::string int))
 
@@ -69,9 +77,9 @@
             (continue))
           ;; TODO: Support arrays
           (when (= 0 (on-call (field definition-pair first) compare "rooms"))
-            (printf "SKIPPING %s\n" (on-call (field definition-pair first) c_str))
+            (when verbose (printf "SKIPPING %s\n" (on-call (field definition-pair first) c_str)))
             (continue))
-          (printf ">>> Variable %s\n" (on-call (field definition-pair first) c_str))
+          (when verbose (printf ">>> Variable %s\n" (on-call (field definition-pair first) c_str)))
           (var definition (& ObjectDefinition) (field definition-pair second))
           (var var-to-modify modify-definition)
           (unless (CreateDefinitionCopyMacroExpanded definition
@@ -108,7 +116,8 @@
           (unless reference-found
             (continue))
 
-          (printf ">>> Reference(s) found in %s\n" (on-call (field definition-pair first) c_str))
+          (when verbose (printf ">>> Reference(s) found in %s\n"
+                                (on-call (field definition-pair first) c_str)))
 
           (set (field def-to-modify module) (field definition context module))
           (set (field def-to-modify name) (field definition-pair first))
@@ -126,7 +135,7 @@
           (var module (* Module) (field var-to-modify module))
 
           ;; Before
-          (prettyPrintTokens expanded-var-tokens)
+          (when verbose (prettyPrintTokens expanded-var-tokens))
 
           (var start-token-index int 0)
           (var end-invocation-index int (- (on-call expanded-var-tokens size) 1))
@@ -160,7 +169,7 @@
                           null))
 
           ;; After
-          (prettyPrintTokens (deref new-var-tokens))
+          (when verbose (prettyPrintTokens (deref new-var-tokens)))
 
           ;; Create intiailizer function
           (var init-function-name Token var-name)
@@ -206,7 +215,7 @@
                    ;; (set (deref (token-splice-addr var-name)) (token-splice-addr assignment))
                    (hot-reload-register-variable (token-splice-addr string-var-name)
                                                  (token-splice-addr var-name))))))
-          (prettyPrintTokens (deref initializer-procedure-tokens))
+          (when verbose (prettyPrintTokens (deref initializer-procedure-tokens)))
 
           ;; Make the changes
 
@@ -304,7 +313,7 @@
            (set (field module-name type) TokenType_String)
            (tokenize-push imports (import (token-splice-addr module-name))))
 
-   (prettyPrintTokens imports)
+   (when verbose (prettyPrintTokens imports))
 
    (tokenize-push (deref new-initializer-def)
                   ;; TODO: This is a hack. Make sure imports work by adding working dir as search

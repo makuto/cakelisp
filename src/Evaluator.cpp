@@ -1434,7 +1434,9 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		else
 		{
 			if (isCompileTimeObject(definition.type))
-				NoteAtToken(*definition.definitionInvocation, "omitted (not required by module)");
+				NoteAtTokenf(*definition.definitionInvocation,
+				             "did not build %s (not required by any module)",
+				             definition.name.c_str());
 		}
 	}
 
