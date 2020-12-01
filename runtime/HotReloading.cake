@@ -89,7 +89,7 @@
 ;;
 
 ;; Include cakelisp source for DynamicLoader.hpp
-(add-c-search-directory "src/")
+(add-c-search-directory module "src/")
 
 ;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
 ;; arguments to the link command only

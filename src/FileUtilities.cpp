@@ -1,9 +1,9 @@
 #include "FileUtilities.hpp"
 
-#include "Utilities.hpp"
-
 #include <stdio.h>
 #include <string.h>
+
+#include "Utilities.hpp"
 
 #ifdef UNIX
 #include <libgen.h>
@@ -175,5 +175,4 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 	// 	}
 	// 	return 0;
 	// }
-
 }

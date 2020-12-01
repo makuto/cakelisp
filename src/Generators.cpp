@@ -246,14 +246,15 @@ bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& 
 		ProcessCommandOptionFunc handler;
 	};
 	ProcessCommandOptions commandOptions[] = {
-	    {"compile-time-compiler", &context.module->compileTimeBuildCommand,
-	     SetProcessCommandFileToExec},
-	    {"compile-time-compile-arguments", &context.module->compileTimeBuildCommand,
-	     SetProcessCommandArguments},
-	    {"compile-time-linker", &context.module->compileTimeLinkCommand,
-	     SetProcessCommandFileToExec},
-	    {"compile-time-link-arguments", &context.module->compileTimeLinkCommand,
-	     SetProcessCommandArguments},
+	    // TODO: Use module overrides
+	    // {"compile-time-compiler", &context.module->compileTimeBuildCommand,
+	    //  SetProcessCommandFileToExec},
+	    // {"compile-time-compile-arguments", &context.module->compileTimeBuildCommand,
+	    //  SetProcessCommandArguments},
+	    // {"compile-time-linker", &context.module->compileTimeLinkCommand,
+	    //  SetProcessCommandFileToExec},
+	    // {"compile-time-link-arguments", &context.module->compileTimeLinkCommand,
+	    //  SetProcessCommandArguments},
 	    {"build-time-compiler", &context.module->buildTimeBuildCommand,
 	     SetProcessCommandFileToExec},
 	    {"build-time-compile-arguments", &context.module->buildTimeBuildCommand,
@@ -440,14 +441,58 @@ bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
 	}
 
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
-	for (int i = startTokenIndex + 2; i < endInvocationIndex;
+
+	int destinationIndex = getExpectedArgument("expected destination (module or global)", tokens,
+	                                           startTokenIndex, 1, endInvocationIndex);
+	if (destinationIndex == -1)
+		return false;
+
+	const Token& destinationToken = tokens[destinationIndex];
+
+	if (!ExpectTokenType("add-c-search-directory destination", destinationToken, TokenType_Symbol))
+		return false;
+
+	struct SearchDirectoryDestination
+	{
+		const char* name;
+		std::vector<std::string>* searchDirs;
+	};
+	const SearchDirectoryDestination possibleDestinations[] = {
+		// TODO: Add compile-time
+	    {"global", &environment.cSearchDirectories},
+	    {"module", &context.module->cSearchDirectories}};
+	const SearchDirectoryDestination* destination = nullptr;
+	for (unsigned int i = 0; i < ArraySize(possibleDestinations); ++i)
+	{
+		if (destinationToken.contents.compare(possibleDestinations[i].name) == 0)
+		{
+			destination = &possibleDestinations[i];
+			break;
+		}
+	}
+
+	if (!destination)
+	{
+		ErrorAtToken(destinationToken, "unrecognized destination. Available destinations:");
+		for (unsigned int i = 0; i < ArraySize(possibleDestinations); ++i)
+			printf("\t%s\n", possibleDestinations[i].name);
+
+		return false;
+	}
+
+	int startDirectoriesIndex =
+	    getExpectedArgument("expected directories", tokens, startTokenIndex, 2, endInvocationIndex);
+	if (startDirectoriesIndex == -1)
+		return false;
+
+	for (int i = startDirectoriesIndex; i < endInvocationIndex;
 	     i = getNextArgument(tokens, i, endInvocationIndex))
 	{
 		if (!ExpectTokenType("add-c-search-directory", tokens[i], TokenType_String))
 			return false;
 
 		bool found = false;
-		for (const std::string& dir : context.module->cSearchDirectories)
+		for (const std::string& dir : (*destination->searchDirs))
 		{
 			if (dir.compare(tokens[i].contents) == 0)
 			{
@@ -456,7 +501,7 @@ bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
 			}
 		}
 		if (!found)
-			context.module->cSearchDirectories.push_back(tokens[i].contents);
+			(*destination->searchDirs).push_back(tokens[i].contents);
 	}
 
 	return true;

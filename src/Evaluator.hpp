@@ -308,6 +308,8 @@ struct EvaluatorEnvironment
 	const char** searchPaths;
 	int numSearchPaths;
 
+	std::vector<std::string> cSearchDirectories;
+
 	// When using the default build system, the path to output the final executable
 	std::string executableOutput;
 

@@ -540,9 +540,22 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		else
 		{
 			std::vector<const char*> searchDirArgs;
+			searchDirArgs.reserve(object->includesSearchDirs.size() +
+			                      manager.environment.cSearchDirectories.size());
 			for (const std::string& searchDirArg : object->includesSearchDirs)
 			{
 				searchDirArgs.push_back(searchDirArg.c_str());
+			}
+
+			// This code sucks
+			std::vector<std::string> globalSearchDirArgs;
+			globalSearchDirArgs.reserve(manager.environment.cSearchDirectories.size());
+			for (const std::string& searchDir : manager.environment.cSearchDirectories)
+			{
+				char searchDirToArgument[MAX_PATH_LENGTH + 2];
+				PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
+				globalSearchDirArgs.push_back(searchDirToArgument);
+				searchDirArgs.push_back(globalSearchDirArgs.back().c_str());
 			}
 
 			std::vector<const char*> additionalOptions;

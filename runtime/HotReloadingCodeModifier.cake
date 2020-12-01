@@ -28,6 +28,7 @@
 
 ;; Make all non-module-local functions dynamically loadable (we mainly care about our entry point
 ;; and initializer function, but the user could have a customized loader which hooks more)
+;; This needs to be set before any functions which need C linkage are evaluated by Cakelisp
 (set-cakelisp-option use-c-linkage true)
 
 (import &comptime-only "Macros.cake")
@@ -317,7 +318,7 @@
 
    (tokenize-push (deref new-initializer-def)
                   ;; TODO: This is a hack. Make sure imports work by adding working dir as search
-                  (add-c-search-directory ".")
+                  (add-c-search-directory module ".")
                   (token-splice-array imports)
                   (defun hot-reload-initialize-state ()
                     (token-splice-array invocations)))
