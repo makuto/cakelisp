@@ -305,8 +305,7 @@ struct EvaluatorEnvironment
 	std::string cakelispSrcDir;
 
 	// Search paths for Cakelisp files, not C includes
-	const char** searchPaths;
-	int numSearchPaths;
+	std::vector<std::string> searchPaths;
 
 	std::vector<std::string> cSearchDirectories;
 
@@ -386,8 +385,7 @@ const char* objectTypeToString(ObjectType type);
 // encounteredInFile becomes an automatic relative search path
 // Returns false if the file does not exist in any of the paths searched
 bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
-                          const char** searchPaths, int numSearchPaths, char* foundFilePathOut,
+                          const std::vector<std::string>& searchPaths, char* foundFilePathOut,
                           int foundFilePathOutSize);
-
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

@@ -20,4 +20,4 @@
       (return 1)))
   (return 0))
 
-(set-cakelisp-option executable-output "hot_reload_start")
+(set-cakelisp-option executable-output "hot_loader")

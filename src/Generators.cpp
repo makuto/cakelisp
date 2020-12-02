@@ -425,6 +425,51 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	return false;
 }
 
+bool AddCakelispSearchPathGenerator(EvaluatorEnvironment& environment,
+                                    const EvaluatorContext& context,
+                                    const std::vector<Token>& tokens, int startTokenIndex,
+                                    GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("add-cakelisp-search-directory", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex], "cannot find module (internal code error?)");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	int startDirectoriesIndex =
+	    getExpectedArgument("expected directories", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (startDirectoriesIndex == -1)
+		return false;
+
+	for (int i = startDirectoriesIndex; i < endInvocationIndex;
+	     i = getNextArgument(tokens, i, endInvocationIndex))
+	{
+		if (!ExpectTokenType("add-cakelisp-search-directory", tokens[i], TokenType_String))
+			return false;
+
+		bool found = false;
+		for (const std::string& path : environment.searchPaths)
+		{
+			if (tokens[i].contents.compare(path) == 0)
+			{
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			environment.searchPaths.push_back(tokens[i].contents);
+	}
+
+	return true;
+}
+
 bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, GeneratorOutput& output)
@@ -712,15 +757,15 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 				char resolvedPathBuffer[MAX_PATH_LENGTH] = {0};
 				if (!searchForFileInPaths(currentToken.contents.c_str(),
 				                          /*encounteredInFile=*/currentToken.source,
-				                          environment.searchPaths, environment.numSearchPaths,
-				                          resolvedPathBuffer, ArraySize(resolvedPathBuffer)))
+				                          environment.searchPaths, resolvedPathBuffer,
+				                          ArraySize(resolvedPathBuffer)))
 				{
 					ErrorAtToken(currentToken, "file not found! Checked the following paths:");
 					printf("Checked if relative to %s\n", currentToken.source);
 					printf("Checked environment search paths:\n");
-					for (int pathIndex = 0; pathIndex < environment.numSearchPaths; ++pathIndex)
+					for (const std::string& path : environment.searchPaths)
 					{
-						printf("\t%s", environment.searchPaths[pathIndex]);
+						printf("\t%s", path.c_str());
 					}
 					return false;
 				}
@@ -2304,6 +2349,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
 	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
 	environment.generators["add-c-search-directory"] = AddCSearchDirectoryGenerator;
+	environment.generators["add-cakelisp-search-directory"] = AddCakelispSearchPathGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

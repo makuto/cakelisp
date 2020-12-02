@@ -1545,13 +1545,6 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
 		delete comptimeTokens;
 	environment.comptimeTokens.clear();
-
-	if (environment.searchPaths)
-	{
-		for (int i = 0; i < environment.numSearchPaths; ++i)
-			free((void*)environment.searchPaths[i]);
-		free(environment.searchPaths);
-	}
 }
 
 const char* evaluatorScopeToString(EvaluatorScope expectedScope)
@@ -1608,7 +1601,7 @@ bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
 }
 
 bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
-                          const char** searchPaths, int numSearchPaths, char* foundFilePathOut,
+                          const std::vector<std::string>& searchPaths, char* foundFilePathOut,
                           int foundFilePathOutSize)
 {
 	// First, check if it's relative to the file it was encountered in
@@ -1624,9 +1617,9 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 			return true;
 	}
 
-	for (int i = 0; i < numSearchPaths; ++i)
+	for (const std::string& path : searchPaths)
 	{
-		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", searchPaths[i], shortPath);
+		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", path.c_str(), shortPath);
 
 		if (log.fileSearch)
 			printf("File exists? %s\n", foundFilePathOut);

@@ -107,9 +107,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 	// By always searching relative to CWD, any subsequent imports with the module filename will
 	// resolve correctly
-	manager.environment.numSearchPaths = 1;
-	manager.environment.searchPaths = (const char**)calloc(sizeof(char*), manager.environment.numSearchPaths);
-	manager.environment.searchPaths[0] = strdup(".");
+	manager.environment.searchPaths.push_back(".");
 }
 
 void moduleManagerDestroy(ModuleManager& manager)
