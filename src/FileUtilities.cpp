@@ -177,6 +177,26 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 	// }
 }
 
+bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
+                                      const char* addExtension, char* bufferOut, int bufferSize)
+{
+	char buildFilename[MAX_NAME_LENGTH] = {0};
+	getFilenameFromPath(sourceFilename, buildFilename, sizeof(buildFilename));
+	if (!buildFilename[0])
+		return false;
+
+	// TODO: Trim .cake.cpp (etc.)
+	if (!addExtension)
+	{
+		SafeSnprinf(bufferOut, bufferSize, "%s/%s", outputDir, buildFilename);
+	}
+	else
+	{
+		SafeSnprinf(bufferOut, bufferSize, "%s/%s.%s", outputDir, buildFilename, addExtension);
+	}
+	return true;
+}
+
 // From https://stackoverflow.com/questions/2180079/how-can-i-copy-a-file-on-unix-using-c
 // (I don't want to think about this right now)
 int copyFile(const char* to, const char* from)

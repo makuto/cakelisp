@@ -1,6 +1,7 @@
 #include "ModuleManager.hpp"
 
-#include "Building.hpp"
+#include <string.h>
+
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
 #include "Evaluator.hpp"
@@ -14,8 +15,6 @@
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 #include "Writer.hpp"
-
-#include <string.h>
 
 const char* compilerObjectExtension = "o";
 

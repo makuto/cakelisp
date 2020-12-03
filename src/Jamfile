@@ -17,7 +17,6 @@ OutputPreambles.cpp
 DynamicLoader.cpp
 ModuleManager.cpp
 Logging.cpp
-Building.cpp
 ;
 
 MakeLocate cakelisp$(SUFEXE) : bin ;

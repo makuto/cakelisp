@@ -21,5 +21,9 @@ const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* fi
 // Will be absolute if above working dir, else, normalized relative
 void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, int bufferSize);
 
+// Turns a/b/file.txt into outputDir/file.txt.addExtension
+bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
+                                      const char* addExtension, char* bufferOut, int bufferSize);
+
 // Returns -1 on error
 int copyFile(const char* to, const char* from);
