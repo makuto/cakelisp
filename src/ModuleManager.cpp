@@ -17,6 +17,8 @@
 
 #include <string.h>
 
+const char* compilerObjectExtension = "o";
+
 // The ' symbols tell the signature validator that the actual contents of those symbols can be
 // user-defined (just like C letting you specify arguments without names)
 const char* g_modulePreBuildHookSignature =
@@ -318,8 +320,68 @@ bool moduleManagerEvaluateResolveReferences(ModuleManager& manager)
 	return EvaluateResolveReferences(manager.environment);
 }
 
+// Directory is named from build configuration labels
+static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::string& outputDirOut)
+{
+	// As soon as we start writing, we need to decide what directory we will write to. Fix build
+	// configuration labels because it's too late to change them now
+	environment.buildConfigurationLabelsAreFinal = true;
+
+	// Sane default in case something goes wrong
+	outputDirOut = cakelispWorkingDir;
+
+	char outputDirName[MAX_PATH_LENGTH] = {0};
+	int numLabels = (int)environment.buildConfigurationLabels.size();
+	char* writeHead = outputDirName;
+
+	if (!writeStringToBuffer(cakelispWorkingDir, &writeHead, outputDirName, sizeof(outputDirName)))
+	{
+		printf("error: ran out of space writing build configuration output directory name\n");
+		return false;
+	}
+	if (!writeCharToBuffer('/', &writeHead, outputDirName, sizeof(outputDirName)))
+	{
+		printf("error: ran out of space writing build configuration output directory name\n");
+		return false;
+	}
+
+	for (int i = 0; i < numLabels; ++i)
+	{
+		const std::string& label = environment.buildConfigurationLabels[i];
+		if (!writeStringToBuffer(label.c_str(), &writeHead, outputDirName, sizeof(outputDirName)))
+		{
+			printf("error: ran out of space writing build configuration output directory name\n");
+			break;
+		}
+
+		// Delimiter
+		if (i < numLabels - 1)
+		{
+			if (!writeCharToBuffer('-', &writeHead, outputDirName, sizeof(outputDirName)))
+			{
+				printf(
+				    "error: ran out of space writing build configuration output directory name\n");
+				break;
+			}
+		}
+	}
+
+	if (numLabels == 0)
+		PrintfBuffer(outputDirName, "%s/default", cakelispWorkingDir);
+
+	makeDirectory(outputDirName);
+
+	printf("Outputting artifacts to %s\n", outputDirName);
+
+	outputDirOut = outputDirName;
+
+	return true;
+}
+
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 {
+	createBuildOutputDirectory(manager.environment, manager.buildOutputDir);
+
 	NameStyleSettings nameSettings;
 	WriterFormatSettings formatSettings;
 
@@ -349,9 +411,15 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		outputSettings.footer = &footer;
 
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(sourceOutputName, "%s.cpp", outputSettings.sourceCakelispFilename);
+		if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(),
+		                                      outputSettings.sourceCakelispFilename, "cpp",
+		                                      sourceOutputName, sizeof(sourceOutputName)))
+			return false;
 		char headerOutputName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(headerOutputName, "%s.hpp", outputSettings.sourceCakelispFilename);
+		if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(),
+		                                      outputSettings.sourceCakelispFilename, "hpp",
+		                                      headerOutputName, sizeof(headerOutputName)))
+			return false;
 		module->sourceOutputName = sourceOutputName;
 		module->headerOutputName = headerOutputName;
 		outputSettings.sourceOutputName = module->sourceOutputName.c_str();
@@ -471,10 +539,12 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				newBuiltObject->sourceFilename = sourceName;
 
 				char buildObjectName[MAX_PATH_LENGTH] = {0};
-				if (!objectFilenameFromSourceFilename(cakelispWorkingDir,
-				                                      newBuiltObject->sourceFilename.c_str(),
-				                                      buildObjectName, sizeof(buildObjectName)))
+				if (!outputFilenameFromSourceFilename(
+				        manager.buildOutputDir.c_str(), newBuiltObject->sourceFilename.c_str(),
+				        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
 				{
+					delete newBuiltObject;
+					printf("error: failed to create suitable output filename");
 					builtObjectsFree(builtObjects);
 					return false;
 				}
@@ -499,9 +569,11 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			continue;
 
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
-		if (!objectFilenameFromSourceFilename(cakelispWorkingDir, module->sourceOutputName.c_str(),
-		                                      buildObjectName, sizeof(buildObjectName)))
+		if (!outputFilenameFromSourceFilename(
+		        manager.buildOutputDir.c_str(), module->sourceOutputName.c_str(),
+		        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
 		{
+			printf("error: failed to create suitable output filename");
 			builtObjectsFree(builtObjects);
 			return false;
 		}
@@ -608,9 +680,27 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;
 
-	std::string outputExecutableName = manager.environment.executableOutput;
+	std::string outputExecutableName;
+	if (!manager.environment.executableOutput.empty())
+	{
+		char outputExecutableFilename[MAX_PATH_LENGTH] = {0};
+		getFilenameFromPath(manager.environment.executableOutput.c_str(), outputExecutableFilename,
+		                    sizeof(outputExecutableFilename));
+
+		outputExecutableName = outputExecutableFilename;
+	}
 	if (outputExecutableName.empty())
 		outputExecutableName = "a.out";
+
+	char outputExecutableCachePath[MAX_PATH_LENGTH] = {0};
+	if (!outputFilenameFromSourceFilename(
+	        manager.buildOutputDir.c_str(), outputExecutableName.c_str(),
+	        /*addExtension=*/nullptr, outputExecutableCachePath, sizeof(outputExecutableCachePath)))
+	{
+		builtObjectsFree(builtObjects);
+		return false;
+	}
+	outputExecutableName = outputExecutableCachePath;
 
 	int numObjectsToLink = 0;
 	bool succeededBuild = true;
@@ -647,8 +737,27 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (log.buildProcess)
 			printf("Skipping linking (no built objects are newer than cached executable)\n");
 
-		printf("Successfully built and linked %s (no changes)\n", outputExecutableName.c_str());
-		builtOutputs.push_back(outputExecutableName);
+		// TODO: There's no easy way to know whether this exe is the current build configuration's
+		// output exe, so copy it every time
+		{
+			std::string finalOutputName;
+			printf("Copying executable from cache\n");
+			if (!manager.environment.executableOutput.empty())
+				finalOutputName = manager.environment.executableOutput;
+			else
+				finalOutputName = "a.out";
+
+			if (-1 == copyFile(finalOutputName.c_str(), outputExecutableName.c_str()))
+			{
+				perror("copy file: ");
+				printf("error: failed to copy files");
+				builtObjectsFree(builtObjects);
+				return false;
+			}
+
+			printf("Successfully built and linked %s\n", finalOutputName.c_str());
+			builtOutputs.push_back(finalOutputName);
+		}
 
 		builtObjectsFree(builtObjects);
 		return true;
@@ -711,8 +820,27 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		return false;
 	}
 
-	printf("Successfully built and linked %s\n", outputExecutableName.c_str());
-	builtOutputs.push_back(outputExecutableName);
+	// TODO: There's no easy way to know whether this exe is the current build configuration's
+	// output exe, so copy it every time
+	{
+		std::string finalOutputName;
+		printf("Copying executable from cache\n");
+		if (!manager.environment.executableOutput.empty())
+			finalOutputName = manager.environment.executableOutput;
+		else
+			finalOutputName = "a.out";
+
+		if (-1 == copyFile(finalOutputName.c_str(), outputExecutableName.c_str()))
+		{
+			perror("copy file: ");
+			printf("error: failed to copy files");
+			builtObjectsFree(builtObjects);
+			return false;
+		}
+
+		printf("Successfully built and linked %s\n", finalOutputName.c_str());
+		builtOutputs.push_back(finalOutputName);
+	}
 
 	builtObjectsFree(builtObjects);
 	return true;

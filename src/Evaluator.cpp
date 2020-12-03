@@ -576,6 +576,13 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 		return false;
 	}
 
+	if (!validateParentheses(newDefinitionTokens))
+	{
+		printf("note: encountered error while validating the following replacement definition:\n");
+		prettyPrintTokens(newDefinitionTokens);
+		return false;
+	}
+
 	EvaluatorContext definitionContext = findIt->second.context;
 	GeneratorOutput* definitionOutput = findIt->second.output;
 

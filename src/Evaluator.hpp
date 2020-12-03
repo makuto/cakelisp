@@ -309,6 +309,20 @@ struct EvaluatorEnvironment
 
 	std::vector<std::string> cSearchDirectories;
 
+	// Build configurations are e.g. Debug vs. Release, which have e.g. different compiler flags
+	// Anything which changes the output vs. another configuration should have a label. Examples:
+	// - Hot-reloading vs. static
+	// - Debug vs. Release vs. Profile
+	// - Windows vs. Unix
+	// - x86 vs. Arm64
+	// Labels make it possible for the user to minimize re-compilation by ensuring the cache retains
+	// artifacts from the last configurations, so you can build debug and switch to release, then
+	// back to debug without having to rebuild debug. Many labels can be specified
+	std::vector<std::string> buildConfigurationLabels;
+
+	// Once set, no label changes are allowed (the output is being written)
+	bool buildConfigurationLabelsAreFinal;
+
 	// When using the default build system, the path to output the final executable
 	std::string executableOutput;
 

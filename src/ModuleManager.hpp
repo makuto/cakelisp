@@ -50,6 +50,10 @@ struct ModuleManager
 	Token globalPseudoInvocationName;
 	// Pointer only so things cannot move around
 	std::vector<Module*> modules;
+
+	// Cached directory, not necessarily the final artifacts directory (e.g. executable-output
+	// option sets different location for the final executable)
+	std::string buildOutputDir;
 };
 
 void moduleManagerInitialize(ModuleManager& manager);

@@ -3,8 +3,8 @@
 #include "Utilities.hpp"
 #include "FileUtilities.hpp"
 
-bool objectFilenameFromSourceFilename(const char* cakelispWorkingDir, const char* sourceFilename,
-                                      char* bufferOut, int bufferSize)
+bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
+                                      const char* addExtension, char* bufferOut, int bufferSize)
 {
 	char buildFilename[MAX_NAME_LENGTH] = {0};
 	getFilenameFromPath(sourceFilename, buildFilename, sizeof(buildFilename));
@@ -12,6 +12,13 @@ bool objectFilenameFromSourceFilename(const char* cakelispWorkingDir, const char
 		return false;
 
 	// TODO: Trim .cake.cpp (etc.)
-	SafeSnprinf(bufferOut, bufferSize, "%s/%s.o", cakelispWorkingDir, buildFilename);
+	if (!addExtension)
+	{
+		SafeSnprinf(bufferOut, bufferSize, "%s/%s", outputDir, buildFilename);
+	}
+	else
+	{
+		SafeSnprinf(bufferOut, bufferSize, "%s/%s.%s", outputDir, buildFilename, addExtension);
+	}
 	return true;
 }

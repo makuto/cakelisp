@@ -1,4 +1,4 @@
 #pragma once
 
-bool objectFilenameFromSourceFilename(const char* cakelispWorkingDir, const char* sourceFilename,
-                                      char* bufferOut, int bufferSize);
+bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
+                                      const char* addExtension, char* bufferOut, int bufferSize);

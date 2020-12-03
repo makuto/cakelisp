@@ -20,3 +20,6 @@ void makePathRelativeToFile(const char* filePath, const char* referencedFilePath
 const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* filePath);
 // Will be absolute if above working dir, else, normalized relative
 void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, int bufferSize);
+
+// Returns -1 on error
+int copyFile(const char* to, const char* from);

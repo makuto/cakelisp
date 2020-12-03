@@ -590,6 +590,46 @@ bool AddBuildOptionGenerator(EvaluatorEnvironment& environment, const EvaluatorC
 	return true;
 }
 
+bool AddBuildConfigLabelGenerator(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime
+	if (!ExpectEvaluatorScope("add-build-config-label", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	if (environment.buildConfigurationLabelsAreFinal)
+	{
+		ErrorAtToken(tokens[startTokenIndex],
+		             "build configuration labels are finalized. No changes are accepted because "
+		             "output is already being written");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	for (int i = startTokenIndex + 2; i < endInvocationIndex;
+	     i = getNextArgument(tokens, i, endInvocationIndex))
+	{
+		if (!ExpectTokenType("add-build-config-label", tokens[i], TokenType_String))
+			return false;
+
+		bool found = false;
+		for (const std::string& label : environment.buildConfigurationLabels)
+		{
+			if (label.compare(tokens[i].contents) == 0)
+			{
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			environment.buildConfigurationLabels.push_back(tokens[i].contents);
+	}
+
+	return true;
+}
+
 bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                         const std::vector<Token>& tokens, int startTokenIndex,
                         GeneratorOutput& output)
@@ -2343,6 +2383,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["set-cakelisp-option"] = SetCakelispOption;
 	environment.generators["set-module-option"] = SetModuleOption;
 
+	// All things build
 	environment.generators["skip-build"] = SkipBuildGenerator;
 	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
 	environment.generators["add-build-options"] = AddBuildOptionGenerator;
@@ -2350,6 +2391,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
 	environment.generators["add-c-search-directory"] = AddCSearchDirectoryGenerator;
 	environment.generators["add-cakelisp-search-directory"] = AddCakelispSearchPathGenerator;
+	environment.generators["add-build-config-label"] = AddBuildConfigLabelGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
