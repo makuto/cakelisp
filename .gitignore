@@ -46,3 +46,4 @@ comptime_*
 bin/
 lib/
 a.out
+cakelisp_cache/
