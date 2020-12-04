@@ -1622,10 +1622,12 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 
 		if (fileExists(foundFilePathOut))
 		{
-			printf("yes)\n");
+			if (log.fileSearch)
+				printf("yes)\n");
 			return true;
 		}
-		printf("no)\n");
+		if (log.fileSearch)
+			printf("no)\n");
 	}
 
 	for (const std::string& path : searchPaths)
@@ -1637,10 +1639,12 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 
 		if (fileExists(foundFilePathOut))
 		{
-			printf("yes)\n");
+			if (log.fileSearch)
+				printf("yes)\n");
 			return true;
 		}
-		printf("no)\n");
+		if (log.fileSearch)
+			printf("no)\n");
 	}
 
 	return false;
