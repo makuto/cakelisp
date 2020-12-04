@@ -88,9 +88,6 @@
 ;; Building
 ;;
 
-;; Include cakelisp source for DynamicLoader.hpp
-(add-c-search-directory module "src/")
-
 ;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
 ;; arguments to the link command only
 (set-cakelisp-option build-time-linker "/usr/bin/clang++")
@@ -106,5 +103,6 @@
  "-DUNIX"
  "-fPIC")
 
-;; TODO: Relative vs. absolute paths
-(add-cpp-build-dependency "../src/DynamicLoader.cpp")
+;; Include cakelisp source for DynamicLoader.hpp
+(add-c-search-directory module "src")
+(add-cpp-build-dependency "DynamicLoader.cpp")

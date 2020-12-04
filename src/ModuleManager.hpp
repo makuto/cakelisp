@@ -31,6 +31,9 @@ struct Module
 	std::vector<ModuleDependency> dependencies;
 	std::vector<std::string> cSearchDirectories;
 	std::vector<std::string> additionalBuildOptions;
+	// Do not build or link this module. Useful both for compile-time only files (which error
+	// because they are empty files) and for files only evaluated for their declarations (e.g. if
+	// the definitions are going to be provided via dynamic linking)
 	bool skipBuild;
 
 	// These make sense to overload if you want a compile-time dependency
@@ -60,7 +63,7 @@ void moduleManagerInitialize(ModuleManager& manager);
 void moduleManagerDestroy(ModuleManager& manager);
 
 bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>** tokensOut);
-bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename);
+bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, Module** moduleOut);
 bool moduleManagerEvaluateResolveReferences(ModuleManager& manager);
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager);
 bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs);

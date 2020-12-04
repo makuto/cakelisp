@@ -401,5 +401,9 @@ const char* objectTypeToString(ObjectType type);
 bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
                           const std::vector<std::string>& searchPaths, char* foundFilePathOut,
                           int foundFilePathOutSize);
+bool searchForFileInPathsWithError(const char* shortPath, const char* encounteredInFile,
+                                   const std::vector<std::string>& searchPaths,
+                                   char* foundFilePathOut, int foundFilePathOutSize,
+                                   const Token& blameToken);
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

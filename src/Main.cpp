@@ -154,7 +154,7 @@ int main(int numArguments, char* arguments[])
 
 	for (const char* filename : filesToEvaluate)
 	{
-		if (!moduleManagerAddEvaluateFile(moduleManager, filename))
+		if (!moduleManagerAddEvaluateFile(moduleManager, filename, /*moduleOut=*/nullptr))
 		{
 			moduleManagerDestroy(moduleManager);
 			return 1;

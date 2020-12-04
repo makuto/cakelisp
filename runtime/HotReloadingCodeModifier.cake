@@ -243,7 +243,7 @@
              (var import-hot-reloading-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
              (on-call (field environment comptimeTokens) push_back import-hot-reloading-tokens)
              ;; Make sure we don't build our own version of this. The loader needs to manage it
-             (tokenize-push (deref import-hot-reloading-tokens) (c-import "HotReloading.cake.hpp"))
+             (tokenize-push (deref import-hot-reloading-tokens) (import &decls-only "HotReloading.cake"))
              (unless (= 0 (EvaluateGenerate_Recursive
                            environment initializer-context
                            (deref import-hot-reloading-tokens) 0
@@ -348,3 +348,5 @@
 
 ;; TODO: Automatically make library if no main found?
 (set-cakelisp-option executable-output "libGeneratedCakelisp.so")
+
+(add-build-config-label "HotReloadable")

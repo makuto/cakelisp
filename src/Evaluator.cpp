@@ -1618,10 +1618,14 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", relativePathBuffer, shortPath);
 
 		if (log.fileSearch)
-			printf("File exists? %s\n", foundFilePathOut);
+			printf("File exists? %s (", foundFilePathOut);
 
 		if (fileExists(foundFilePathOut))
+		{
+			printf("yes)\n");
 			return true;
+		}
+		printf("no)\n");
 	}
 
 	for (const std::string& path : searchPaths)
@@ -1629,11 +1633,36 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", path.c_str(), shortPath);
 
 		if (log.fileSearch)
-			printf("File exists? %s\n", foundFilePathOut);
+			printf("File exists? %s (", foundFilePathOut);
 
 		if (fileExists(foundFilePathOut))
+		{
+			printf("yes)\n");
 			return true;
+		}
+		printf("no)\n");
 	}
 
 	return false;
+}
+
+bool searchForFileInPathsWithError(const char* shortPath, const char* encounteredInFile,
+                                   const std::vector<std::string>& searchPaths,
+                                   char* foundFilePathOut, int foundFilePathOutSize,
+                                   const Token& blameToken)
+{
+	if (!searchForFileInPaths(shortPath, encounteredInFile, searchPaths, foundFilePathOut,
+	                          foundFilePathOutSize))
+	{
+		ErrorAtToken(blameToken, "file not found! Checked the following paths:");
+		printf("Checked if relative to %s\n", encounteredInFile);
+		printf("Checked search paths:\n");
+		for (const std::string& path : searchPaths)
+		{
+			printf("\t%s\n", path.c_str());
+		}
+		return false;
+	}
+
+	return true;
 }

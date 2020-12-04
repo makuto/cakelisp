@@ -221,8 +221,11 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 	return true;
 }
 
-bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
+bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, Module** moduleOut)
 {
+	if (moduleOut)
+		*moduleOut = nullptr;
+
 	if (!filename)
 		return false;
 
@@ -266,6 +269,9 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 
 		if (strcmp(normalizedModuleFilename, normalizedProspectiveModuleFilename) == 0)
 		{
+			if (moduleOut)
+				*moduleOut = module;
+
 			printf("Already loaded %s\n", normalizedFilename);
 			free((void*)normalizedFilename);
 			free((void*)normalizedProspectiveModuleFilename);
@@ -310,6 +316,9 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename)
 	if (numErrors)
 		return false;
 
+	if (moduleOut)
+		*moduleOut = newModule;
+
 	printf("Loaded %s\n", newModule->filename);
 	return true;
 }
@@ -319,7 +328,8 @@ bool moduleManagerEvaluateResolveReferences(ModuleManager& manager)
 	return EvaluateResolveReferences(manager.environment);
 }
 
-// Directory is named from build configuration labels
+// Directory is named from build configuration labels, e.g. Debug-HotReload
+// Order DOES matter, in case changing configuration order changes which settings get eval'd first
 static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::string& outputDirOut)
 {
 	// As soon as we start writing, we need to decide what directory we will write to. Fix build
@@ -531,11 +541,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			{
 				BuiltObject* newBuiltObject = new BuiltObject;
 				newBuiltObject->buildStatus = 0;
-				// TODO: Better to use search directories
-				char sourceName[MAX_PATH_LENGTH] = {0};
-				makePathRelativeToFile(module->sourceOutputName.c_str(), dependency.name.c_str(),
-				                       sourceName, sizeof(sourceName));
-				newBuiltObject->sourceFilename = sourceName;
+				newBuiltObject->sourceFilename = dependency.name;
 
 				char buildObjectName[MAX_PATH_LENGTH] = {0};
 				if (!outputFilenameFromSourceFilename(

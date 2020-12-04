@@ -715,7 +715,8 @@ enum ImportState
 {
 	WithDefinitions,
 	WithDeclarations,
-	CompTimeOnly
+	CompTimeOnly,
+	DeclarationsOnly
 };
 
 bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
@@ -746,6 +747,15 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 		{
 			if (currentToken.contents.compare("&with-defs") == 0)
 				state = WithDefinitions;
+			else if (currentToken.contents.compare("&decls-only") == 0)
+			{
+				if (!isCakeImport)
+				{
+					ErrorAtToken(currentToken, "&decls-only not supported on C/C++ imports");
+					return false;
+				}
+				state = DeclarationsOnly;
+			}
 			else if (currentToken.contents.compare("&with-decls") == 0)
 				state = WithDeclarations;
 			else if (currentToken.contents.compare("&comptime-only") == 0)
@@ -759,9 +769,10 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			}
 			else
 			{
-				ErrorAtToken(currentToken,
-				             "Unrecognized sentinel symbol. Options "
-				             "are:\n\t&with-defs\n\t&with-decls\n\t&comptime-only\n");
+				ErrorAtToken(
+				    currentToken,
+				    "Unrecognized sentinel symbol. Options "
+				    "are:\n\t&with-defs\n\t&with-decls\n\t&decls-only\n\t&comptime-only\n");
 				return false;
 			}
 
@@ -795,26 +806,25 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 				}
 
 				char resolvedPathBuffer[MAX_PATH_LENGTH] = {0};
-				if (!searchForFileInPaths(currentToken.contents.c_str(),
-				                          /*encounteredInFile=*/currentToken.source,
-				                          environment.searchPaths, resolvedPathBuffer,
-				                          ArraySize(resolvedPathBuffer)))
-				{
-					ErrorAtToken(currentToken, "file not found! Checked the following paths:");
-					printf("Checked if relative to %s\n", currentToken.source);
-					printf("Checked environment search paths:\n");
-					for (const std::string& path : environment.searchPaths)
-					{
-						printf("\t%s", path.c_str());
-					}
+				if (!searchForFileInPathsWithError(currentToken.contents.c_str(),
+				                                   /*encounteredInFile=*/currentToken.source,
+				                                   environment.searchPaths, resolvedPathBuffer,
+				                                   ArraySize(resolvedPathBuffer), currentToken))
 					return false;
-				}
 
 				// Evaluate the import!
-				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, resolvedPathBuffer))
+				Module* module = nullptr;
+				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, resolvedPathBuffer, &module))
 				{
 					ErrorAtToken(currentToken, "failed to import Cakelisp module");
 					return false;
+				}
+
+				if (state == DeclarationsOnly && module)
+				{
+					// TODO: This won't protect us from a module changing the environment, which may
+					// not be desired
+					module->skipBuild = true;
 				}
 			}
 		}
@@ -837,9 +847,14 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			{
 				if (isCakeImport)
 				{
+					// All cakelisp generated files get dumped into a flat directory, so we need to
+					// strip any existing path
+					char relativeFileBuffer[MAX_PATH_LENGTH] = {0};
+					getFilenameFromPath(currentToken.contents.c_str(), relativeFileBuffer,
+					                    sizeof(relativeFileBuffer));
 					char cakelispExtensionBuffer[MAX_PATH_LENGTH] = {0};
 					// TODO: .h vs. .hpp
-					PrintfBuffer(cakelispExtensionBuffer, "%s.hpp", currentToken.contents.c_str());
+					PrintfBuffer(cakelispExtensionBuffer, "%s.hpp", relativeFileBuffer);
 					addStringOutput(outputDestination, cakelispExtensionBuffer,
 					                StringOutMod_SurroundWithQuotes, &currentToken);
 				}
@@ -879,20 +894,37 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
-	int invocationIndex = startTokenIndex + 1;
 
-	int nameIndex = getExpectedArgument("expected dependency name", tokens, startTokenIndex, 1,
-	                                    endInvocationIndex);
-	if (nameIndex == -1)
-		return false;
-	if (!ExpectTokenType("add dependency", tokens[nameIndex], TokenType_String))
+	int firstNameIndex = getExpectedArgument("expected dependency name", tokens, startTokenIndex, 1,
+	                                         endInvocationIndex);
+	if (firstNameIndex == -1)
 		return false;
 
-	if (tokens[invocationIndex].contents.compare("add-cpp-build-dependency") == 0)
+	std::vector<std::string> searchDirectories;
 	{
+		searchDirectories.reserve(environment.cSearchDirectories.size() +
+		                          context.module->cSearchDirectories.size());
+		PushBackAll(searchDirectories, context.module->cSearchDirectories);
+		PushBackAll(searchDirectories, environment.cSearchDirectories);
+	}
+
+	for (int i = firstNameIndex; i < endInvocationIndex;
+	     i = getNextArgument(tokens, i, endInvocationIndex))
+	{
+		const Token& currentDependencyName = tokens[i];
+		if (!ExpectTokenType("add dependency", currentDependencyName, TokenType_String))
+			return false;
+
+		char resolvedPathBuffer[MAX_PATH_LENGTH] = {0};
+		if (!searchForFileInPathsWithError(currentDependencyName.contents.c_str(),
+		                                   /*encounteredInFile=*/currentDependencyName.source,
+		                                   searchDirectories, resolvedPathBuffer,
+		                                   ArraySize(resolvedPathBuffer), currentDependencyName))
+			return false;
+
 		ModuleDependency newDependency = {};
 		newDependency.type = ModuleDependency_CFile;
-		newDependency.name = tokens[nameIndex].contents;
+		newDependency.name = resolvedPathBuffer;
 		context.module->dependencies.push_back(newDependency);
 	}
 
