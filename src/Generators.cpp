@@ -820,7 +820,9 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 					return false;
 				}
 
-				if (state == DeclarationsOnly && module)
+				// Either we only want this file for its header or its macros. Don't build it into
+				// the runtime library/executable
+				if ((state == DeclarationsOnly || state == CompTimeOnly) && module)
 				{
 					// TODO: This won't protect us from a module changing the environment, which may
 					// not be desired
