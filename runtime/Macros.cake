@@ -184,9 +184,9 @@
 ;;   (return true))
 
 ;; Assumes tokens is the array of tokens
-(defmacro quick-token-at (name (index any))
-  (tokenize-push output (var (token-splice (addr (at name tokens))) (& (const Token))
-                             (at (token-splice (addr (at index tokens))) tokens)))
+(defmacro quick-token-at (name symbol index any)
+  (tokenize-push output (var (token-splice name) (& (const Token))
+                             (at (token-splice index) tokens)))
   (return true))
 
 ;; Creates forward declarations in header files.
