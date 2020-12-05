@@ -25,5 +25,8 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
                                       const char* addExtension, char* bufferOut, int bufferSize);
 
-// Returns -1 on error
-int copyFile(const char* to, const char* from);
+bool copyBinaryFileTo(const char* srcFilename, const char* destFilename);
+bool copyFileTo(const char* srcFilename, const char* destFilename);
+
+// Non-binary files only
+bool moveFile(const char* srcFilename, const char* destFilename);

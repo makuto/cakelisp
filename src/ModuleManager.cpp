@@ -752,10 +752,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			else
 				finalOutputName = "a.out";
 
-			if (-1 == copyFile(finalOutputName.c_str(), outputExecutableName.c_str()))
+			if (!copyBinaryFileTo(outputExecutableName.c_str(), finalOutputName.c_str()))
 			{
-				perror("copy file: ");
-				printf("error: failed to copy files");
 				builtObjectsFree(builtObjects);
 				return false;
 			}
@@ -835,10 +833,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		else
 			finalOutputName = "a.out";
 
-		if (-1 == copyFile(finalOutputName.c_str(), outputExecutableName.c_str()))
+		if (!copyBinaryFileTo(outputExecutableName.c_str(), finalOutputName.c_str()))
 		{
-			perror("copy file: ");
-			printf("error: failed to copy files");
 			builtObjectsFree(builtObjects);
 			return false;
 		}

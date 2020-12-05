@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "Logging.hpp"
 #include "Utilities.hpp"
 
 #ifdef UNIX
@@ -197,64 +198,66 @@ bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceF
 	return true;
 }
 
-// From https://stackoverflow.com/questions/2180079/how-can-i-copy-a-file-on-unix-using-c
-// (I don't want to think about this right now)
-int copyFile(const char* to, const char* from)
+bool copyBinaryFileTo(const char* srcFilename, const char* destFilename)
 {
-	int fd_to, fd_from;
-	char buf[4096];
-	ssize_t nread;
-	int saved_errno;
-
-	fd_from = open(from, O_RDONLY);
-	if (fd_from < 0)
-		return -1;
-
-	fd_to = open(to, O_WRONLY | O_EXCL, 0666);
-	if (fd_to < 0)
-		goto out_error;
-
-	while (nread = read(fd_from, buf, sizeof buf), nread > 0)
+	// Note: man 3 fopen says "b" is unnecessary on Linux, but I'll keep it anyways
+	FILE* srcFile = fopen(srcFilename, "rb");
+	FILE* destFile = fopen(destFilename, "wb");
+	if (!srcFile || !destFile)
 	{
-		char* out_ptr = buf;
-		ssize_t nwritten;
-
-		do
-		{
-			nwritten = write(fd_to, out_ptr, nread);
-
-			if (nwritten >= 0)
-			{
-				nread -= nwritten;
-				out_ptr += nwritten;
-			}
-			else if (errno != EINTR)
-			{
-				goto out_error;
-			}
-		} while (nread > 0);
+		perror("fopen: ");
+		printf("error: failed to copy %s to %s", srcFilename, destFilename);
+		return false;
 	}
 
-	if (nread == 0)
-	{
-		if (close(fd_to) < 0)
-		{
-			fd_to = -1;
-			goto out_error;
-		}
-		close(fd_from);
+	char buffer[4096];
+	while (fread(buffer, sizeof(buffer), 1, srcFile))
+		fwrite(buffer, sizeof(buffer), 1, destFile);
 
-		/* Success! */
-		return 0;
+	fclose(srcFile);
+	fclose(destFile);
+
+	if (log.fileSystem)
+		printf("Wrote %s\n", destFilename);
+
+	return true;
+}
+
+bool copyFileTo(const char* srcFilename, const char* destFilename)
+{
+	FILE* srcFile = fopen(srcFilename, "r");
+	FILE* destFile = fopen(destFilename, "w");
+	if (!srcFile || !destFile)
+	{
+		perror("fopen: ");
+		printf("error: failed to copy %s to %s", srcFilename, destFilename);
+		return false;
 	}
 
-out_error:
-	saved_errno = errno;
+	char buffer[4096];
+	while (fgets(buffer, sizeof(buffer), srcFile))
+		fputs(buffer, destFile);
 
-	close(fd_from);
-	if (fd_to >= 0)
-		close(fd_to);
+	fclose(srcFile);
+	fclose(destFile);
 
-	errno = saved_errno;
-	return -1;
+	if (log.fileSystem)
+		printf("Wrote %s\n", destFilename);
+
+	return true;
+}
+
+bool moveFile(const char* srcFilename, const char* destFilename)
+{
+	if (!copyFileTo(srcFilename, destFilename))
+		return false;
+
+	if (remove(srcFilename) != 0)
+	{
+		perror("remove: ");
+		printf("Failed to remove %s\n", srcFilename);
+		return false;
+	}
+
+	return true;
 }

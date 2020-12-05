@@ -2,6 +2,7 @@
 
 #include "Converters.hpp"
 #include "Evaluator.hpp"
+#include "FileUtilities.hpp"
 #include "Logging.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
@@ -10,32 +11,6 @@
 #include <stdarg.h>  // va_start
 #include <stdio.h>
 #include <string.h>
-
-bool moveFile(const char* srcFilename, const char* destFilename)
-{
-	FILE* srcFile = fopen(srcFilename, "r");
-	FILE* destFile = fopen(destFilename, "w");
-	if (!srcFile || !destFile)
-		return false;
-
-	char buffer[1024];
-	while (fgets(buffer, sizeof(buffer), srcFile))
-		fputs(buffer, destFile);
-
-	fclose(srcFile);
-	fclose(destFile);
-
-	if (log.fileSystem)
-		printf("Wrote %s\n", destFilename);
-
-	if (remove(srcFilename) != 0)
-	{
-		printf("Failed to remove %s\n", srcFilename);
-		return false;
-	}
-
-	return true;
-}
 
 bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 {
