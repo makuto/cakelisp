@@ -30,3 +30,5 @@ bool copyFileTo(const char* srcFilename, const char* destFilename);
 
 // Non-binary files only
 bool moveFile(const char* srcFilename, const char* destFilename);
+
+void addExecutablePermission(const char* filename);

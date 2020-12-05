@@ -758,6 +758,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				return false;
 			}
 
+			addExecutablePermission(finalOutputName.c_str());
+
 			printf("Successfully built and linked %s\n", finalOutputName.c_str());
 			builtOutputs.push_back(finalOutputName);
 		}
@@ -838,6 +840,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			builtObjectsFree(builtObjects);
 			return false;
 		}
+
+		addExecutablePermission(finalOutputName.c_str());
 
 		printf("Successfully built and linked %s\n", finalOutputName.c_str());
 		builtOutputs.push_back(finalOutputName);
