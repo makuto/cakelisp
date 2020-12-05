@@ -94,7 +94,8 @@ bool isSpecialSymbol(const Token& token)
 	if (token.type == TokenType_Symbol)
 	{
 		// The size check allows functions to be declared named ':' or '&', but not ':bad' or '&bad'
-		return token.contents.size() > 1 && (token.contents[0] == ':' || token.contents[0] == '&');
+		return token.contents.size() > 1 &&
+		       (token.contents[0] == ':' || token.contents[0] == '&' || token.contents[0] == '\'');
 	}
 	else
 	{

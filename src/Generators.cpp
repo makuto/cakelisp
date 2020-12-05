@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "Converters.hpp"
 #include "Evaluator.hpp"
 #include "FileUtilities.hpp"
 #include "GeneratorHelpers.hpp"
@@ -1369,6 +1370,355 @@ bool ArrayAccessGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 	return true;
 }
 
+enum ComptimeTokenArgContainedType
+{
+	ExpectTokenType_Unrecognized,
+	ExpectTokenType_Any,
+	ExpectTokenType_String,
+	ExpectTokenType_Symbol,
+	ExpectTokenType_Array,  // A list in lisp, but in Cakelisp, there are no linked lists
+};
+static ComptimeTokenArgContainedType ComptimeParseTokenArgumentType(const Token& expectedType)
+{
+	ComptimeTokenArgContainedType type = ExpectTokenType_Unrecognized;
+
+	if (!ExpectTokenType("token argument type", expectedType, TokenType_Symbol))
+		return type;
+
+	struct
+	{
+		const char* keyword;
+		ComptimeTokenArgContainedType type;
+	} containedTypeOptions[] = {{"any", ExpectTokenType_Any},
+	                            {"string", ExpectTokenType_String},
+	                            {"symbol", ExpectTokenType_Symbol},
+	                            {"array", ExpectTokenType_Array}};
+	bool foundType = false;
+	for (unsigned int i = 0; i < ArraySize(containedTypeOptions); ++i)
+	{
+		if (expectedType.contents.compare(containedTypeOptions[i].keyword) == 0)
+		{
+			type = containedTypeOptions[i].type;
+			foundType = true;
+			break;
+		}
+	}
+
+	if (!foundType)
+	{
+		ErrorAtToken(expectedType, "unrecognized type. Recognized types listed below.");
+		for (unsigned int i = 0; i < ArraySize(containedTypeOptions); ++i)
+		{
+			printf("\t%s\n", containedTypeOptions[i].keyword);
+		}
+	}
+
+	return type;
+}
+
+// A domain-specific language for easily extracting and validating tokens from token array
+// Comptime functions have hard-coded signatures, so "arguments" are actually extracted in the body
+// Wow, this is brutal. Great feature, ugly implementation
+static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int startArgsIndex,
+                                           GeneratorOutput& output)
+{
+	if (!ExpectTokenType("token arguments", tokens[startArgsIndex], TokenType_OpenParen))
+		return false;
+
+	int endArgsTokenIndex = FindCloseParenTokenIndex(tokens, startArgsIndex);
+	if (startArgsIndex + 1 == endArgsTokenIndex)
+	{
+		// No specified arguments; nothing to do
+		return true;
+	}
+
+	addStringOutput(output.source,
+	                "int AutoArgs_endInvocationIndex = FindCloseParenTokenIndex(tokens, "
+	                "startTokenIndex);",
+	                StringOutMod_NewlineAfter, &tokens[startArgsIndex]);
+
+	enum ArgReadState
+	{
+		Name,
+		Type
+	};
+	ArgReadState state = Name;
+
+	struct TokenArgument
+	{
+		const Token* name;
+	};
+
+	TokenArgument argument;
+	bool isOptional = false;
+	bool checkArgCount = true;
+	int runtimeArgumentIndex = 1;  // Invocation = 0
+	int numRequiredArguments = 1;  // Invocation counts as one
+
+	for (int currentArgIndex = startArgsIndex + 1; currentArgIndex < endArgsTokenIndex;
+	     currentArgIndex = getNextArgument(tokens, currentArgIndex, endArgsTokenIndex))
+	{
+		const Token& currentToken = tokens[currentArgIndex];
+
+		if (state == Name)
+		{
+			if (currentToken.type == TokenType_Symbol && isSpecialSymbol(currentToken))
+			{
+				if (currentToken.contents.compare("&optional") == 0)
+				{
+					isOptional = true;
+					continue;
+				}
+				else if (currentToken.contents.compare("&rest") == 0)
+				{
+					checkArgCount = false;
+					continue;
+				}
+				else
+				{
+					ErrorAtToken(currentToken,
+					             "unrecognized argument mode. Recognized types: &optional");
+					return false;
+				}
+			}
+
+			if (!ExpectTokenType("token argument name", currentToken, TokenType_Symbol))
+				return false;
+
+			argument.name = &currentToken;
+			state = Type;
+		}
+		else if (state == Type)
+		{
+			enum TokenBindType
+			{
+				Index,
+				Pointer,
+				Reference,
+			};
+
+			TokenBindType bindType = Pointer;
+			ComptimeTokenArgContainedType containedType = ExpectTokenType_Unrecognized;
+			if (currentToken.type == TokenType_OpenParen)
+			{
+				const Token& typeModifier = tokens[currentArgIndex + 1];
+				if (typeModifier.contents.compare("index") == 0)
+				{
+					bindType = Index;
+				}
+				else if (typeModifier.contents.compare("ref") == 0)
+				{
+					bindType = Reference;
+				}
+				else
+				{
+					ErrorAtToken(typeModifier,
+					             "unrecognized type. Recognized types: index, reference (pointer "
+					             "is implicit default)");
+					return false;
+				}
+
+				const Token& containedTypeToken = tokens[currentArgIndex + 2];
+				containedType = ComptimeParseTokenArgumentType(containedTypeToken);
+			}
+			else
+			{
+				containedType = ComptimeParseTokenArgumentType(currentToken);
+			}
+
+			if (containedType == ExpectTokenType_Unrecognized)
+				return false;
+
+			if (isOptional && bindType == Reference)
+			{
+				ErrorAtToken(currentToken,
+				             "cannot bind reference to optional argument. It could be null, but "
+				             "references may never be null. Use a pointer or index instead");
+				return false;
+			}
+
+			NameStyleSettings nameStyle;
+			char convertedName[MAX_NAME_LENGTH] = {0};
+			lispNameStyleToCNameStyle(nameStyle.variableNameMode, argument.name->contents.c_str(),
+			                          convertedName, sizeof(convertedName), *argument.name);
+
+#define OutputIndexName()                                                                \
+	{                                                                                    \
+		addStringOutput(output.source, "AutoArgs_", StringOutMod_None, argument.name);   \
+		addStringOutput(output.source, convertedName, StringOutMod_None, argument.name); \
+		addStringOutput(output.source, "Index", StringOutMod_None, argument.name);       \
+	}
+
+			addStringOutput(output.source, "int", StringOutMod_SpaceAfter, argument.name);
+			OutputIndexName();
+			addStringOutput(
+			    output.source, "=",
+			    (StringOutputModifierFlags)(StringOutMod_SpaceAfter | StringOutMod_SpaceBefore),
+			    argument.name);
+			if (isOptional)
+				addStringOutput(output.source, "getArgument(", StringOutMod_None, argument.name);
+			else
+			{
+				addStringOutput(output.source, "getExpectedArgument(", StringOutMod_SpaceAfter,
+				                argument.name);
+				addStringOutput(output.source, argument.name->contents.c_str(),
+				                StringOutMod_SurroundWithQuotes, argument.name);
+				addLangTokenOutput(output.source, StringOutMod_ListSeparator, argument.name);
+			}
+
+			addStringOutput(output.source, "tokens, startTokenIndex,", StringOutMod_SpaceAfter, argument.name);
+
+			addStringOutput(output.source, std::to_string(runtimeArgumentIndex), StringOutMod_None,
+			                argument.name);
+			addLangTokenOutput(output.source, StringOutMod_ListSeparator, argument.name);
+			addStringOutput(output.source, "AutoArgs_endInvocationIndex", StringOutMod_SpaceBefore,
+			                argument.name);
+			addLangTokenOutput(output.source, StringOutMod_CloseParen, argument.name);
+			addLangTokenOutput(output.source, StringOutMod_EndStatement, argument.name);
+
+			// Missing argument check
+			if (!isOptional)
+			{
+				addStringOutput(output.source, "if (-1 ==", StringOutMod_SpaceAfter, argument.name);
+				OutputIndexName();
+				addStringOutput(output.source, ") return false", StringOutMod_None, argument.name);
+				addLangTokenOutput(output.source, StringOutMod_EndStatement, argument.name);
+			}
+
+			// Expect type
+			if (containedType != ExpectTokenType_Any)
+			{
+				addStringOutput(output.source, "if (", StringOutMod_None, argument.name);
+				if (isOptional)
+				{
+					OutputIndexName();
+					addStringOutput(output.source, "!= -1 &&",
+					                (StringOutputModifierFlags)(StringOutMod_SpaceAfter |
+					                                            StringOutMod_SpaceBefore),
+					                argument.name);
+				}
+				addStringOutput(output.source, "!ExpectTokenType(", StringOutMod_None,
+				                argument.name);
+
+				addStringOutput(output.source, argument.name->contents.c_str(),
+				                StringOutMod_SurroundWithQuotes, argument.name);
+				addLangTokenOutput(output.source, StringOutMod_ListSeparator, argument.name);
+				addStringOutput(output.source, "tokens[", StringOutMod_None, argument.name);
+
+				OutputIndexName();
+				addStringOutput(output.source, "],", StringOutMod_SpaceAfter, argument.name);
+
+				switch (containedType)
+				{
+					case ExpectTokenType_String:
+						addStringOutput(output.source, "TokenType_String", StringOutMod_None,
+						                &currentToken);
+						break;
+					case ExpectTokenType_Symbol:
+						addStringOutput(output.source, "TokenType_Symbol", StringOutMod_None,
+						                &currentToken);
+						break;
+					case ExpectTokenType_Array:
+						addStringOutput(output.source, "TokenType_OpenParen", StringOutMod_None,
+						                &currentToken);
+						break;
+					default:
+						printf(
+						    "ComptimeGenerateTokenArguments: Programmer missing type. Internal "
+						    "code error\n");
+						return false;
+				}
+
+				addStringOutput(output.source, ")) return false", StringOutMod_None, argument.name);
+				addLangTokenOutput(output.source, StringOutMod_EndStatement, argument.name);
+			}
+
+			// Finally, output the binding
+			switch (bindType)
+			{
+				case Index:
+					addStringOutput(output.source, "int", StringOutMod_SpaceAfter, argument.name);
+					addStringOutput(output.source, convertedName, StringOutMod_SpaceAfter,
+					                argument.name);
+					addStringOutput(output.source, "=", StringOutMod_SpaceAfter, argument.name);
+					OutputIndexName();
+					addLangTokenOutput(output.source, StringOutMod_EndStatement, argument.name);
+					break;
+				case Pointer:
+					addStringOutput(output.source, "const Token*", StringOutMod_SpaceAfter,
+					                argument.name);
+					addStringOutput(output.source, convertedName, StringOutMod_SpaceAfter,
+					                argument.name);
+					addStringOutput(output.source, "=", StringOutMod_SpaceAfter, argument.name);
+					if (isOptional)
+					{
+						OutputIndexName();
+						addStringOutput(output.source, "!= -1 ?",
+						                (StringOutputModifierFlags)(StringOutMod_SpaceAfter |
+						                                            StringOutMod_SpaceBefore),
+						                argument.name);
+					}
+					addStringOutput(output.source, "&tokens[", StringOutMod_None, argument.name);
+					OutputIndexName();
+					addStringOutput(output.source, "]", StringOutMod_None, argument.name);
+					if (isOptional)
+					{
+						// Use 0 instead of worrying about nullptr vs NULL
+						addStringOutput(output.source, ": 0", StringOutMod_None, argument.name);
+					}
+					addLangTokenOutput(output.source, StringOutMod_EndStatement, argument.name);
+					break;
+				case Reference:
+					addStringOutput(output.source, "const Token&", StringOutMod_SpaceAfter,
+					                argument.name);
+					addStringOutput(output.source, convertedName, StringOutMod_SpaceAfter,
+					                argument.name);
+					addStringOutput(output.source, "= tokens[", StringOutMod_None, argument.name);
+					OutputIndexName();
+					addStringOutput(output.source, "]", StringOutMod_None, argument.name);
+					addLangTokenOutput(output.source, StringOutMod_EndStatement, argument.name);
+					break;
+			}
+
+#undef OutputIndexName
+			++runtimeArgumentIndex;
+			if (!isOptional)
+				++numRequiredArguments;
+
+			// Reset for next argument
+			argument.name = nullptr;
+			state = Name;
+		}
+	}
+
+	if (state != Name)
+	{
+		ErrorAtToken(tokens[endArgsTokenIndex],
+		             "expected type, or too many/too few arguments. Arguments are specified in "
+		             "name type pairs");
+		return false;
+	}
+
+	// TODO: Specifying &optional makes us have to check how many arguments at "runtime", then
+	// expect that many (and no more)
+	if (checkArgCount && numRequiredArguments && !isOptional)
+	{
+		addStringOutput(
+		    output.source,
+		    "if (!ExpectNumArguments(tokens, startTokenIndex, AutoArgs_endInvocationIndex,",
+		    StringOutMod_None, &tokens[startArgsIndex]);
+		addStringOutput(output.source, std::to_string(numRequiredArguments), StringOutMod_None,
+		                &tokens[startArgsIndex]);
+		addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startArgsIndex]);
+		addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startArgsIndex]);
+		addStringOutput(output.source, "return false", StringOutMod_SpaceBefore,
+		                &tokens[startArgsIndex]);
+		addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startArgsIndex]);
+	}
+
+	return true;
+}
+
 // TODO Consider merging with defgenerator?
 bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                        const std::vector<Token>& tokens, int startTokenIndex,
@@ -1445,6 +1795,9 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 
 	int startBodyIndex = endArgsIndex + 1;
 	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+
+	if (!ComptimeGenerateTokenArguments(tokens, argsIndex, *compTimeOutput))
+		return false;
 
 	// Evaluate our body!
 	EvaluatorContext macroBodyContext = context;
@@ -1535,6 +1888,9 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 
 	int startBodyIndex = endArgsIndex + 1;
 	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+
+	if (!ComptimeGenerateTokenArguments(tokens, argsIndex, *compTimeOutput))
+		return false;
 
 	// Evaluate our body!
 	EvaluatorContext generatorBodyContext = context;

@@ -26,6 +26,7 @@ bool ExpectTokenType(const char* generatorName, const Token& token, TokenType ex
 bool ExpectInInvocation(const char* message, const std::vector<Token>& tokens, int indexToCheck,
                         int endInvocationIndex);
 
+// Returns true if the symbol starts with :, &, or '
 // TODO: Come up with better name
 bool isSpecialSymbol(const Token& token);
 

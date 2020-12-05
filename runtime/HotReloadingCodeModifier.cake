@@ -341,7 +341,7 @@
                                                   linkTimeInputs (* ProcessCommandInput)
                                                   numLinkTimeInputs int
                                                   &return bool)
-  (command-add-string-argument "-shared")
+  (command-add-string-argument linkCommand "-shared")
   (return true))
 
 (add-compile-time-hook pre-link hot-reload-lib-link-hook)
@@ -349,4 +349,5 @@
 ;; TODO: Automatically make library if no main found?
 (set-cakelisp-option executable-output "libGeneratedCakelisp.so")
 
+;; This modifies code extensively, so it makes sense to have its own label
 (add-build-config-label "HotReloadable")

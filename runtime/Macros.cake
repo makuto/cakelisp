@@ -1,41 +1,27 @@
 (skip-build)
 
-(defmacro std-str-equals ()
-  (destructure-arguments std-string-var-index str-index)
-  (quick-token-at std-string-var std-string-var-index)
-  (quick-token-at str str-index)
-  (tokenize-push output (= 0 (on-call (token-splice-addr std-string-var) compare (token-splice-addr str))))
+(defmacro std-str-equals (std-string-var any str any)
+  (tokenize-push output (= 0 (on-call (token-splice std-string-var) compare (token-splice str))))
   (return true))
 
-(defmacro array-size ()
-  (destructure-arguments array-index)
-  (quick-token-at array-token array-index)
-  ;; This should evaluate its argument, but I'm just hacking it in right now anyways
-  (unless (ExpectTokenType "array-size" array-token TokenType_Symbol)
-    (return false))
-  (tokenize-push output (/ (sizeof (token-splice (addr array-token)))
-                           (sizeof (at 0 (token-splice (addr array-token))))))
+;; This should evaluate its argument, but I'm just hacking it in right now anyways
+(defmacro array-size (array-token symbol)
+  (tokenize-push output (/ (sizeof (token-splice array-token))
+                           (sizeof (at 0 (token-splice array-token)))))
   (return true))
 
 ;; Binds the variable's address to the named var
 ;; Note that this causes the caller's function to return false if the binding failed
 ;; TODO: This is madness, or close to it. All this for every comptime variable reference...
-(defmacro get-or-create-comptime-var ()
+(defmacro get-or-create-comptime-var (bound-var-name (ref symbol) var-type (ref any)
+                                      &optional initializer-index (index any))
   (unless (field environment moduleManager)
     (return false))
-
-  (destructure-arguments bound-var-name-index var-type-index)
-  (quick-token-at bound-var-name bound-var-name-index)
-  (quick-token-at var-type var-type-index)
-
-  (var initializer-index int -1)
-  (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
-  (when (>= (getNumArguments tokens startTokenIndex end-invocation-index) 4)
-    (set initializer-index (getArgument tokens startTokenIndex 3 end-invocation-index)))
 
   (unless (ExpectTokenType "get-or-create-comptime-var" bound-var-name TokenType_Symbol)
     (return false))
 
+  ;; Only basing off of var-type for blaming
   (var var-type-str Token var-type)
   (set (field var-type-str type) TokenType_String)
   (var destroy-var-func-name-str Token var-type)
@@ -164,42 +150,41 @@
                             (return false)))))
   (return true))
 
-;; TODO: This should be builtin to macros and generators
-(defmacro destructure-arguments ()
-  (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
-  ;; Find the end invocation for the caller, not us
-  (tokenize-push output
-                 (var destr-end-invocation-index int
-                      (FindCloseParenTokenIndex tokens startTokenIndex)))
-  (var start-args-index int (+ 2 startTokenIndex))
-  (var current-arg-index int start-args-index)
-  ;; Invocation is 0, so skip it
-  (var num-destructured-args int 1)
-  (while (< current-arg-index end-invocation-index)
-    (var current-arg (* (const Token)) (addr (at current-arg-index tokens)))
-    (var num-destructured-args-token Token (array TokenType_Symbol (std::to_string num-destructured-args)
-                                                  "test/Macros.cake" 1 1 1))
-    (unless (ExpectTokenType "destructure-arguments" (at current-arg-index tokens) TokenType_Symbol)
-      (return false))
-    (var destructured-arg-name-token Token (array TokenType_String (field (at current-arg-index tokens) contents)
-                                                  "test/Macros.cake" 1 1 1))
-    (tokenize-push output
-                   (var (token-splice current-arg) int
-                        (getExpectedArgument
-                         ;; Use the name of the requested argument as the message
-                         (token-splice (addr destructured-arg-name-token))
-                         tokens startTokenIndex
-                         (token-splice (addr num-destructured-args-token))
-                         destr-end-invocation-index))
-                   (when (= -1 (token-splice current-arg)) (return false)))
-    (++ num-destructured-args)
-    (set current-arg-index
-         (getNextArgument tokens current-arg-index end-invocation-index)))
-  (return true))
+;; TODO: This is now built in, but it would still be useful to bind to arbitrary tokens
+;; (defmacro destructure-arguments ()
+;;   (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
+;;   ;; Find the end invocation for the caller, not us
+;;   (tokenize-push output
+;;                  (var destr-end-invocation-index int
+;;                       (FindCloseParenTokenIndex tokens startTokenIndex)))
+;;   (var start-args-index int (+ 2 startTokenIndex))
+;;   (var current-arg-index int start-args-index)
+;;   ;; Invocation is 0, so skip it
+;;   (var num-destructured-args int 1)
+;;   (while (< current-arg-index end-invocation-index)
+;;     (var current-arg (* (const Token)) (addr (at current-arg-index tokens)))
+;;     (var num-destructured-args-token Token (array TokenType_Symbol (std::to_string num-destructured-args)
+;;                                                   "test/Macros.cake" 1 1 1))
+;;     (unless (ExpectTokenType "destructure-arguments" (at current-arg-index tokens) TokenType_Symbol)
+;;       (return false))
+;;     (var destructured-arg-name-token Token (array TokenType_String (field (at current-arg-index tokens) contents)
+;;                                                   "test/Macros.cake" 1 1 1))
+;;     (tokenize-push output
+;;                    (var (token-splice current-arg) int
+;;                         (getExpectedArgument
+;;                          ;; Use the name of the requested argument as the message
+;;                          (token-splice (addr destructured-arg-name-token))
+;;                          tokens startTokenIndex
+;;                          (token-splice (addr num-destructured-args-token))
+;;                          destr-end-invocation-index))
+;;                    (when (= -1 (token-splice current-arg)) (return false)))
+;;     (++ num-destructured-args)
+;;     (set current-arg-index
+;;          (getNextArgument tokens current-arg-index end-invocation-index)))
+;;   (return true))
 
 ;; Assumes tokens is the array of tokens
-(defmacro quick-token-at ()
-  (destructure-arguments name index)
+(defmacro quick-token-at (name (index any))
   (tokenize-push output (var (token-splice (addr (at name tokens))) (& (const Token))
                              (at (token-splice (addr (at index tokens))) tokens)))
   (return true))
@@ -208,14 +193,13 @@
 ;; Example usage:
 ;; (forward-declare (namespace Ogre (class item) (struct my-struct)))
 ;; Outputs namespace Ogre { class item; struct my-struct;}
-(defgenerator forward-declare ()
+(defgenerator forward-declare (&rest start-body-index (index any))
   ;; TODO: Support global vs local?
   (var is-global bool true)
   (var output-dest (& (<> std::vector StringOutput))
        (? is-global (field output header) (field output source)))
 
   (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
-  (var start-body-index int (+ 2 startTokenIndex))
   (var current-index int start-body-index)
   (var namespace-stack (<> std::vector int))
   (while (< current-index end-invocation-index)
@@ -264,12 +248,10 @@
     (incr current-index))
   (return true))
 
-(defmacro command-add-string-argument ()
-  (destructure-arguments new-argument-index)
-  (quick-token-at new-argument new-argument-index)
-  (tokenize-push output (on-call (field linkCommand arguments) push_back
+(defmacro command-add-string-argument (command any new-argument any)
+  (tokenize-push output (on-call (field (token-splice command) arguments) push_back
                                  (array ProcessCommandArgumentType_String
-                                        (token-splice (addr new-argument)))))
+                                        (token-splice new-argument))))
   (return true))
 
 ;; TODO

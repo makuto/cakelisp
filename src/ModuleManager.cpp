@@ -289,6 +289,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	// This stage cleans up after itself if it fails
 	if (!moduleLoadTokenizeValidate(newModule->filename, &newModule->tokens))
 	{
+		printf("error: failed to tokenize %s\n", newModule->filename);
 		delete newModule;
 		free((void*)normalizedFilename);
 		return false;
@@ -314,7 +315,10 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	// After this point, the module may have references to its tokens in the environmment, so we
 	// cannot destroy it until we're done evaluating everything
 	if (numErrors)
+	{
+		printf("error: failed to evaluate %s\n", newModule->filename);
 		return false;
+	}
 
 	if (moduleOut)
 		*moduleOut = newModule;
