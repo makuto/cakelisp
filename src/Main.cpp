@@ -229,7 +229,9 @@ int main(int numArguments, char* arguments[])
 				printf("error: execution of %s returned non-zero exit code %d\n", output.c_str(),
 				       status);
 				moduleManagerDestroy(moduleManager);
-				return status;
+				// Why not return the exit code? Because some exit codes end up becoming 0 after the
+				// mod 256. I'm not really sure how other programs handle this
+				return 1;
 			}
 		}
 	}
