@@ -104,7 +104,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 	manager.environment.useCachedFiles = true;
 	makeDirectory(cakelispWorkingDir);
-	printf("Using cache at %s\n", cakelispWorkingDir);
+	if (log.fileSystem || log.phases)
+		printf("Using cache at %s\n", cakelispWorkingDir);
 
 	// By always searching relative to CWD, any subsequent imports with the module filename will
 	// resolve correctly
@@ -272,7 +273,8 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 			if (moduleOut)
 				*moduleOut = module;
 
-			printf("Already loaded %s\n", normalizedFilename);
+			if (log.imports)
+				printf("Already loaded %s\n", normalizedFilename);
 			free((void*)normalizedFilename);
 			free((void*)normalizedProspectiveModuleFilename);
 			free((void*)normalizedModuleFilename);
@@ -323,7 +325,8 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	if (moduleOut)
 		*moduleOut = newModule;
 
-	printf("Loaded %s\n", newModule->filename);
+	if (log.imports)
+		printf("Loaded %s\n", newModule->filename);
 	return true;
 }
 
@@ -384,7 +387,8 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 
 	makeDirectory(outputDirName);
 
-	printf("Outputting artifacts to %s\n", outputDirName);
+	if (log.fileSystem || log.phases)
+		printf("Outputting artifacts to %s\n", outputDirName);
 
 	outputDirOut = outputDirName;
 
@@ -443,7 +447,8 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 			return false;
 	}
 
-	printf("Processed %d lines\n", g_totalLinesTokenized);
+	if (log.phases || log.performance)
+		printf("Processed %d lines\n", g_totalLinesTokenized);
 
 	return true;
 }
@@ -750,7 +755,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		// output exe, so copy it every time
 		{
 			std::string finalOutputName;
-			printf("Copying executable from cache\n");
+			if (log.fileSystem)
+				printf("Copying executable from cache\n");
 			if (!manager.environment.executableOutput.empty())
 				finalOutputName = manager.environment.executableOutput;
 			else
@@ -764,7 +770,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 			addExecutablePermission(finalOutputName.c_str());
 
-			printf("Successfully built and linked %s\n", finalOutputName.c_str());
+			printf("No changes needed for %s\n", finalOutputName.c_str());
 			builtOutputs.push_back(finalOutputName);
 		}
 
@@ -833,7 +839,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	// output exe, so copy it every time
 	{
 		std::string finalOutputName;
-		printf("Copying executable from cache\n");
+		if (log.fileSystem)
+			printf("Copying executable from cache\n");
 		if (!manager.environment.executableOutput.empty())
 			finalOutputName = manager.environment.executableOutput;
 		else

@@ -22,7 +22,7 @@ void printHelp(const CommandLineOption* options, int numOptions)
 	    "OVERVIEW: Cakelisp\n\n"
 	    "Cakelisp is a transpiler/compiler which generates C/C++ from a Lisp dialect.\n\n"
 	    "Created by Macoy Madson <macoy@macoy.me>.\nhttps://macoy.me/code/macoy/cakelisp\n"
-		"Copyright (c) 2020 Macoy Madson.\n\n"
+	    "Copyright (c) 2020 Macoy Madson.\n\n"
 	    "USAGE: cakelisp [options] <input .cake files>\nAll options must precede .cake files.\n\n"
 	    "OPTIONS:\n";
 	printf("%s", helpString);
@@ -52,6 +52,16 @@ int main(int numArguments, char* arguments[])
 	     "will be the final location of the executable. This allows Cakelisp code to be run as if "
 	     "it were a script"},
 	    // Logging
+	    {"--verbose-phases", &log.phases,
+	     "Output labels for each major phase Cakelisp goes through"},
+	    {"--verbose-performance", &log.performance,
+	     "Output statistics which help estimate Cakelisp's compilation performance"},
+	    {"--verbose-build-omissions", &log.buildOmissions,
+	     "Output when compile-time functions are not built at all (because they were never "
+	     "invoked). This can be useful if you expect your function to be referenced, but it isn't"},
+	    {"--verbose-imports", &log.imports,
+	     "Output when .cake files are loaded. Also outputs when a .cake file is imported but has "
+	     "already been loaded"},
 	    {"--verbose-tokenization", &log.tokenization,
 	     "Output details about the conversion from file text to tokens"},
 	    {"--verbose-references", &log.references,
@@ -173,9 +183,11 @@ int main(int numArguments, char* arguments[])
 		return 1;
 	}
 
-	printf("Successfully generated files\n");
+	if (log.phases)
+		printf("Successfully generated files\n");
 
-	printf("\nBuild:\n");
+	if (log.phases)
+		printf("\nBuild:\n");
 
 	std::vector<std::string> builtOutputs;
 	if (!moduleManagerBuild(moduleManager, builtOutputs))
@@ -186,7 +198,8 @@ int main(int numArguments, char* arguments[])
 
 	if (executeOutput)
 	{
-		printf("\nExecute:\n");
+		if (log.phases)
+			printf("\nExecute:\n");
 
 		if (builtOutputs.empty())
 		{

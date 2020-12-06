@@ -1374,7 +1374,8 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	} while (codeModified);
 
 	// Check whether everything is resolved
-	printf("\nResult:\n");
+	if (log.phases)
+		printf("\nResult:\n");
 
 	if (numBuildResolveErrors)
 		printf("Failed with %d errors.\n", numBuildResolveErrors);
@@ -1440,7 +1441,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 		else
 		{
-			if (isCompileTimeObject(definition.type))
+			if (log.buildOmissions && isCompileTimeObject(definition.type))
 				NoteAtTokenf(*definition.definitionInvocation,
 				             "did not build %s (not required by any module)",
 				             definition.name.c_str());

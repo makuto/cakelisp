@@ -24,12 +24,14 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 	struct stat referenceStat;
 	if (stat(filename, &fileStat) == -1)
 	{
-		perror("fileIsMoreRecentlyModified: ");
+		if (log.fileSystem || errno != ENOENT)
+			perror("fileIsMoreRecentlyModified: ");
 		return true;
 	}
 	if (stat(reference, &referenceStat) == -1)
 	{
-		perror("fileIsMoreRecentlyModified: ");
+		if (log.fileSystem || errno != ENOENT)
+			perror("fileIsMoreRecentlyModified: ");
 		return true;
 	}
 
@@ -50,7 +52,11 @@ void makeDirectory(const char* path)
 {
 #ifdef UNIX
 	if (mkdir(path, 0755) == -1)
-		perror("makeDirectory: ");
+	{
+		// We don't care about EEXIST, we just want the dir
+		if (log.fileSystem || errno != EEXIST)
+			perror("makeDirectory: ");
+	}
 #else
 #error Need to be able to make directories on this platform
 #endif
