@@ -18,7 +18,7 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 	FILE* newFile = fopen(tempFilename, "r");
 	if (!newFile)
 	{
-		printf("error: Could not open %s\n", tempFilename);
+		Logf("error: Could not open %s\n", tempFilename);
 		return false;
 	}
 	FILE* oldFile = fopen(outputFilename, "r");
@@ -26,14 +26,14 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 	{
 		// Write new and remove temp
 		if (log.fileSystem)
-			printf("Destination file didn't exist. Writing\n");
+			Log("Destination file didn't exist. Writing\n");
 
 		return moveFile(tempFilename, outputFilename);
 	}
 	else
 	{
 		if (log.fileSystem)
-			printf("Destination file exists. Comparing\n");
+			Log("Destination file exists. Comparing\n");
 
 		char newBuffer[1024] = {0};
 		char oldBuffer[1024] = {0};
@@ -59,20 +59,20 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 		if (identical)
 		{
 			if (log.fileSystem)
-				printf("Files are identical. Skipping\n");
+				Log("Files are identical. Skipping\n");
 
 			fclose(newFile);
 			fclose(oldFile);
 			if (remove(tempFilename) != 0)
 			{
-				printf("Failed to remove %s\n", tempFilename);
+				Logf("Failed to remove %s\n", tempFilename);
 				return false;
 			}
 			return true;
 		}
 
 		if (log.fileSystem)
-			printf("File changed. writing\n");
+			Log("File changed. writing\n");
 
 		fclose(newFile);
 		fclose(oldFile);
@@ -110,7 +110,7 @@ static NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
 		if (!hasWarned && mode == NameStyleMode_PascalCase)
 		{
 			hasWarned = true;
-			printf(
+			Log(
 			    "\nWarning: Use of PascalCase for type names is discouraged because it will "
 			    "destroy lowercase C type names. You should use PascalCaseIfPlural instead, which "
 			    "will only apply case changes if the name looks lisp-y. This warning will only "
@@ -129,7 +129,7 @@ static NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
 	}
 
 	if (numMatchingFlags > 1)
-		printf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
+		Logf("\nWarning: Name was given conflicting convert flags: %d\n", (int)modifierFlags);
 
 	return mode;
 }
@@ -306,7 +306,7 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 		// Debug print mapping
 		if (!operation.output.empty() && false)
 		{
-			printf("%s \t%d\tline %d\n", operation.output.c_str(), outputState.numCharsOutput + 1,
+			Logf("%s \t%d\tline %d\n", operation.output.c_str(), outputState.numCharsOutput + 1,
 			       outputState.currentLine + 1);
 		}
 
@@ -406,14 +406,14 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		    outputs[i].stateBeforeOutputWrite.numCharsOutput)
 		{
 			if (log.fileSystem)
-				printf("%s had no meaningful output\n", outputs[i].tempFilename);
+				Logf("%s had no meaningful output\n", outputs[i].tempFilename);
 
 			fclose(outputs[i].outputState.fileOut);
 			outputs[i].outputState.fileOut = nullptr;
 
 			if (remove(outputs[i].tempFilename) != 0)
 			{
-				printf("Error: Failed to remove %s\n", outputs[i].tempFilename);
+				Logf("Error: Failed to remove %s\n", outputs[i].tempFilename);
 				return false;
 			}
 			continue;
@@ -463,30 +463,30 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
 	if (log.metadata)
 	{
 		// Metadata
-		printf("\n\tImports:\n");
+		Log("\n\tImports:\n");
 		for (const ImportMetadata& import : generatedOutput.imports)
 		{
-			printf("%s\t(%s)\n", import.importName.c_str(),
+			Logf("%s\t(%s)\n", import.importName.c_str(),
 			       importLanguageToString(import.language));
 		}
 
-		printf("\n\tFunctions:\n");
+		Log("\n\tFunctions:\n");
 		for (const FunctionMetadata& function : generatedOutput.functions)
 		{
-			printf("%s\n", function.name.c_str());
+			Logf("%s\n", function.name.c_str());
 			if (!function.arguments.empty())
 			{
-				printf("(\n");
+				Log("(\n");
 				for (const FunctionArgumentMetadata& argument : function.arguments)
 				{
-					printf("\t%s\n", argument.name.c_str());
+					Logf("\t%s\n", argument.name.c_str());
 				}
-				printf(")\n");
+				Log(")\n");
 			}
 			else
-				printf("()\n");
+				Log("()\n");
 
-			printf("\n");
+			Log("\n");
 		}
 	}
 

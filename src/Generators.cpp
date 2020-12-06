@@ -88,7 +88,7 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 				             "suitable for this command):");
 				for (unsigned int i = 0; i < ArraySize(symbolsToCommandTypes); ++i)
 				{
-					printf("\t%s\n", symbolsToCommandTypes[i].symbolName);
+					Logf("\t%s\n", symbolsToCommandTypes[i].symbolName);
 				}
 				return false;
 			}
@@ -521,7 +521,7 @@ bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
 	{
 		ErrorAtToken(destinationToken, "unrecognized destination. Available destinations:");
 		for (unsigned int i = 0; i < ArraySize(possibleDestinations); ++i)
-			printf("\t%s\n", possibleDestinations[i].name);
+			Logf("\t%s\n", possibleDestinations[i].name);
 
 		return false;
 	}
@@ -1409,7 +1409,7 @@ static ComptimeTokenArgContainedType ComptimeParseTokenArgumentType(const Token&
 		ErrorAtToken(expectedType, "unrecognized type. Recognized types listed below.");
 		for (unsigned int i = 0; i < ArraySize(containedTypeOptions); ++i)
 		{
-			printf("\t%s\n", containedTypeOptions[i].keyword);
+			Logf("\t%s\n", containedTypeOptions[i].keyword);
 		}
 	}
 
@@ -1623,8 +1623,7 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 						                &currentToken);
 						break;
 					default:
-						printf(
-						    "ComptimeGenerateTokenArguments: Programmer missing type. Internal "
+						Log("ComptimeGenerateTokenArguments: Programmer missing type. Internal "
 						    "code error\n");
 						return false;
 				}

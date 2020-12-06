@@ -1,14 +1,15 @@
 #include "Utilities.hpp"
-#include "Logging.hpp"
 
 #include <stdio.h>
+
+#include "Logging.hpp"
 
 std::string EmptyString;
 
 void printIndentToDepth(int depth)
 {
 	for (int i = 0; i < depth; ++i)
-		printf("\t");
+		Log("\t");
 }
 
 FILE* fileOpen(const char* filename, const char* mode)
@@ -17,13 +18,13 @@ FILE* fileOpen(const char* filename, const char* mode)
 	file = fopen(filename, mode);
 	if (!file)
 	{
-		printf("error: Could not open %s\n", filename);
+		Logf("error: Could not open %s\n", filename);
 		return nullptr;
 	}
 	else
 	{
 		if (log.fileSystem)
-			printf("Opened %s\n", filename);
+			Logf("Opened %s\n", filename);
 	}
 	return file;
 }
@@ -35,7 +36,7 @@ bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize)
 	char* endOfBuffer = bufferStart + (bufferSize - 1);
 	if (*at > endOfBuffer)
 	{
-		printf("error: buffer of size %d was too small. String will be cut off\n", bufferSize);
+		Logf("error: buffer of size %d was too small. String will be cut off\n", bufferSize);
 		*endOfBuffer = '\0';
 		return false;
 	}
@@ -52,7 +53,7 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 		char* endOfBuffer = bufferStart + (bufferSize - 1);
 		if (*at > endOfBuffer)
 		{
-			printf("error: buffer of size %d was too small. String will be cut off\n", bufferSize);
+			Logf("error: buffer of size %d was too small. String will be cut off\n", bufferSize);
 			*(endOfBuffer) = '\0';
 			return false;
 		}

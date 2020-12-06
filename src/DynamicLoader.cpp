@@ -1,6 +1,7 @@
 #include "DynamicLoader.hpp"
 
 #include <stdio.h>
+
 #include <string>
 #include <unordered_map>
 
@@ -114,7 +115,7 @@ void closeDynamicLibrary(DynamicLibHandle handleToClose)
 
 	if (!libHandle)
 	{
-		printf("warning: closing library which wasn't in the list of loaded libraries\n");
+		fprintf(stderr, "warning: closing library which wasn't in the list of loaded libraries\n");
 		libHandle = handleToClose;
 	}
 

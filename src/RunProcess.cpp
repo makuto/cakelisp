@@ -39,19 +39,19 @@ void systemExecute(const char* fileToExecute, char** arguments)
 	// pid_t pid;
 	execvp(fileToExecute, arguments);
 	perror("RunProcess execvp() error: ");
-	printf("Failed to execute %s\n", fileToExecute);
+	Logf("Failed to execute %s\n", fileToExecute);
 #endif
 }
 
 void subprocessReceiveStdOut(const char* processOutputBuffer)
 {
-	printf("%s", processOutputBuffer);
+	Logf("%s", processOutputBuffer);
 }
 
 // TODO: Make separate pipe for std err?
 // void subprocessReceiveStdErr(const char* processOutputBuffer)
 // {
-// 	printf("%s", processOutputBuffer);
+// 	Logf("%s", processOutputBuffer);
 // }
 
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
@@ -59,12 +59,12 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 #ifdef UNIX
 	if (log.processes)
 	{
-		printf("RunProcess command: ");
+		Log("RunProcess command: ");
 		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
 		{
-			printf("%s ", *arg);
+			Logf("%s ", *arg);
 		}
-		printf("\n");
+		Log("\n");
 	}
 
 	int pipeFileDescriptors[2] = {0};
@@ -123,7 +123,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 			}
 
 			if (log.processes)
-				printf("Set working directory to %s\n", arguments.workingDir);
+				Logf("Set working directory to %s\n", arguments.workingDir);
 		}
 
 		systemExecute(arguments.fileToExecute, nonConstArguments);
@@ -144,7 +144,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		close(pipeFileDescriptors[PipeWrite]);
 
 		if (log.processes)
-			printf("Created child process %d\n", pid);
+			Logf("Created child process %d\n", pid);
 
 		std::string command = "";
 		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
@@ -187,7 +187,7 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 
 		// It's pretty useful to see the command which resulted in failure
 		if (*process.statusOut != 0)
-			printf("%s\n", process.command.c_str());
+			Logf("%s\n", process.command.c_str());
 #endif
 	}
 
@@ -197,8 +197,8 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 void PrintProcessArguments(const char** processArguments)
 {
 	for (const char** argument = processArguments; *argument; ++argument)
-		printf("%s ", *argument);
-	printf("\n");
+		Logf("%s ", *argument);
+	Log("\n");
 }
 
 // The array will need to be deleted, but the array members will not
@@ -228,7 +228,7 @@ const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
 			}
 			if (!found)
 			{
-				printf("error: command missing input\n");
+				Log("error: command missing input\n");
 				return nullptr;
 			}
 		}

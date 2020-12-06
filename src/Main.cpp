@@ -25,11 +25,11 @@ void printHelp(const CommandLineOption* options, int numOptions)
 	    "Copyright (c) 2020 Macoy Madson.\n\n"
 	    "USAGE: cakelisp [options] <input .cake files>\nAll options must precede .cake files.\n\n"
 	    "OPTIONS:\n";
-	printf("%s", helpString);
+	Logf("%s", helpString);
 
 	for (int optionIndex = 0; optionIndex < numOptions; ++optionIndex)
 	{
-		printf("  %s\n    %s\n\n", options[optionIndex].handle, options[optionIndex].help);
+		Logf("  %s\n    %s\n\n", options[optionIndex].handle, options[optionIndex].help);
 	}
 }
 
@@ -88,7 +88,7 @@ int main(int numArguments, char* arguments[])
 
 	if (numArguments == 1)
 	{
-		printf("Error: expected file(s) to evaluate\n\n");
+		Log("Error: expected file(s) to evaluate\n\n");
 		printHelp(options, ArraySize(options));
 		return 1;
 	}
@@ -111,7 +111,7 @@ int main(int numArguments, char* arguments[])
 		{
 			if (startFiles < numArguments)
 			{
-				printf("Error: Options must precede files\n\n");
+				Log("Error: Options must precede files\n\n");
 				printHelp(options, ArraySize(options));
 				return 1;
 			}
@@ -130,7 +130,7 @@ int main(int numArguments, char* arguments[])
 
 			if (!foundOption)
 			{
-				printf("Error: Unrecognized argument %s\n\n", arguments[i]);
+				Logf("Error: Unrecognized argument %s\n\n", arguments[i]);
 				printHelp(options, ArraySize(options));
 				return 1;
 			}
@@ -143,7 +143,7 @@ int main(int numArguments, char* arguments[])
 
 	if (filesToEvaluate.empty())
 	{
-		printf("Error: expected file(s) to evaluate\n\n");
+		Log("Error: expected file(s) to evaluate\n\n");
 		printHelp(options, ArraySize(options));
 		return 1;
 	}
@@ -155,8 +155,7 @@ int main(int numArguments, char* arguments[])
 	{
 		if (ignoreCachedFiles)
 		{
-			printf(
-			    "cache will be used for output, but files from previous runs will be ignored "
+			Log("cache will be used for output, but files from previous runs will be ignored "
 			    "(--ignore-cache)\n");
 			moduleManager.environment.useCachedFiles = false;
 		}
@@ -184,10 +183,10 @@ int main(int numArguments, char* arguments[])
 	}
 
 	if (log.phases)
-		printf("Successfully generated files\n");
+		Log("Successfully generated files\n");
 
 	if (log.phases)
-		printf("\nBuild:\n");
+		Log("\nBuild:\n");
 
 	std::vector<std::string> builtOutputs;
 	if (!moduleManagerBuild(moduleManager, builtOutputs))
@@ -199,11 +198,11 @@ int main(int numArguments, char* arguments[])
 	if (executeOutput)
 	{
 		if (log.phases)
-			printf("\nExecute:\n");
+			Log("\nExecute:\n");
 
 		if (builtOutputs.empty())
 		{
-			printf("error: --execute: No executables were output\n");
+			Log("error: --execute: No executables were output\n");
 			moduleManagerDestroy(moduleManager);
 			return 1;
 		}
@@ -225,7 +224,7 @@ int main(int numArguments, char* arguments[])
 
 			if (runProcess(arguments, &status) != 0)
 			{
-				printf("error: execution of %s failed\n", output.c_str());
+				Logf("error: execution of %s failed\n", output.c_str());
 				free((void*)executablePath);
 				free((void*)commandLineArguments[0]);
 				moduleManagerDestroy(moduleManager);
@@ -239,8 +238,8 @@ int main(int numArguments, char* arguments[])
 
 			if (status != 0)
 			{
-				printf("error: execution of %s returned non-zero exit code %d\n", output.c_str(),
-				       status);
+				Logf("error: execution of %s returned non-zero exit code %d\n", output.c_str(),
+				     status);
 				moduleManagerDestroy(moduleManager);
 				// Why not return the exit code? Because some exit codes end up becoming 0 after the
 				// mod 256. I'm not really sure how other programs handle this

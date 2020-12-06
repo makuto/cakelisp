@@ -20,7 +20,7 @@ void StripInvocation(int& startTokenIndex, int& endTokenIndex)
 int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenIndex)
 {
 	if (tokens[startTokenIndex].type != TokenType_OpenParen)
-		printf("Warning: FindCloseParenTokenIndex() expects to start on the opening parenthesis\n");
+		Log("Warning: FindCloseParenTokenIndex() expects to start on the opening parenthesis\n");
 
 	int depth = 0;
 	int numTokens = tokens.size();
@@ -99,7 +99,7 @@ bool isSpecialSymbol(const Token& token)
 	}
 	else
 	{
-		printf("Warning: isSpecialSymbol() expects only Symbol types\n");
+		Log("Warning: isSpecialSymbol() expects only Symbol types\n");
 		return true;
 	}
 }
@@ -301,7 +301,7 @@ bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
 {
 	if (!(definition.type == ObjectType_Function || definition.type == ObjectType_Variable))
 	{
-		printf(
+		Logf(
 		    "error: CreateDefinitionCopyMacroExpanded() called on definition type %s which is not "
 		    "explicitly supported by this function. Check CreateDefinitionCopyMacroExpanded() and "
 		    "ensure your type's signature is understood, and that your type is tracking its macro "
@@ -312,8 +312,7 @@ bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
 
 	if (!definition.definitionInvocation)
 	{
-		printf(
-		    "error: CreateDefinitionCopyMacroExpanded() called on definition which did not set "
+		Log("error: CreateDefinitionCopyMacroExpanded() called on definition which did not set "
 		    "invocation token. This is necessary to accurately copy the definition\n");
 		return false;
 	}
@@ -341,7 +340,7 @@ void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken
 {
 	if (!startToken)
 	{
-		printf("error: PushBackTokenExpression() received null token\n");
+		Log("error: PushBackTokenExpression() received null token\n");
 		return;
 	}
 
@@ -619,8 +618,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 {
 	if (&typeOutput == &afterNameOutput)
 	{
-		printf(
-		    "Error: tokenizedCTypeToString_Recursive() requires a separate output buffer for "
+		Log("Error: tokenizedCTypeToString_Recursive() requires a separate output buffer for "
 		    "after-name types\n");
 		return false;
 	}
@@ -840,8 +838,7 @@ bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, cons
 		             "printed below (' = name does not need to match):");
 		printTokens(expectedSignature);
 
-		printf("too many/few tokens. %i need %lu\n", numArgumentsProvided,
-		       expectedSignature.size());
+		Logf("too many/few tokens. %i need %lu\n", numArgumentsProvided, expectedSignature.size());
 		return false;
 	}
 	for (unsigned int i = 0; i < expectedSignature.size() && currentUserArgToken != endUserArgs;
@@ -897,7 +894,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 			{
 				if (operation[i].argumentIndex < 0)
 				{
-					printf("Error: Expected valid argument index for start of splice list\n");
+					Log("Error: Expected valid argument index for start of splice list\n");
 					return false;
 				}
 				int startSpliceListIndex =
@@ -947,7 +944,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 			{
 				if (operation[i].argumentIndex < 0)
 				{
-					printf("Error: Expected valid argument index for expression\n");
+					Log("Error: Expected valid argument index for expression\n");
 					return false;
 				}
 				int startTypeIndex = getExpectedArgument("expected type", tokens, startTokenIndex,
@@ -968,7 +965,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 			{
 				if (operation[i].argumentIndex < 0)
 				{
-					printf("Error: Expected valid argument index for expression\n");
+					Log("Error: Expected valid argument index for expression\n");
 					return false;
 				}
 				int startExpressionIndex =
@@ -989,7 +986,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 			{
 				if (operation[i].argumentIndex < 0)
 				{
-					printf("Error: Expected valid argument index for expression\n");
+					Log("Error: Expected valid argument index for expression\n");
 					return false;
 				}
 				int startExpressionIndex =
@@ -1008,7 +1005,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 			{
 				if (operation[i].argumentIndex < 0)
 				{
-					printf("Error: Expected valid argument index for expression\n");
+					Log("Error: Expected valid argument index for expression\n");
 					return false;
 				}
 				// We're actually fine with no arguments
@@ -1031,7 +1028,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 			{
 				if (operation[i].argumentIndex < 0)
 				{
-					printf("Error: Expected valid argument index for body\n");
+					Log("Error: Expected valid argument index for body\n");
 					return false;
 				}
 				int startBodyIndex = getExpectedArgument("expected body", tokens, startTokenIndex,
@@ -1049,7 +1046,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				break;
 			}
 			default:
-				printf("Output type not handled\n");
+				Log("Output type not handled\n");
 				return false;
 		}
 	}

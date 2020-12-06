@@ -99,7 +99,7 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				if (std::isspace(*currentChar) || *currentChar == '\n' || isParenthesis)
 				{
 					if (log.tokenization)
-						printf("%s\n", contentsBuffer);
+						Logf("%s\n", contentsBuffer);
 					Token symbol = {TokenType_Symbol, EmptyString, source,
 					                lineNumber,       columnStart, currentColumn};
 					CopyContentsAndReset(symbol.contents);
@@ -226,19 +226,19 @@ void printFormattedToken(const Token& token)
 	switch (token.type)
 	{
 		case TokenType_OpenParen:
-			printf("(");
+			Log("(");
 			break;
 		case TokenType_CloseParen:
-			printf(")");
+			Log(")");
 			break;
 		case TokenType_Symbol:
-			printf("%s", token.contents.c_str());
+			Logf("%s", token.contents.c_str());
 			break;
 		case TokenType_String:
-			printf("\"%s\"", token.contents.c_str());
+			Logf("\"%s\"", token.contents.c_str());
 			break;
 		default:
-			printf("Unknown type");
+			Log("Unknown type");
 			break;
 	}
 }
@@ -298,10 +298,10 @@ static void printTokensInternal(const std::vector<Token>& tokens, bool prettyPri
 		if (prettyPrint && previousTokenType == TokenType_CloseParen &&
 		    token.type == TokenType_OpenParen)
 		{
-			printf("\n");
+			Log("\n");
 			for (int i = 0; i < depth; ++i)
 			{
-				printf(" ");
+				Log(" ");
 			}
 		}
 
@@ -315,13 +315,13 @@ static void printTokensInternal(const std::vector<Token>& tokens, bool prettyPri
 		if ((tokenIsSymbolOrString && !previousTokenIsParen) ||
 		    (tokenIsSymbolOrString && previousTokenType == TokenType_CloseParen) ||
 		    (token.type == TokenType_OpenParen && previousTokenIsSymbolOrString))
-			printf(" ");
+			Log(" ");
 
 		printFormattedToken(token);
 
 		previousTokenType = token.type;
 	}
-	printf("\n");
+	Log("\n");
 }
 
 void printTokens(const std::vector<Token>& tokens)
@@ -364,7 +364,7 @@ bool tokenizeLinePrintError(const char* inputLine, const char* source, unsigned 
 	const char* error = tokenizeLine(inputLine, source, lineNumber, tokensOut);
 	if (error != nullptr)
 	{
-		printf("error: %s\n", error);
+		Logf("error: %s\n", error);
 		return false;
 	}
 	return true;

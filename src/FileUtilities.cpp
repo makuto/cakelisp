@@ -142,7 +142,7 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 		return;
 	}
 
-	// printf("workingDirAbsolute %s\nfilePathAbsolute %s\n", workingDirAbsolute, filePathAbsolute);
+	// Logf("workingDirAbsolute %s\nfilePathAbsolute %s\n", workingDirAbsolute, filePathAbsolute);
 
 	size_t workingDirPathLength = strlen(workingDirAbsolute);
 	if (strncmp(workingDirAbsolute, filePathAbsolute, workingDirPathLength) == 0)
@@ -178,7 +178,7 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 	// 	{
 	// 		char resultBuffer[MAX_PATH_LENGTH] = {0};
 	// 		makeAbsoluteOrRelativeToWorkingDir(testCases[i], resultBuffer, ArraySize(resultBuffer));
-	// 		printf("%s = %s\n\n", testCases[i], resultBuffer);
+	// 		Logf("%s = %s\n\n", testCases[i], resultBuffer);
 	// 	}
 	// 	return 0;
 	// }
@@ -212,7 +212,7 @@ bool copyBinaryFileTo(const char* srcFilename, const char* destFilename)
 	if (!srcFile || !destFile)
 	{
 		perror("fopen: ");
-		printf("error: failed to copy %s to %s", srcFilename, destFilename);
+		Logf("error: failed to copy %s to %s", srcFilename, destFilename);
 		return false;
 	}
 
@@ -224,7 +224,7 @@ bool copyBinaryFileTo(const char* srcFilename, const char* destFilename)
 	fclose(destFile);
 
 	if (log.fileSystem)
-		printf("Wrote %s\n", destFilename);
+		Logf("Wrote %s\n", destFilename);
 
 	return true;
 }
@@ -236,7 +236,7 @@ bool copyFileTo(const char* srcFilename, const char* destFilename)
 	if (!srcFile || !destFile)
 	{
 		perror("fopen: ");
-		printf("error: failed to copy %s to %s", srcFilename, destFilename);
+		Logf("error: failed to copy %s to %s", srcFilename, destFilename);
 		return false;
 	}
 
@@ -248,7 +248,7 @@ bool copyFileTo(const char* srcFilename, const char* destFilename)
 	fclose(destFile);
 
 	if (log.fileSystem)
-		printf("Wrote %s\n", destFilename);
+		Logf("Wrote %s\n", destFilename);
 
 	return true;
 }
@@ -261,7 +261,7 @@ bool moveFile(const char* srcFilename, const char* destFilename)
 	if (remove(srcFilename) != 0)
 	{
 		perror("remove: ");
-		printf("Failed to remove %s\n", srcFilename);
+		Logf("Failed to remove %s\n", srcFilename);
 		return false;
 	}
 

@@ -1,9 +1,8 @@
 #pragma once
 
-#include <cstdio>  //  sprintf
+#include <algorithm>  // std::find
+#include <cstdio>     //  sprintf
 #include <string>
-
-#include <algorithm> // std::find
 
 #define MAX_NAME_LENGTH 64
 #define MAX_PATH_LENGTH 128
@@ -13,6 +12,10 @@
 #define FindInContainer(container, element) std::find(container.begin(), container.end(), element)
 
 void printIndentToDepth(int depth);
+
+// Print to stderr. Could be for reporting errors too; it's up to you to add "error:'
+#define Logf(format, ...) fprintf(stderr, format, __VA_ARGS__);
+#define Log(format) fprintf(stderr, format);
 
 // TODO: de-macroize
 #define SafeSnprinf(buffer, size, format, ...)                         \
@@ -35,21 +38,21 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 // The first character is at 1 (at least, in Emacs, when following this error, it takes you
 // to the start of the line with e.g. column 1)
 // TODO: Add Clang-style error arrow note via function "print line N of filename"
-#define ErrorAtTokenf(token, format, ...)                                       \
-	printf("%s:%d:%d: error: " format "\n", (token).source, (token).lineNumber, \
-	       1 + (token).columnStart, __VA_ARGS__)
+#define ErrorAtTokenf(token, format, ...)                                                \
+	fprintf(stderr, "%s:%d:%d: error: " format "\n", (token).source, (token).lineNumber, \
+	        1 + (token).columnStart, __VA_ARGS__)
 
-#define ErrorAtToken(token, message)                                                             \
-	printf("%s:%d:%d: error: %s\n", (token).source, (token).lineNumber, 1 + (token).columnStart, \
-	       message)
+#define ErrorAtToken(token, message)                                             \
+	fprintf(stderr, "%s:%d:%d: error: %s\n", (token).source, (token).lineNumber, \
+	        1 + (token).columnStart, message)
 
-#define NoteAtToken(token, message)                                                             \
-	printf("%s:%d:%d: note: %s\n", (token).source, (token).lineNumber, 1 + (token).columnStart, \
-	       message)
+#define NoteAtToken(token, message)                                             \
+	fprintf(stderr, "%s:%d:%d: note: %s\n", (token).source, (token).lineNumber, \
+	        1 + (token).columnStart, message)
 
-#define NoteAtTokenf(token, format, ...)                                       \
-	printf("%s:%d:%d: note: " format "\n", (token).source, (token).lineNumber, \
-	       1 + (token).columnStart, __VA_ARGS__)
+#define NoteAtTokenf(token, format, ...)                                                \
+	fprintf(stderr, "%s:%d:%d: note: " format "\n", (token).source, (token).lineNumber, \
+	        1 + (token).columnStart, __VA_ARGS__)
 
 #define PushBackAll(dest, src) (dest).insert((dest).end(), (src).begin(), (src).end())
 

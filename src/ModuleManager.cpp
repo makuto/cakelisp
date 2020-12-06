@@ -53,8 +53,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		GeneratorOutput* compTimeOutput = new GeneratorOutput;
 		moduleDefinition.output = compTimeOutput;
 		if (!addObjectDefinition(manager.environment, moduleDefinition))
-			printf(
-			    "error: <global> couldn't be added. Was module manager initialized twice? Things "
+			Log("error: <global> couldn't be added. Was module manager initialized twice? Things "
 			    "will definitely break\n");
 	}
 
@@ -105,7 +104,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 	manager.environment.useCachedFiles = true;
 	makeDirectory(cakelispWorkingDir);
 	if (log.fileSystem || log.phases)
-		printf("Using cache at %s\n", cakelispWorkingDir);
+		Logf("Using cache at %s\n", cakelispWorkingDir);
 
 	// By always searching relative to CWD, any subsequent imports with the module filename will
 	// resolve correctly
@@ -144,13 +143,13 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		while (fgets(lineBuffer, sizeof(lineBuffer), file))
 		{
 			if (log.tokenization)
-				printf("%s", lineBuffer);
+				Logf("%s", lineBuffer);
 
 			const char* error =
 			    tokenizeLine(lineBuffer, filename, lineNumber, *tokens_CREATIONONLY);
 			if (error != nullptr)
 			{
-				printf("%s:%d: error: %s\n", filename, lineNumber, error);
+				Logf("%s:%d: error: %s\n", filename, lineNumber, error);
 
 				delete tokens_CREATIONONLY;
 				return false;
@@ -164,11 +163,11 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 	}
 
 	if (log.tokenization)
-		printf("Tokenized %d lines\n", lineNumber - 1);
+		Logf("Tokenized %d lines\n", lineNumber - 1);
 
 	if (tokens->empty())
 	{
-		printf("error: empty file. Please remove from system, or add (ignore)\n");
+		Log("error: empty file. Please remove from system, or add (ignore)\n");
 		delete tokens;
 		return false;
 	}
@@ -181,7 +180,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 
 	if (log.tokenization)
 	{
-		printf("\nResult:\n");
+		Log("\nResult:\n");
 
 		// No need to validate, we already know it's safe
 		int nestingDepth = 0;
@@ -189,13 +188,13 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		{
 			printIndentToDepth(nestingDepth);
 
-			printf("%s", tokenTypeToString(token.type));
+			Logf("%s", tokenTypeToString(token.type));
 
 			bool printRanges = true;
 			if (printRanges)
 			{
-				printf("\t\tline %d, from line character %d to %d\n", token.lineNumber,
-				       token.columnStart, token.columnEnd);
+				Logf("\t\tline %d, from line character %d to %d\n", token.lineNumber,
+				     token.columnStart, token.columnEnd);
 			}
 
 			if (token.type == TokenType_OpenParen)
@@ -210,7 +209,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 			if (!token.contents.empty())
 			{
 				printIndentToDepth(nestingDepth);
-				printf("\t%s\n", token.contents.c_str());
+				Logf("\t%s\n", token.contents.c_str());
 			}
 		}
 	}
@@ -241,7 +240,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 #ifdef UNIX
 		perror("failed to normalize filename: ");
 #else
-		printf("error: could not normalize filename, or file not found: %s\n", filename);
+		Logf("error: could not normalize filename, or file not found: %s\n", filename);
 #endif
 		return false;
 	}
@@ -253,7 +252,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 		const char* normalizedProspectiveModuleFilename = makeAbsolutePath_Allocated(".", filename);
 		if (!normalizedProspectiveModuleFilename)
 		{
-			printf("error: failed to normalize path %s", filename);
+			Logf("error: failed to normalize path %s", filename);
 			free((void*)normalizedFilename);
 			return false;
 		}
@@ -262,7 +261,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 
 		if (!normalizedModuleFilename)
 		{
-			printf("error: failed to normalize path %s", module->filename);
+			Logf("error: failed to normalize path %s", module->filename);
 			free((void*)normalizedProspectiveModuleFilename);
 			free((void*)normalizedFilename);
 			return false;
@@ -274,7 +273,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 				*moduleOut = module;
 
 			if (log.imports)
-				printf("Already loaded %s\n", normalizedFilename);
+				Logf("Already loaded %s\n", normalizedFilename);
 			free((void*)normalizedFilename);
 			free((void*)normalizedProspectiveModuleFilename);
 			free((void*)normalizedModuleFilename);
@@ -291,7 +290,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	// This stage cleans up after itself if it fails
 	if (!moduleLoadTokenizeValidate(newModule->filename, &newModule->tokens))
 	{
-		printf("error: failed to tokenize %s\n", newModule->filename);
+		Logf("error: failed to tokenize %s\n", newModule->filename);
 		delete newModule;
 		free((void*)normalizedFilename);
 		return false;
@@ -318,7 +317,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	// cannot destroy it until we're done evaluating everything
 	if (numErrors)
 	{
-		printf("error: failed to evaluate %s\n", newModule->filename);
+		Logf("error: failed to evaluate %s\n", newModule->filename);
 		return false;
 	}
 
@@ -326,7 +325,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 		*moduleOut = newModule;
 
 	if (log.imports)
-		printf("Loaded %s\n", newModule->filename);
+		Logf("Loaded %s\n", newModule->filename);
 	return true;
 }
 
@@ -352,12 +351,12 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 
 	if (!writeStringToBuffer(cakelispWorkingDir, &writeHead, outputDirName, sizeof(outputDirName)))
 	{
-		printf("error: ran out of space writing build configuration output directory name\n");
+		Log("error: ran out of space writing build configuration output directory name\n");
 		return false;
 	}
 	if (!writeCharToBuffer('/', &writeHead, outputDirName, sizeof(outputDirName)))
 	{
-		printf("error: ran out of space writing build configuration output directory name\n");
+		Log("error: ran out of space writing build configuration output directory name\n");
 		return false;
 	}
 
@@ -366,7 +365,7 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 		const std::string& label = environment.buildConfigurationLabels[i];
 		if (!writeStringToBuffer(label.c_str(), &writeHead, outputDirName, sizeof(outputDirName)))
 		{
-			printf("error: ran out of space writing build configuration output directory name\n");
+			Log("error: ran out of space writing build configuration output directory name\n");
 			break;
 		}
 
@@ -375,8 +374,7 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 		{
 			if (!writeCharToBuffer('-', &writeHead, outputDirName, sizeof(outputDirName)))
 			{
-				printf(
-				    "error: ran out of space writing build configuration output directory name\n");
+				Log("error: ran out of space writing build configuration output directory name\n");
 				break;
 			}
 		}
@@ -388,7 +386,7 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 	makeDirectory(outputDirName);
 
 	if (log.fileSystem || log.phases)
-		printf("Outputting artifacts to %s\n", outputDirName);
+		Logf("Outputting artifacts to %s\n", outputDirName);
 
 	outputDirOut = outputDirName;
 
@@ -448,7 +446,7 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	}
 
 	if (log.phases || log.performance)
-		printf("Processed %d lines\n", g_totalLinesTokenized);
+		Logf("Processed %d lines\n", g_totalLinesTokenized);
 
 	return true;
 }
@@ -505,7 +503,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		{
 			if (!hook(manager, module))
 			{
-				printf("error: hook returned failure. Aborting build\n");
+				Log("error: hook returned failure. Aborting build\n");
 				builtObjectsFree(builtObjects);
 				return false;
 			}
@@ -535,11 +533,11 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		}
 
 		if (log.buildProcess)
-			printf("Build module %s\n", module->sourceOutputName.c_str());
+			Logf("Build module %s\n", module->sourceOutputName.c_str());
 		for (ModuleDependency& dependency : module->dependencies)
 		{
 			if (log.buildProcess)
-				printf("\tRequires %s\n", dependency.name.c_str());
+				Logf("\tRequires %s\n", dependency.name.c_str());
 
 			// Cakelisp files are built at the module manager level, so we need not concern
 			// ourselves with them
@@ -558,7 +556,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
 				{
 					delete newBuiltObject;
-					printf("error: failed to create suitable output filename");
+					Log("error: failed to create suitable output filename");
 					builtObjectsFree(builtObjects);
 					return false;
 				}
@@ -587,7 +585,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		        manager.buildOutputDir.c_str(), module->sourceOutputName.c_str(),
 		        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
 		{
-			printf("error: failed to create suitable output filename");
+			Log("error: failed to create suitable output filename");
 			builtObjectsFree(builtObjects);
 			return false;
 		}
@@ -618,8 +616,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		                     object->filename.c_str()))
 		{
 			if (log.buildProcess)
-				printf("Skipping compiling %s (using cached object)\n",
-				       object->sourceFilename.c_str());
+				Logf("Skipping compiling %s (using cached object)\n",
+				     object->sourceFilename.c_str());
 		}
 		else
 		{
@@ -661,7 +659,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			    buildCommand, buildTimeInputs, ArraySize(buildTimeInputs));
 			if (!buildArguments)
 			{
-				printf("error: failed to construct build arguments\n");
+				Log("error: failed to construct build arguments\n");
 				builtObjectsFree(builtObjects);
 				return false;
 			}
@@ -672,7 +670,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 			if (runProcess(compileArguments, &object->buildStatus) != 0)
 			{
-				printf("error: failed to invoke compiler\n");
+				Log("error: failed to invoke compiler\n");
 				free(buildArguments);
 				builtObjectsFree(builtObjects);
 				return false;
@@ -725,13 +723,13 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		int buildResult = object->buildStatus;
 		if (buildResult != 0)
 		{
-			printf("error: failed to make target %s\n", object->filename.c_str());
+			Logf("error: failed to make target %s\n", object->filename.c_str());
 			succeededBuild = false;
 			continue;
 		}
 
 		if (log.buildProcess)
-			printf("Need to link %s\n", object->filename.c_str());
+			Logf("Need to link %s\n", object->filename.c_str());
 
 		++numObjectsToLink;
 
@@ -749,14 +747,14 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	if (!needsLink)
 	{
 		if (log.buildProcess)
-			printf("Skipping linking (no built objects are newer than cached executable)\n");
+			Log("Skipping linking (no built objects are newer than cached executable)\n");
 
 		// TODO: There's no easy way to know whether this exe is the current build configuration's
 		// output exe, so copy it every time
 		{
 			std::string finalOutputName;
 			if (log.fileSystem)
-				printf("Copying executable from cache\n");
+				Log("Copying executable from cache\n");
 			if (!manager.environment.executableOutput.empty())
 				finalOutputName = manager.environment.executableOutput;
 			else
@@ -770,7 +768,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 			addExecutablePermission(finalOutputName.c_str());
 
-			printf("No changes needed for %s\n", finalOutputName.c_str());
+			Logf("No changes needed for %s\n", finalOutputName.c_str());
 			builtOutputs.push_back(finalOutputName);
 		}
 
@@ -799,7 +797,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		{
 			if (!preLinkHook(manager, linkCommand, linkTimeInputs, ArraySize(linkTimeInputs)))
 			{
-				printf("error: hook returned failure. Aborting build\n");
+				Log("error: hook returned failure. Aborting build\n");
 				builtObjectsFree(builtObjects);
 				return false;
 			}
@@ -840,7 +838,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	{
 		std::string finalOutputName;
 		if (log.fileSystem)
-			printf("Copying executable from cache\n");
+			Log("Copying executable from cache\n");
 		if (!manager.environment.executableOutput.empty())
 			finalOutputName = manager.environment.executableOutput;
 		else
@@ -854,7 +852,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 		addExecutablePermission(finalOutputName.c_str());
 
-		printf("Successfully built and linked %s\n", finalOutputName.c_str());
+		Logf("Successfully built and linked %s\n", finalOutputName.c_str());
 		builtOutputs.push_back(finalOutputName);
 	}
 

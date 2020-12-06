@@ -113,7 +113,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 	// Default to the module requiring the reference, for top-level references
 	std::string definitionName = globalDefinitionName;
 	if (!reference.context.definitionName && reference.context.scope != EvaluatorScope_Module)
-		printf("error: addObjectReference() expects a definitionName\n");
+		Log("error: addObjectReference() expects a definitionName\n");
 
 	if (reference.context.definitionName)
 	{
@@ -122,7 +122,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 
 	const char* defName = definitionName.c_str();
 	if (log.references)
-		printf("Adding reference %s to %s\n", referenceNameToken.contents.c_str(), defName);
+		Logf("Adding reference %s to %s\n", referenceNameToken.contents.c_str(), defName);
 
 	// Add the reference requirement to the definition it occurred in
 	ObjectReferenceStatus* refStatus = nullptr;
@@ -131,7 +131,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 	{
 		if (definitionName.compare(globalDefinitionName) != 0)
 		{
-			printf("error: expected definition %s to already exist. Things will break\n",
+			Logf("error: expected definition %s to already exist. Things will break\n",
 			       definitionName.c_str());
 		}
 		else
@@ -202,7 +202,7 @@ bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* na
 	CompileTimeVariableTableIterator findIt = environment.compileTimeVariables.find(name);
 	if (findIt != environment.compileTimeVariables.end())
 	{
-		printf("error: CreateCompileTimeVariable(): variable %s already defined\n", name);
+		Logf("error: CreateCompileTimeVariable(): variable %s already defined\n", name);
 		return false;
 	}
 
@@ -232,7 +232,7 @@ bool GetCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
 
 	if (findIt->second.type.compare(typeExpression) != 0)
 	{
-		printf(
+		Logf(
 		    "error: GetCompileTimeVariable(): type does not match existing variable %s. Types must "
 		    "match exactly. Expected %s, got %s\n",
 		    name, findIt->second.type.c_str(), typeExpression);
@@ -307,7 +307,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			            "code was generated from macro. See erroneous macro "
 			            "expansion below:");
 			printTokens(*macroOutputTokens);
-			printf("\n");
+			Log("\n");
 			// Deleting these tokens is only safe at this point because we know we have not
 			// evaluated them. As soon as they are evaluated, they must be kept around
 			delete macroOutputTokens;
@@ -348,7 +348,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			NoteAtToken(invocationStart,
 			            "code was generated from macro. See macro expansion below:");
 			printTokens(*macroOutputTokens);
-			printf("\n");
+			Log("\n");
 			return false;
 		}
 
@@ -571,14 +571,14 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 	ObjectDefinitionMap::iterator findIt = environment.definitions.find(definitionToReplaceName);
 	if (findIt == environment.definitions.end())
 	{
-		printf("error: ReplaceAndEvaluateDefinition() could not find definition '%s'\n",
+		Logf("error: ReplaceAndEvaluateDefinition() could not find definition '%s'\n",
 		       definitionToReplaceName);
 		return false;
 	}
 
 	if (!validateParentheses(newDefinitionTokens))
 	{
-		printf("note: encountered error while validating the following replacement definition:\n");
+		Log("note: encountered error while validating the following replacement definition:\n");
 		prettyPrintTokens(newDefinitionTokens);
 		return false;
 	}
@@ -609,7 +609,7 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 
 	if (!result)
 	{
-		printf("note: encountered error while evaluating the following replacement definition:\n");
+		Log("note: encountered error while evaluating the following replacement definition:\n");
 		prettyPrintTokens(newDefinitionTokens);
 	}
 
@@ -641,7 +641,7 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 				if (findIt != environment.requiredCompileTimeFunctions.end())
 				{
 					if (log.dependencyPropagation)
-						printf("Define %s promoted to required because %s\n",
+						Logf("Define %s promoted to required because %s\n",
 						       definition.name.c_str(), findIt->second);
 
 					definition.isRequired = true;
@@ -652,7 +652,7 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 			if (log.dependencyPropagation)
 			{
 				const char* status = definition.isRequired ? "(required)" : "(not required)";
-				printf("Define %s %s\n", definition.name.c_str(), status);
+				Logf("Define %s %s\n", definition.name.c_str(), status);
 			}
 
 			for (ObjectReferenceStatusPair& reference : definition.references)
@@ -660,7 +660,7 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 				ObjectReferenceStatus& referenceStatus = reference.second;
 
 				if (log.dependencyPropagation)
-					printf("\tRefers to %s\n", referenceStatus.name->contents.c_str());
+					Logf("\tRefers to %s\n", referenceStatus.name->contents.c_str());
 
 				if (definition.isRequired)
 				{
@@ -669,7 +669,7 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 					if (findIt != environment.definitions.end() && !findIt->second.isRequired)
 					{
 						if (log.dependencyPropagation)
-							printf("\t Infecting %s with required due to %s\n",
+							Logf("\t Infecting %s with required due to %s\n",
 							       referenceStatus.name->contents.c_str(), definition.name.c_str());
 
 						++numRequiresStatusChanged;
@@ -729,7 +729,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		ObjectDefinition* definition = buildObject.definition;
 
 		if (log.buildProcess)
-			printf("Build %s\n", definition->name.c_str());
+			Logf("Build %s\n", definition->name.c_str());
 
 		if (!definition->output)
 		{
@@ -847,7 +847,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (canUseCachedFile(environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
 		{
 			if (log.buildProcess)
-				printf("Skipping compiling %s (using cached library)\n", sourceOutputName);
+				Logf("Skipping compiling %s (using cached library)\n", sourceOutputName);
 			// Skip straight to linking, which immediately becomes loading
 			buildObject.stage = BuildStage_Linking;
 			buildObject.status = 0;
@@ -930,7 +930,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		buildObject.stage = BuildStage_Linking;
 
 		if (log.buildProcess)
-			printf("Compiled %s successfully\n", buildObject.definition->name.c_str());
+			Logf("Compiled %s successfully\n", buildObject.definition->name.c_str());
 
 		ProcessCommandInput linkTimeInputs[] = {
 		    {ProcessCommandArgumentType_DynamicLibraryOutput,
@@ -973,7 +973,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		buildObject.stage = BuildStage_Loading;
 
 		if (log.buildProcess)
-			printf("Linked %s successfully\n", buildObject.definition->name.c_str());
+			Logf("Linked %s successfully\n", buildObject.definition->name.c_str());
 
 		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
 		if (!builtLib)
@@ -1035,7 +1035,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (referencePoolIt == environment.referencePools.end())
 		{
 			if (!buildObject.definition->environmentRequired)
-				printf(
+				Log(
 				    "error: built an object which had no references. It should not have been "
 				    "required. There must be a problem with Cakelisp internally\n");
 			continue;
@@ -1112,7 +1112,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			continue;
 
 		if (log.buildProcess)
-			printf("Resolved %d references\n", numReferencesResolved);
+			Logf("Resolved %d references\n", numReferencesResolved);
 
 		// Remove need to build
 		buildObject.definition->isLoaded = true;
@@ -1120,7 +1120,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		buildObject.stage = BuildStage_Finished;
 
 		if (log.buildProcess)
-			printf("Successfully built, loaded, and executed %s\n",
+			Logf("Successfully built, loaded, and executed %s\n",
 			       buildObject.definition->name.c_str());
 	}
 
@@ -1160,7 +1160,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		const char* defName = definition.name.c_str();
 
 		if (log.buildReasons)
-			printf("Checking to build %s\n", defName);
+			Logf("Checking to build %s\n", defName);
 
 		// Can it be built in the current environment?
 		bool canBuild = true;
@@ -1207,7 +1207,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 							if (referenceStatus.guessState != GuessState_Resolved)
 							{
 								if (log.buildReasons)
-									printf("\tRequired code has been loaded\n");
+									Log("\tRequired code has been loaded\n");
 
 								hasRelevantChangeOccurred = true;
 							}
@@ -1219,7 +1219,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 							// If we know we are missing a compile time function, we won't try to
 							// guess
 							if (log.buildReasons)
-								printf("\tCannot build until %s is loaded\n",
+								Logf("\tCannot build until %s is loaded\n",
 								       referenceStatus.name->contents.c_str());
 
 							referenceStatus.guessState = GuessState_WaitingForLoad;
@@ -1252,7 +1252,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 					if (referenceStatus.guessState == GuessState_None)
 					{
 						if (log.buildReasons)
-							printf("\tCannot build until %s is guessed. Guessing now\n",
+							Logf("\tCannot build until %s is guessed. Guessing now\n",
 							       referenceStatus.name->contents.c_str());
 
 						// Find all the times the definition makes this reference
@@ -1302,11 +1302,11 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 	if (log.compileTimeBuildObjects && !definitionsToBuild.empty())
 	{
 		int numToBuild = (int)definitionsToBuild.size();
-		printf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
+		Logf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
 
 		for (BuildObject& buildObject : definitionsToBuild)
 		{
-			printf("\t%s\n", buildObject.definition->name.c_str());
+			Logf("\t%s\n", buildObject.definition->name.c_str());
 		}
 	}
 
@@ -1324,11 +1324,11 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		for (ObjectDefinitionPair& definitionPair : environment.definitions)
 		{
 			ObjectDefinition& definition = definitionPair.second;
-			printf("%s %s:\n", objectTypeToString(definition.type), definition.name.c_str());
+			Logf("%s %s:\n", objectTypeToString(definition.type), definition.name.c_str());
 			for (ObjectReferenceStatusPair& reference : definition.references)
 			{
 				ObjectReferenceStatus& referenceStatus = reference.second;
-				printf("\t%s\n", referenceStatus.name->contents.c_str());
+				Logf("\t%s\n", referenceStatus.name->contents.c_str());
 			}
 		}
 	}
@@ -1361,7 +1361,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 			bool codeModifiedByHook = false;
 			if (!hook(environment, codeModifiedByHook))
 			{
-				printf("error: hook returned failure\n");
+				Log("error: hook returned failure\n");
 				numBuildResolveErrors += 1;
 				break;
 			}
@@ -1375,10 +1375,10 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 
 	// Check whether everything is resolved
 	if (log.phases)
-		printf("\nResult:\n");
+		Log("\nResult:\n");
 
 	if (numBuildResolveErrors)
-		printf("Failed with %d errors.\n", numBuildResolveErrors);
+		Logf("Failed with %d errors.\n", numBuildResolveErrors);
 
 	int errors = 0;
 	for (const ObjectDefinitionPair& definitionPair : environment.definitions)
@@ -1456,7 +1456,7 @@ EvaluatorEnvironment::~EvaluatorEnvironment()
 {
 	if (!comptimeTokens.empty())
 	{
-		printf(
+		Log(
 		    "Warning: environmentDestroyInvalidateTokens() has not been called. This will leak "
 		    "memory.\n Call it once you are certain no tokens in any expansions will be "
 		    "referenced.\n");
@@ -1482,7 +1482,7 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 					if (!tokenizeLinePrintError(g_environmentCompileTimeVariableDestroySignature,
 					                            __FILE__, __LINE__, expectedSignature))
 					{
-						printf(
+						Log(
 						    "error: failed to tokenize "
 						    "g_environmentCompileTimeVariableDestroySignature! Internal code "
 						    "error. Compile time variable memory will leak\n");
@@ -1494,7 +1494,7 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 				    findObjectDefinition(environment, destroyFuncName.c_str());
 				if (!destroyFuncDefinition)
 				{
-					printf(
+					Log(
 					    "error: could not find compile-time variable destroy function to verify "
 					    "signature. Internal code error?\n");
 					continue;
@@ -1515,7 +1515,7 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 			}
 			else
 			{
-				printf(
+				Logf(
 				    "error: destruction function '%s' for compile-time variable '%s' was not "
 				    "loaded before the environment started destruction. Was it ever defined, or "
 				    "defined but not required? Memory will leak\n",
@@ -1619,16 +1619,16 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", relativePathBuffer, shortPath);
 
 		if (log.fileSearch)
-			printf("File exists? %s (", foundFilePathOut);
+			Logf("File exists? %s (", foundFilePathOut);
 
 		if (fileExists(foundFilePathOut))
 		{
 			if (log.fileSearch)
-				printf("yes)\n");
+				Log("yes)\n");
 			return true;
 		}
 		if (log.fileSearch)
-			printf("no)\n");
+			Log("no)\n");
 	}
 
 	for (const std::string& path : searchPaths)
@@ -1636,16 +1636,16 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", path.c_str(), shortPath);
 
 		if (log.fileSearch)
-			printf("File exists? %s (", foundFilePathOut);
+			Logf("File exists? %s (", foundFilePathOut);
 
 		if (fileExists(foundFilePathOut))
 		{
 			if (log.fileSearch)
-				printf("yes)\n");
+				Log("yes)\n");
 			return true;
 		}
 		if (log.fileSearch)
-			printf("no)\n");
+			Log("no)\n");
 	}
 
 	return false;
@@ -1660,11 +1660,11 @@ bool searchForFileInPathsWithError(const char* shortPath, const char* encountere
 	                          foundFilePathOutSize))
 	{
 		ErrorAtToken(blameToken, "file not found! Checked the following paths:");
-		printf("Checked if relative to %s\n", encounteredInFile);
-		printf("Checked search paths:\n");
+		Logf("Checked if relative to %s\n", encounteredInFile);
+		Log("Checked search paths:\n");
 		for (const std::string& path : searchPaths)
 		{
-			printf("\t%s\n", path.c_str());
+			Logf("\t%s\n", path.c_str());
 		}
 		return false;
 	}
