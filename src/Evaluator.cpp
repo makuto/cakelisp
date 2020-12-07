@@ -1127,12 +1127,9 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	return numReferencesResolved;
 }
 
-int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
+// Returns true if progress was made resolving references (or finding new references)
+bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut)
 {
-	int numReferencesResolved = 0;
-
-	std::vector<BuildObject> definitionsToBuild;
-
 	// We must copy references in case environment.definitions is modified, which would invalidate
 	// iterators, but not references
 	std::vector<ObjectDefinition*> definitionsToCheck;
@@ -1153,6 +1150,11 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 
 		definitionsToCheck.push_back(&definition);
 	}
+
+	std::vector<BuildObject> definitionsToBuild;
+	// If it's possible a definition has new requirements, make sure we do another pass to add those
+	// requirements to the build
+	bool requireDependencyPropagation = false;
 
 	for (ObjectDefinition* definitionPointer : definitionsToCheck)
 	{
@@ -1258,6 +1260,8 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 						// Find all the times the definition makes this reference
 						// We must use indices because the call to FunctionInvocationGenerator can
 						// add new references to the list
+						// Note that if new references are added to other functions, they need to be
+						// handled in the next pass
 						for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
 						{
 							ObjectReference& reference = referenceStatus.references[i];
@@ -1274,6 +1278,7 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 						hasRelevantChangeOccurred = true;
 						hasGuessedRefs = true;
 						guessMaybeDirtiedReferences = true;
+						requireDependencyPropagation = true;
 					}
 					else if (referenceStatus.guessState == GuessState_Guessed)
 					{
@@ -1310,10 +1315,10 @@ int BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOut
 		}
 	}
 
-	numReferencesResolved +=
+	int numReferencesResolved =
 	    BuildExecuteCompileTimeFunctions(environment, definitionsToBuild, numErrorsOut);
 
-	return numReferencesResolved;
+	return numReferencesResolved > 0 || requireDependencyPropagation;
 }
 
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
@@ -1340,17 +1345,27 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		// Keep propagating and evaluating until no more references are resolved. This must be done
 		// in passes in case evaluation created more definitions. There's probably a smarter way,
 		// but I'll do it in this brute-force style first
-		int numReferencesResolved = 0;
+		bool needsAnotherPass = false;
 		do
 		{
+			if (log.buildProcess)
+				Log("Propagate references\n");
+
 			PropagateRequiredToReferences(environment);
-			numReferencesResolved = BuildEvaluateReferences(environment, numBuildResolveErrors);
+
+			if (log.buildProcess)
+				Log("Build and evaluate references\n");
+
+			needsAnotherPass = BuildEvaluateReferences(environment, numBuildResolveErrors);
 			if (numBuildResolveErrors)
 				break;
-		} while (numReferencesResolved);
+		} while (needsAnotherPass);
 
 		if (numBuildResolveErrors)
 			break;
+
+		if (log.buildProcess)
+			Log("Run post references resolved hooks\n");
 
 		// At this point, all known references are resolved. Time to let the user do arbitrary code
 		// generation and modification. These changes will need to be evaluated and their references
