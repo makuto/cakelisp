@@ -212,13 +212,22 @@ bool copyBinaryFileTo(const char* srcFilename, const char* destFilename)
 	if (!srcFile || !destFile)
 	{
 		perror("fopen: ");
-		Logf("error: failed to copy %s to %s", srcFilename, destFilename);
+		Logf("error: failed to copy %s to %s\n", srcFilename, destFilename);
 		return false;
 	}
 
 	char buffer[4096];
-	while (fread(buffer, sizeof(buffer), 1, srcFile))
-		fwrite(buffer, sizeof(buffer), 1, destFile);
+	size_t totalCopied = 0;
+	size_t numRead = fread(buffer, sizeof(buffer[0]), ArraySize(buffer), srcFile);
+	while (numRead)
+	{
+		fwrite(buffer, sizeof(buffer[0]), numRead, destFile);
+		totalCopied += numRead;
+		numRead = fread(buffer, sizeof(buffer[0]), ArraySize(buffer), srcFile);
+	}
+
+	if (log.fileSystem)
+		Logf("%lu bytes copied\n", totalCopied);
 
 	fclose(srcFile);
 	fclose(destFile);
