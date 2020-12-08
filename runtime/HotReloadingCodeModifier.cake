@@ -4,7 +4,7 @@
 ;; - Enables C-linkage and shared library toggles so functions can be discovered by the loader
 ;;
 ;; To use:
-;; - Build the "loader" with HotReloading.cake. See TestMain for an example loader
+;; - Build the "loader" with HotReloading.cake. See HotLoader for an example loader
 ;; - The loader should link libraries that you need to use and shouldn't reload
 ;; - Now, modify the library which will be reloaded:
 ;; - Define the following function: (defun reloadable-entry-point (&return bool))

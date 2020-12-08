@@ -16,5 +16,5 @@
 						  # runtime/HotReloadingCodeModifier.cake runtime/TextAdventure.cake || exit $?
 
 # TestMain is the loader. It doesn't care at all about fancy hot reloading macros, it just loads libs
-jam -j4 && ./bin/cakelisp --verbose-build-process \
-						  runtime/TestMain.cake  || exit $?
+jam -j4 && ./bin/cakelisp \
+						  runtime/HotLoader.cake  || exit $?

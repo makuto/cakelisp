@@ -1,3 +1,0 @@
-SubDir . ;
-
-Main hello : Main.cake TestCakeDependency.cake ;
