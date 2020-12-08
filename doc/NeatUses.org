@@ -18,3 +18,15 @@ This has made it much more fun to program with, because all I need to do to use 
 In [[https://macoy.me/code/macoy/gamelib][GameLib]], I have simple modules for [[https://github.com/wolfpld/tracy][Tracy]], [[https://www.libsdl.org/][SDL]], and [[https://www.ogre3d.org/][Ogre]] already set up.
 * Build performance seems promising
 I have not yet seen the need for partial builds. Partial builds make the Cakelisp internals much more complicated. So far, the high-level performance of Cakelisp has me optimistic that I will be able to continue fully parsing and evaluating the files without resorting to partial loading. Note that this does not include compiling and linking, which are handled by external processes, and dominate the total time when building clean.
+* Build configuration labels
+Build configurations are constructed "lazily", meaning all you need to do to create a new configuration is make the necessary changes to the environment and add a unique label.
+
+For example, a build configuration ~Debug-HotReloadable~ could be constructed via:
+- Overriding the build command via ~(set-cakelisp-option build-time-compile-arguments ...)~, adding debug flags. ~(add-build-config-label "Debug")~ and that's all needed to create the Debug configuration
+- Importing ~HotReloadingCodeModifier.cake~, which adds ~(add-build-config-label "HotReloadable")~. This is important because hot-reloadable builds are different from regular builds - they expect their variables to be initialized by the loader, and a dynamically linked library is created instead of a standalone executable
+
+I like this solution because it gives the user the ability to make their configurations as complex as they want, without having to face any additional/introductory complexity. For example, we could add processor architecture, operating system, and C standard library selections to our configurations, if necessary. A/B comparisons between runtime performance could also be done easily, just by adding a label to the alternate.
+
+If you are just writing a quick one-off script, you need not worry about configurations at all.
+
+Because all options must be provided in Cakelisp files, it encourages composable configurations. For example, we could take the ~Debug~ configuration from above and put it in ~Config_Debug.cake~, then import it and build the program via ~cakelisp Config_Debug.cake MyProgram.cake~.

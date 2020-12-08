@@ -16,6 +16,8 @@
 (var current-lib DynamicLibHandle null)
 
 (var hot-reload-lib-path (* (const char)) "libGeneratedCakelisp.so")
+;; Need to copy it so the programmer can modify the other file while we're running this one
+(var hot-reload-active-lib-path (* (const char)) "libGeneratedCakelisp_Active.so")
 
 (defun register-function-pointer (function-pointer (* (* void))
                                   function-name (* (const char)))
@@ -31,10 +33,35 @@
              (call (in std move) new-function-pointer-array)))
       (on-call (path findIt > second) push_back function-pointer)))
 
+(defun-local copy-binary-file-to (srcFilename (* (const char))
+                                  destFilename (* (const char)) &return bool)
+	;; Note: man 3 fopen says "b" is unnecessary on Linux, but I'll keep it anyways
+	(var srcFile (* FILE) (fopen srcFilename "rb"))
+	(var destFile (* FILE) (fopen destFilename "wb"))
+	(when (or (not srcFile) (not destFile))
+		(perror "fopen: ")
+		(fprintf stderr "error: failed to copy %s to %s\n" srcFilename destFilename)
+		(return false))
+
+	(var buffer ([] 4096 char))
+	(var totalCopied size_t 0)
+	(var numRead size_t (fread buffer (sizeof (at 0 buffer)) (array-size buffer) srcFile))
+	(while numRead
+		(fwrite buffer (sizeof (at 0 buffer)) numRead destFile)
+		(set totalCopied (+ totalCopied numRead))
+		(set numRead (fread buffer (sizeof (at 0 buffer)) (array-size buffer) srcFile)))
+
+	(fclose srcFile)
+	(fclose destFile)
+
+	(return true))
+
 (defun do-hot-reload (&return bool)
   (when current-lib
     (closeDynamicLibrary current-lib))
-  (set current-lib (loadDynamicLibrary hot-reload-lib-path))
+  (unless (copy-binary-file-to hot-reload-lib-path hot-reload-active-lib-path)
+    (return false))
+  (set current-lib (loadDynamicLibrary hot-reload-active-lib-path))
   (unless current-lib
     (return false))
 
