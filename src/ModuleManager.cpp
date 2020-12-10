@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include <cstring>
+
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
 #include "Evaluator.hpp"
@@ -451,6 +453,114 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	return true;
 }
 
+// Must scan header files for any changes to ensure we rebuild when necessary
+// All files are compared against cachedReference, and if they are more recently modified, we must
+// reject cachedReference. This is super complex and slow, but it is rather important
+static bool AreIncludesModified_Recursive(const std::vector<std::string>& searchDirectories,
+                                          const char* filename, const char* includedInFile,
+                                          const char* cachedReference,
+                                          std::unordered_map<std::string, bool>& isModifiedCache)
+{
+	// Already cached?
+	{
+		const std::unordered_map<std::string, bool>::iterator findIt =
+		    isModifiedCache.find(filename);
+		if (findIt != isModifiedCache.end())
+		{
+			if (log.includeScanning)
+				Logf("    > cache hit %s\n", filename);
+			return findIt->second;
+		}
+	}
+
+	char resolvedPathBuffer[MAX_PATH_LENGTH] = {0};
+	if (!searchForFileInPaths(filename, includedInFile, searchDirectories, resolvedPathBuffer,
+	                          ArraySize(resolvedPathBuffer)))
+	{
+		if (log.includeScanning || log.strictIncludes)
+			Logf("warning: failed to find %s in search paths\n", filename);
+
+		// Might as well not keep failing to find it
+		isModifiedCache[filename] = false;
+
+		return false;
+	}
+
+	// How about the resolved path?
+	{
+		const std::unordered_map<std::string, bool>::iterator findIt =
+		    isModifiedCache.find(resolvedPathBuffer);
+		if (findIt != isModifiedCache.end())
+			return findIt->second;
+	}
+
+	if (includedInFile && fileIsMoreRecentlyModified(resolvedPathBuffer, cachedReference))
+	{
+		isModifiedCache[filename] = true;
+		if (log.includeScanning)
+			Logf(">>> File %s is recently modified\n", filename);
+		return true;
+	}
+
+	if (log.includeScanning)
+		Logf("Checking %s for headers\n", resolvedPathBuffer);
+
+	// To prevent loops, add ourselves to the cache now. We'll revise our answer if necessary
+	isModifiedCache[filename] = false;
+
+	FILE* file = fileOpen(resolvedPathBuffer, "r");
+	if (!file)
+		return false;
+	char lineBuffer[2048] = {0};
+	while (fgets(lineBuffer, sizeof(lineBuffer), file))
+	{
+		// I think '#   include' is valid
+		if (lineBuffer[0] != '#' || !strstr(lineBuffer, "include"))
+			continue;
+
+		char foundInclude[MAX_PATH_LENGTH] = {0};
+		char* foundIncludeWrite = foundInclude;
+		bool foundOpening = false;
+		for (char* c = &lineBuffer[0]; *c != '\0'; ++c)
+		{
+			if (foundOpening)
+			{
+				if (*c == '\"' || *c == '>')
+				{
+					if (log.includeScanning)
+						Logf("\t%s include: %s\n", resolvedPathBuffer, foundInclude);
+					if (AreIncludesModified_Recursive(searchDirectories, foundInclude,
+					                                  resolvedPathBuffer, cachedReference,
+					                                  isModifiedCache))
+					{
+						fclose(file);
+						if (log.includeScanning)
+							Logf(">>> File %s is recently modified\n", foundInclude);
+						// Revise cache
+						isModifiedCache[filename] = true;
+						isModifiedCache[foundInclude] = true;
+						return true;
+					}
+					else
+					{
+						isModifiedCache[foundInclude] = false;
+						break;
+					}
+				}
+
+				*foundIncludeWrite = *c;
+				++foundIncludeWrite;
+			}
+			else if (*c == '\"' || *c == '<')
+				foundOpening = true;
+		}
+	}
+
+	fclose(file);
+
+	return false;
+}
+
 static void OnCompileProcessOutput(const char* output)
 {
 	// TODO C/C++ error to Cakelisp token mapper
@@ -494,6 +604,11 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	int numModules = manager.modules.size();
 	// Pointer because the objects can't move, status codes are pointed to
 	std::vector<BuiltObject*> builtObjects;
+
+	std::vector<std::string> headerSearchDirectories;
+	// Must include CWD to find generated cakelisp files
+	headerSearchDirectories.push_back(".");
+	PushBackAll(headerSearchDirectories, manager.environment.cSearchDirectories);
 
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
@@ -580,6 +695,10 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (module->skipBuild)
 			continue;
 
+		// TODO: IMPORTANT: This shouldn't be the case! Only need to scan the env. and module search
+		// dirs per each module, not them all combined
+		PushBackAll(headerSearchDirectories, module->cSearchDirectories);
+
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
 		if (!outputFilenameFromSourceFilename(
 		        manager.buildOutputDir.c_str(), module->sourceOutputName.c_str(),
@@ -610,84 +729,104 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		builtObjects.push_back(newBuiltObject);
 	}
 
+	std::unordered_map<std::string, bool> isModifiedCache;
+
 	for (BuiltObject* object : builtObjects)
 	{
 		if (canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
 		                     object->filename.c_str()))
 		{
-			if (log.buildProcess)
-				Logf("Skipping compiling %s (using cached object)\n",
-				     object->sourceFilename.c_str());
+			// Note that I use the .o as "includedBy" because our header may not have needed any
+			// changes if our include changed. We have to use the .o as the time reference that
+			// we've rebuilt
+			if (!AreIncludesModified_Recursive(
+			        headerSearchDirectories, object->sourceFilename.c_str(),
+			        /*includedBy*/ nullptr, object->filename.c_str(), isModifiedCache))
+			{
+				if (log.buildProcess)
+					Logf("Skipping compiling %s (using cached object)\n",
+					     object->sourceFilename.c_str());
+				continue;
+			}
+			else
+			{
+				if (log.includeScanning || log.buildProcess)
+					Logf("--- Must rebuild %s (header files modified)\n",
+					     object->sourceFilename.c_str());
+			}
 		}
-		else
+
+		// We do need to build
+
+		std::vector<const char*> searchDirArgs;
+		searchDirArgs.reserve(object->includesSearchDirs.size() +
+		                      manager.environment.cSearchDirectories.size());
+		for (const std::string& searchDirArg : object->includesSearchDirs)
 		{
-			std::vector<const char*> searchDirArgs;
-			searchDirArgs.reserve(object->includesSearchDirs.size() +
-			                      manager.environment.cSearchDirectories.size());
-			for (const std::string& searchDirArg : object->includesSearchDirs)
-			{
-				searchDirArgs.push_back(searchDirArg.c_str());
-			}
+			searchDirArgs.push_back(searchDirArg.c_str());
+		}
 
-			// This code sucks
-			std::vector<std::string> globalSearchDirArgs;
-			globalSearchDirArgs.reserve(manager.environment.cSearchDirectories.size());
-			for (const std::string& searchDir : manager.environment.cSearchDirectories)
-			{
-				char searchDirToArgument[MAX_PATH_LENGTH + 2];
-				PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
-				globalSearchDirArgs.push_back(searchDirToArgument);
-				searchDirArgs.push_back(globalSearchDirArgs.back().c_str());
-			}
+		// This code sucks
+		std::vector<std::string> globalSearchDirArgs;
+		globalSearchDirArgs.reserve(manager.environment.cSearchDirectories.size());
+		for (const std::string& searchDir : manager.environment.cSearchDirectories)
+		{
+			char searchDirToArgument[MAX_PATH_LENGTH + 2];
+			PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
+			globalSearchDirArgs.push_back(searchDirToArgument);
+			searchDirArgs.push_back(globalSearchDirArgs.back().c_str());
+		}
 
-			std::vector<const char*> additionalOptions;
-			for (const std::string& option : object->additionalOptions)
-			{
-				additionalOptions.push_back(option.c_str());
-			}
+		std::vector<const char*> additionalOptions;
+		for (const std::string& option : object->additionalOptions)
+		{
+			additionalOptions.push_back(option.c_str());
+		}
 
-			ProcessCommand& buildCommand = object->buildCommandOverride ?
-			                                   *object->buildCommandOverride :
-			                                   manager.environment.buildTimeBuildCommand;
+		ProcessCommand& buildCommand = object->buildCommandOverride ?
+		                                   *object->buildCommandOverride :
+		                                   manager.environment.buildTimeBuildCommand;
 
-			ProcessCommandInput buildTimeInputs[] = {
-			    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
-			    {ProcessCommandArgumentType_ObjectOutput, {object->filename.c_str()}},
-			    {ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
-			    {ProcessCommandArgumentType_AdditionalOptions, std::move(additionalOptions)}};
-			const char** buildArguments = MakeProcessArgumentsFromCommand(
-			    buildCommand, buildTimeInputs, ArraySize(buildTimeInputs));
-			if (!buildArguments)
-			{
-				Log("error: failed to construct build arguments\n");
-				builtObjectsFree(builtObjects);
-				return false;
-			}
-			RunProcessArguments compileArguments = {};
-			compileArguments.fileToExecute = buildCommand.fileToExecute.c_str();
-			compileArguments.arguments = buildArguments;
-			// PrintProcessArguments(buildArguments);
+		ProcessCommandInput buildTimeInputs[] = {
+		    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
+		    {ProcessCommandArgumentType_ObjectOutput, {object->filename.c_str()}},
+		    {ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
+		    {ProcessCommandArgumentType_AdditionalOptions, std::move(additionalOptions)}};
+		const char** buildArguments = MakeProcessArgumentsFromCommand(buildCommand, buildTimeInputs,
+		                                                              ArraySize(buildTimeInputs));
+		if (!buildArguments)
+		{
+			Log("error: failed to construct build arguments\n");
+			builtObjectsFree(builtObjects);
+			return false;
+		}
+		RunProcessArguments compileArguments = {};
+		compileArguments.fileToExecute = buildCommand.fileToExecute.c_str();
+		compileArguments.arguments = buildArguments;
+		// PrintProcessArguments(buildArguments);
 
-			if (runProcess(compileArguments, &object->buildStatus) != 0)
-			{
-				Log("error: failed to invoke compiler\n");
-				free(buildArguments);
-				builtObjectsFree(builtObjects);
-				return false;
-			}
-
+		if (runProcess(compileArguments, &object->buildStatus) != 0)
+		{
+			Log("error: failed to invoke compiler\n");
 			free(buildArguments);
+			builtObjectsFree(builtObjects);
+			return false;
+		}
 
-			// TODO This could be made smarter by allowing more spawning right when a process
-			// closes, instead of starting in waves
-			++currentNumProcessesSpawned;
-			if (currentNumProcessesSpawned >= maxProcessesRecommendedSpawned)
-			{
-				waitForAllProcessesClosed(OnCompileProcessOutput);
-				currentNumProcessesSpawned = 0;
-			}
+		free(buildArguments);
+
+		// TODO This could be made smarter by allowing more spawning right when a process
+		// closes, instead of starting in waves
+		++currentNumProcessesSpawned;
+		if (currentNumProcessesSpawned >= maxProcessesRecommendedSpawned)
+		{
+			waitForAllProcessesClosed(OnCompileProcessOutput);
+			currentNumProcessesSpawned = 0;
 		}
 	}
+
+	if (log.includeScanning || log.performance)
+		Logf("%lu files tested for modification times\n", isModifiedCache.size());
 
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;

@@ -83,6 +83,12 @@ int main(int numArguments, char* arguments[])
 	     "Output why files are being written, the status of comparing files, etc."},
 	    {"--verbose-file-search", &log.fileSearch,
 	     "Output when paths are being investigated for a file"},
+	    {"--verbose-include-scanning", &log.includeScanning,
+	     "Output when #include files are being checked for modifications. If they are modified, "
+	     "the cached object files will be rebuilt"},
+	    {"--verbose-strict-includes", &log.strictIncludes,
+	     "Output when #include files are not found during include scanning. The more header files "
+	     "not found, the higher the chances false \"nothing to do\" builds could occur"},
 	    {"--verbose-metadata", &log.metadata, "Output generated metadata"},
 	};
 

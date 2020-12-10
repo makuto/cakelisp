@@ -19,6 +19,8 @@ struct LoggingSettings
 	bool imports;
 	bool phases;
 	bool performance;
+	bool includeScanning;
+	bool strictIncludes;
 };
 
 extern LoggingSettings log;

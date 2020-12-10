@@ -1628,6 +1628,7 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
                           int foundFilePathOutSize)
 {
 	// First, check if it's relative to the file it was encountered in
+	if (encounteredInFile)
 	{
 		char relativePathBuffer[MAX_PATH_LENGTH] = {0};
 		getDirectoryFromPath(encounteredInFile, relativePathBuffer, sizeof(relativePathBuffer));
@@ -1662,6 +1663,9 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 		if (log.fileSearch)
 			Log("no)\n");
 	}
+
+	if (log.fileSearch)
+		Logf("> Not found: %s\n", shortPath);
 
 	return false;
 }
