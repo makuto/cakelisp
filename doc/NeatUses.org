@@ -10,6 +10,24 @@ I made [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/AutoTest.cake
 ~cakelisp --execute~ makes it possible to run ~.cake~ files as if they were simple scripts. Cakelisp will handle all the building and caching for you. No more error-prone and tedious "compile, link, run, make change, compile..." which you get with C/C++ files.
 
 With a simple ~"hello world"~ application, I found Cakelisp to be about half as fast as Python to build and run the program. You only pay this price when the code changes, however. If there are no changes, the Cakelisp version evaluates and executes an order of magnitude faster than Python (which isn't saying much, admittedly - Python is known for being slow).
+
+I also check for "shebang" ~#!~ and ignore the line if found on the first line in a ~.cake~ file. This allows users to execute their scripts via e.g.:
+
+#+BEGIN_SRC sh
+chmod +x MyScript.cake
+./MyScript.cake
+#+END_SRC
+
+...when MyScript.cake is:
+
+#+BEGIN_SRC lisp
+  #!/usr/bin/cakelisp --execute
+  (c-import "<stdio.h>")
+
+  (defun main (&return int)
+    (printf "Hello, execute!\n")
+    (return 0))
+#+END_SRC
 * No more build system woes
 I got rid of external build systems! I used to use [[https://swarm.workshop.perforce.com/view/guest/perforce_software/jam/src/Jam.html][Jam]] (which is still used to build Cakelisp itself). Now, Cakelisp can handle it all internally.
 
