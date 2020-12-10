@@ -2775,6 +2775,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	// All things build
 	environment.generators["skip-build"] = SkipBuildGenerator;
 	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
+	environment.generators["add-c-build-dependency"] = AddDependencyGenerator;
 	environment.generators["add-build-options"] = AddBuildOptionGenerator;
 	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
 	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;

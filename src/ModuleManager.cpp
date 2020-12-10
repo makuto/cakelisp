@@ -613,6 +613,9 @@ struct BuiltObject
 	ProcessCommand* buildCommandOverride;
 	std::vector<std::string> includesSearchDirs;
 	std::vector<std::string> additionalOptions;
+
+	// Only used for include scanning
+	std::vector<std::string> headerSearchDirectories;
 };
 
 void builtObjectsFree(std::vector<BuiltObject*>& objects)
@@ -623,6 +626,43 @@ void builtObjectsFree(std::vector<BuiltObject*>& objects)
 	objects.clear();
 }
 
+void copyModuleBuildOptionsToBuiltObject(Module* module, ProcessCommand* buildCommandOverride,
+                                         BuiltObject* object)
+{
+	object->buildCommandOverride = buildCommandOverride;
+
+	for (const std::string& searchDir : module->cSearchDirectories)
+	{
+		char searchDirToArgument[MAX_PATH_LENGTH + 2];
+		PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
+		object->includesSearchDirs.push_back(searchDirToArgument);
+	}
+
+	PushBackAll(object->headerSearchDirectories, module->cSearchDirectories);
+
+	PushBackAll(object->additionalOptions, module->additionalBuildOptions);
+}
+
+// Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
+// TODO: There's no easy way to know whether this exe is the current build configuration's
+// output exe, so copy it every time
+bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cachedOutputExecutable,
+                                 std::string& finalOutputNameOut)
+{
+	if (log.fileSystem)
+		Log("Copying executable from cache\n");
+	if (!manager.environment.executableOutput.empty())
+		finalOutputNameOut = manager.environment.executableOutput;
+	else
+		finalOutputNameOut = "a.out";
+
+	if (!copyBinaryFileTo(cachedOutputExecutable.c_str(), finalOutputNameOut.c_str()))
+		return false;
+
+	addExecutablePermission(finalOutputNameOut.c_str());
+	return true;
+}
+
 bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs)
 {
 	int currentNumProcessesSpawned = 0;
@@ -630,11 +670,6 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	int numModules = manager.modules.size();
 	// Pointer because the objects can't move, status codes are pointed to
 	std::vector<BuiltObject*> builtObjects;
-
-	std::vector<std::string> headerSearchDirectories;
-	// Must include CWD to find generated cakelisp files
-	headerSearchDirectories.push_back(".");
-	PushBackAll(headerSearchDirectories, manager.environment.cSearchDirectories);
 
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
@@ -703,16 +738,9 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				}
 
 				newBuiltObject->filename = buildObjectName;
-				// TODO: This is a bit weird to automatically use the parent module's build command
-				newBuiltObject->buildCommandOverride = buildCommandOverride;
 
-				for (const std::string& searchDir : module->cSearchDirectories)
-				{
-					char searchDirToArgument[MAX_PATH_LENGTH + 2];
-					PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
-					newBuiltObject->includesSearchDirs.push_back(searchDirToArgument);
-				}
-				PushBackAll(newBuiltObject->additionalOptions, module->additionalBuildOptions);
+				// This is a bit weird to automatically use the parent module's build command
+				copyModuleBuildOptionsToBuiltObject(module, buildCommandOverride, newBuiltObject);
 
 				builtObjects.push_back(newBuiltObject);
 			}
@@ -720,10 +748,6 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 		if (module->skipBuild)
 			continue;
-
-		// TODO: IMPORTANT: This shouldn't be the case! Only need to scan the env. and module search
-		// dirs per each module, not them all combined
-		PushBackAll(headerSearchDirectories, module->cSearchDirectories);
 
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
 		if (!outputFilenameFromSourceFilename(
@@ -741,16 +765,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		newBuiltObject->buildStatus = 0;
 		newBuiltObject->sourceFilename = module->sourceOutputName.c_str();
 		newBuiltObject->filename = buildObjectName;
-		newBuiltObject->buildCommandOverride = buildCommandOverride;
 
-		for (const std::string& searchDir : module->cSearchDirectories)
-		{
-			char searchDirToArgument[MAX_PATH_LENGTH + 2];
-			PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
-			newBuiltObject->includesSearchDirs.push_back(searchDirToArgument);
-		}
-
-		PushBackAll(newBuiltObject->additionalOptions, module->additionalBuildOptions);
+		copyModuleBuildOptionsToBuiltObject(module, buildCommandOverride, newBuiltObject);
 
 		builtObjects.push_back(newBuiltObject);
 	}
@@ -762,6 +778,16 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
 		                     object->filename.c_str()))
 		{
+			std::vector<std::string> headerSearchDirectories;
+			{
+				headerSearchDirectories.reserve(object->headerSearchDirectories.size() +
+				                                manager.environment.cSearchDirectories.size() + 1);
+				// Must include CWD to find generated cakelisp files
+				headerSearchDirectories.push_back(".");
+				PushBackAll(headerSearchDirectories, object->headerSearchDirectories);
+				PushBackAll(headerSearchDirectories, manager.environment.cSearchDirectories);
+			}
+
 			// Note that I use the .o as "includedBy" because our header may not have needed any
 			// changes if our include changed. We have to use the .o as the time reference that
 			// we've rebuilt
@@ -914,24 +940,13 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (log.buildProcess)
 			Log("Skipping linking (no built objects are newer than cached executable)\n");
 
-		// TODO: There's no easy way to know whether this exe is the current build configuration's
-		// output exe, so copy it every time
 		{
 			std::string finalOutputName;
-			if (log.fileSystem)
-				Log("Copying executable from cache\n");
-			if (!manager.environment.executableOutput.empty())
-				finalOutputName = manager.environment.executableOutput;
-			else
-				finalOutputName = "a.out";
-
-			if (!copyBinaryFileTo(outputExecutableName.c_str(), finalOutputName.c_str()))
+			if (!copyExecutableToFinalOutput(manager, outputExecutableName, finalOutputName))
 			{
 				builtObjectsFree(builtObjects);
 				return false;
 			}
-
-			addExecutablePermission(finalOutputName.c_str());
 
 			Logf("No changes needed for %s\n", finalOutputName.c_str());
 			builtOutputs.push_back(finalOutputName);
@@ -998,24 +1013,13 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		return false;
 	}
 
-	// TODO: There's no easy way to know whether this exe is the current build configuration's
-	// output exe, so copy it every time
 	{
 		std::string finalOutputName;
-		if (log.fileSystem)
-			Log("Copying executable from cache\n");
-		if (!manager.environment.executableOutput.empty())
-			finalOutputName = manager.environment.executableOutput;
-		else
-			finalOutputName = "a.out";
-
-		if (!copyBinaryFileTo(outputExecutableName.c_str(), finalOutputName.c_str()))
+		if (!copyExecutableToFinalOutput(manager, outputExecutableName, finalOutputName))
 		{
 			builtObjectsFree(builtObjects);
 			return false;
 		}
-
-		addExecutablePermission(finalOutputName.c_str());
 
 		Logf("Successfully built and linked %s\n", finalOutputName.c_str());
 		builtOutputs.push_back(finalOutputName);
