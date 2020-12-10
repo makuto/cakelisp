@@ -53,7 +53,8 @@ int main(int numArguments, char* arguments[])
 	     "will be the final location of the executable. This allows Cakelisp code to be run as if "
 	     "it were a script"},
 	    {"--list-built-ins", &listBuiltInGeneratorsThenQuit,
-	     "List all built-in compile-time procedures, then exit"},
+	     "List all built-in compile-time procedures, then exit. This list contains every procedure "
+	     "you can possibly call, until you import more or define your own"},
 	    // Logging
 	    {"--verbose-phases", &log.phases,
 	     "Output labels for each major phase Cakelisp goes through"},
