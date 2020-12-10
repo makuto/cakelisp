@@ -41,6 +41,7 @@ int main(int numArguments, char* arguments[])
 {
 	bool ignoreCachedFiles = false;
 	bool executeOutput = false;
+	bool listBuiltInGeneratorsThenQuit = false;
 
 	const CommandLineOption options[] = {
 	    {"--ignore-cache", &ignoreCachedFiles,
@@ -51,6 +52,8 @@ int main(int numArguments, char* arguments[])
 	     "If building completes successfully, run the output executable. Its working directory "
 	     "will be the final location of the executable. This allows Cakelisp code to be run as if "
 	     "it were a script"},
+	    {"--list-built-ins", &listBuiltInGeneratorsThenQuit,
+	     "List all built-in compile-time procedures, then exit"},
 	    // Logging
 	    {"--verbose-phases", &log.phases,
 	     "Output labels for each major phase Cakelisp goes through"},
@@ -141,6 +144,12 @@ int main(int numArguments, char* arguments[])
 				return 1;
 			}
 		}
+	}
+
+	if (listBuiltInGeneratorsThenQuit)
+	{
+		listBuiltInGenerators();
+		return 0;
 	}
 
 	std::vector<const char*> filesToEvaluate;

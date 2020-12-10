@@ -1477,7 +1477,7 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 				else
 				{
 					ErrorAtToken(currentToken,
-					             "unrecognized argument mode. Recognized types: &optional");
+					             "unrecognized argument mode. Recognized types: &optional, &rest");
 					return false;
 				}
 			}

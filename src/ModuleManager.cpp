@@ -25,6 +25,18 @@ const char* compilerObjectExtension = "o";
 const char* g_modulePreBuildHookSignature =
     "('manager (& ModuleManager) 'module (* Module) &return bool)";
 
+void listBuiltInGenerators()
+{
+	EvaluatorEnvironment environment;
+	importFundamentalGenerators(environment);
+	for (GeneratorIterator it = environment.generators.begin(); it != environment.generators.end();
+	     ++it)
+	{
+		Logf("  %s\n", it->first.c_str());
+	}
+	environmentDestroyInvalidateTokens(environment);
+}
+
 void moduleManagerInitialize(ModuleManager& manager)
 {
 	importFundamentalGenerators(manager.environment);
