@@ -154,10 +154,24 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 	const std::vector<Token>* tokens = nullptr;
 	{
 		std::vector<Token>* tokens_CREATIONONLY = new std::vector<Token>;
+		bool isFirstLine = true;
 		while (fgets(lineBuffer, sizeof(lineBuffer), file))
 		{
 			if (log.tokenization)
 				Logf("%s", lineBuffer);
+
+			// Check for shebang and ignore this line if found. This allows users to execute their
+			// scripts via e.g. ./MyScript.cake, given #!/usr/bin/cakelisp --execute
+			if (isFirstLine)
+			{
+				isFirstLine = false;
+				if (lineBuffer[0] == '#' && lineBuffer[1] == '!')
+				{
+					if (log.tokenization)
+						Log("Skipping shebang\n");
+					continue;
+				}
+			}
 
 			const char* error =
 			    tokenizeLine(lineBuffer, filename, lineNumber, *tokens_CREATIONONLY);
