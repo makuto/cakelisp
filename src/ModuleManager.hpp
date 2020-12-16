@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
 
 #include "ModuleManagerEnums.hpp"
 
@@ -46,6 +47,9 @@ struct Module
 	std::vector<ModulePreBuildHook> preBuildHooks;
 };
 
+typedef std::unordered_map<std::string, uint32_t> ArtifactCrcTable;
+typedef std::pair<const std::string, uint32_t> ArtifactCrcTablePair;
+
 struct ModuleManager
 {
 	// Shared environment across all modules
@@ -57,6 +61,12 @@ struct ModuleManager
 	// Cached directory, not necessarily the final artifacts directory (e.g. executable-output
 	// option sets different location for the final executable)
 	std::string buildOutputDir;
+
+	// If an existing cached build was run, check the current build's commands against the previous
+	// commands via CRC comparison. This ensures changing commands will cause rebuilds
+	ArtifactCrcTable cachedCommandCrcs;
+	// If any artifact no longer matches its crc in cachedCommandCrcs, the change will appear here
+	ArtifactCrcTable newCommandCrcs;
 };
 
 void moduleManagerInitialize(ModuleManager& manager);

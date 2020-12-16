@@ -58,5 +58,7 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 
 FILE* fileOpen(const char* filename, const char* mode);
 
+void crc32(const void* data, size_t n_bytes, uint32_t* crc);
+
 // Let this serve as more of a TODO to get rid of std::string
 extern std::string EmptyString;

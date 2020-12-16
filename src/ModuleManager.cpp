@@ -643,28 +643,68 @@ void copyModuleBuildOptionsToBuiltObject(Module* module, ProcessCommand* buildCo
 	PushBackAll(object->additionalOptions, module->additionalBuildOptions);
 }
 
-// Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
-// TODO: There's no easy way to know whether this exe is the current build configuration's
-// output exe, so copy it every time
-bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cachedOutputExecutable,
-                                 std::string& finalOutputNameOut)
+void getExecutableOutputName(ModuleManager& manager, std::string& finalOutputNameOut)
 {
-	if (log.fileSystem)
-		Log("Copying executable from cache\n");
 	if (!manager.environment.executableOutput.empty())
 		finalOutputNameOut = manager.environment.executableOutput;
 	else
 		finalOutputNameOut = "a.out";
+}
 
-	if (!copyBinaryFileTo(cachedOutputExecutable.c_str(), finalOutputNameOut.c_str()))
+// Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
+// TODO: There's no easy way to know whether this exe is the current build configuration's
+// output exe, so copy it every time
+bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cachedOutputExecutable,
+                                 const std::string& finalOutputName)
+{
+	if (log.fileSystem)
+		Log("Copying executable from cache\n");
+
+	if (!copyBinaryFileTo(cachedOutputExecutable.c_str(), finalOutputName.c_str()))
+	{
+		Log("error: failed to copy executable from cache\n");
 		return false;
+	}
 
-	addExecutablePermission(finalOutputNameOut.c_str());
+	addExecutablePermission(finalOutputName.c_str());
 	return true;
 }
 
+// commandArguments should have terminating null sentinel
+static bool commandEqualsCachedCommand(ModuleManager& manager, const char* artifactKey,
+                                       const char** commandArguments, uint32_t* crcOut)
+{
+	uint32_t newCommandCrc = 0;
+	for (const char** currentArg = commandArguments; *currentArg; ++currentArg)
+	{
+		crc32(*currentArg, strlen(*currentArg), &newCommandCrc);
+	}
+
+	if (crcOut)
+		*crcOut = newCommandCrc;
+
+	ArtifactCrcTable::iterator findIt = manager.cachedCommandCrcs.find(artifactKey);
+	if (findIt == manager.cachedCommandCrcs.end())
+	{
+		if (log.commandCrcs)
+			Logf("CRC32 for %s: %u (not cached)\n", artifactKey, newCommandCrc);
+		return false;
+	}
+
+	if (log.commandCrcs)
+		Logf("CRC32 for %s: old %u new %u\n", artifactKey, findIt->second, newCommandCrc);
+
+	return findIt->second == newCommandCrc;
+}
+
+static bool moduleManagerReadCacheFile(ModuleManager& manager);
+static void moduleManagerWriteCacheFile(ModuleManager& manager);
+
 bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs)
 {
+	if (!moduleManagerReadCacheFile(manager))
+		return false;
+
 	int currentNumProcessesSpawned = 0;
 
 	int numModules = manager.modules.size();
@@ -775,41 +815,6 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 	for (BuiltObject* object : builtObjects)
 	{
-		if (canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
-		                     object->filename.c_str()))
-		{
-			std::vector<std::string> headerSearchDirectories;
-			{
-				headerSearchDirectories.reserve(object->headerSearchDirectories.size() +
-				                                manager.environment.cSearchDirectories.size() + 1);
-				// Must include CWD to find generated cakelisp files
-				headerSearchDirectories.push_back(".");
-				PushBackAll(headerSearchDirectories, object->headerSearchDirectories);
-				PushBackAll(headerSearchDirectories, manager.environment.cSearchDirectories);
-			}
-
-			// Note that I use the .o as "includedBy" because our header may not have needed any
-			// changes if our include changed. We have to use the .o as the time reference that
-			// we've rebuilt
-			if (!AreIncludesModified_Recursive(
-			        headerSearchDirectories, object->sourceFilename.c_str(),
-			        /*includedBy*/ nullptr, object->filename.c_str(), isModifiedCache))
-			{
-				if (log.buildProcess)
-					Logf("Skipping compiling %s (using cached object)\n",
-					     object->sourceFilename.c_str());
-				continue;
-			}
-			else
-			{
-				if (log.includeScanning || log.buildProcess)
-					Logf("--- Must rebuild %s (header files modified)\n",
-					     object->sourceFilename.c_str());
-			}
-		}
-
-		// We do need to build
-
 		std::vector<const char*> searchDirArgs;
 		searchDirArgs.reserve(object->includesSearchDirs.size() +
 		                      manager.environment.cSearchDirectories.size());
@@ -852,6 +857,48 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			builtObjectsFree(builtObjects);
 			return false;
 		}
+
+		uint32_t commandCrc = 0;
+		bool commandEqualsCached = commandEqualsCachedCommand(manager, object->filename.c_str(),
+		                                                      buildArguments, &commandCrc);
+		if (commandEqualsCached &&
+		    canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
+		                     object->filename.c_str()))
+		{
+			std::vector<std::string> headerSearchDirectories;
+			{
+				headerSearchDirectories.reserve(object->headerSearchDirectories.size() +
+				                                manager.environment.cSearchDirectories.size() + 1);
+				// Must include CWD to find generated cakelisp files
+				headerSearchDirectories.push_back(".");
+				PushBackAll(headerSearchDirectories, object->headerSearchDirectories);
+				PushBackAll(headerSearchDirectories, manager.environment.cSearchDirectories);
+			}
+
+			// Note that I use the .o as "includedBy" because our header may not have needed any
+			// changes if our include changed. We have to use the .o as the time reference that
+			// we've rebuilt
+			if (!AreIncludesModified_Recursive(
+			        headerSearchDirectories, object->sourceFilename.c_str(),
+			        /*includedBy*/ nullptr, object->filename.c_str(), isModifiedCache))
+			{
+				if (log.buildProcess)
+					Logf("Skipping compiling %s (using cached object)\n",
+					     object->sourceFilename.c_str());
+				continue;
+			}
+			else
+			{
+				if (log.includeScanning || log.buildProcess)
+					Logf("--- Must rebuild %s (header files modified)\n",
+					     object->sourceFilename.c_str());
+			}
+		}
+
+		if (!commandEqualsCached)
+			manager.newCommandCrcs[object->filename] = commandCrc;
+
+		// Go through with the build
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = buildCommand.fileToExecute.c_str();
 		compileArguments.arguments = buildArguments;
@@ -907,7 +954,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 	int numObjectsToLink = 0;
 	bool succeededBuild = true;
-	bool needsLink = false;
+	bool objectsDirty = false;
 	for (BuiltObject* object : builtObjects)
 	{
 		// Module* module = manager.modules[moduleIndex];
@@ -925,8 +972,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		++numObjectsToLink;
 
 		// If all our objects are older than our executable, don't even link!
-		needsLink |= !canUseCachedFile(manager.environment, object->filename.c_str(),
-		                               outputExecutableName.c_str());
+		objectsDirty |= !canUseCachedFile(manager.environment, object->filename.c_str(),
+		                                  outputExecutableName.c_str());
 	}
 
 	if (!succeededBuild)
@@ -935,26 +982,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		return false;
 	}
 
-	if (!needsLink)
-	{
-		if (log.buildProcess)
-			Log("Skipping linking (no built objects are newer than cached executable)\n");
-
-		{
-			std::string finalOutputName;
-			if (!copyExecutableToFinalOutput(manager, outputExecutableName, finalOutputName))
-			{
-				builtObjectsFree(builtObjects);
-				return false;
-			}
-
-			Logf("No changes needed for %s\n", finalOutputName.c_str());
-			builtOutputs.push_back(finalOutputName);
-		}
-
-		builtObjectsFree(builtObjects);
-		return true;
-	}
+	std::string finalOutputName;
+	getExecutableOutputName(manager, finalOutputName);
 
 	if (numObjectsToLink)
 	{
@@ -990,12 +1019,46 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			builtObjectsFree(builtObjects);
 			return false;
 		}
+
+		uint32_t commandCrc = 0;
+		bool commandEqualsCached = commandEqualsCachedCommand(manager, finalOutputName.c_str(),
+		                                                      linkArgumentList, &commandCrc);
+
+		// Check if we can use the cached version
+		if (!objectsDirty && commandEqualsCached)
+		{
+			if (log.buildProcess)
+				Log("Skipping linking (no built objects are newer than cached executable, command "
+				    "identical)\n");
+
+			{
+				if (!copyExecutableToFinalOutput(manager, outputExecutableName, finalOutputName))
+				{
+					free(linkArgumentList);
+					builtObjectsFree(builtObjects);
+					return false;
+				}
+
+				Logf("No changes needed for %s\n", finalOutputName.c_str());
+				builtOutputs.push_back(finalOutputName);
+			}
+
+			free(linkArgumentList);
+			builtObjectsFree(builtObjects);
+			moduleManagerWriteCacheFile(manager);
+			return true;
+		}
+
+		if (!commandEqualsCached)
+			manager.newCommandCrcs[finalOutputName] = commandCrc;
+
 		RunProcessArguments linkArguments = {};
 		linkArguments.fileToExecute = linkCommand.fileToExecute.c_str();
 		linkArguments.arguments = linkArgumentList;
 		int linkStatus = 0;
 		if (runProcess(linkArguments, &linkStatus) != 0)
 		{
+			free(linkArgumentList);
 			builtObjectsFree(builtObjects);
 			return false;
 		}
@@ -1014,7 +1077,6 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	}
 
 	{
-		std::string finalOutputName;
 		if (!copyExecutableToFinalOutput(manager, outputExecutableName, finalOutputName))
 		{
 			builtObjectsFree(builtObjects);
@@ -1026,5 +1088,122 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	}
 
 	builtObjectsFree(builtObjects);
+	moduleManagerWriteCacheFile(manager);
 	return true;
+}
+
+// Returns false if there were errors; the file not existing is not an error
+static bool moduleManagerReadCacheFile(ModuleManager& manager)
+{
+	char inputFilename[MAX_PATH_LENGTH] = {0};
+	if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(), "Cache", "cake",
+	                                      inputFilename, sizeof(inputFilename)))
+	{
+		Log("error: failed to create cache file name\n");
+		return false;
+	}
+
+	// This is fine if it's the first build of this configuration
+	if (!fileExists(inputFilename))
+		return true;
+
+	const std::vector<Token>* tokens = nullptr;
+	if (!moduleLoadTokenizeValidate(inputFilename, &tokens))
+	{
+		// moduleLoadTokenizeValidate deletes tokens on error
+		return false;
+	}
+
+	for (int i = 0; i < (int)(*tokens).size(); ++i)
+	{
+		const Token& currentToken = (*tokens)[i];
+		if (currentToken.type == TokenType_OpenParen)
+		{
+			int endInvocationIndex = FindCloseParenTokenIndex((*tokens), i);
+			const Token& invocationToken = (*tokens)[i + 1];
+			if (invocationToken.contents.compare("command-crc") == 0)
+			{
+				int artifactIndex = getExpectedArgument("expected artifact name", (*tokens), i, 1,
+				                                        endInvocationIndex);
+				if (artifactIndex == -1)
+				{
+					delete tokens;
+					return false;
+				}
+				int crcIndex =
+				    getExpectedArgument("expected crc", (*tokens), i, 2, endInvocationIndex);
+				if (crcIndex == -1)
+				{
+					delete tokens;
+					return false;
+				}
+
+				char* endPtr;
+				manager.cachedCommandCrcs[(*tokens)[artifactIndex].contents] =
+				    strtol((*tokens)[crcIndex].contents.c_str(), &endPtr, /*base=*/10);
+			}
+			else
+			{
+				Logf("error: unrecognized invocation in %s: %s\n", inputFilename,
+				     invocationToken.contents.c_str());
+				delete tokens;
+				return false;
+			}
+
+			i = endInvocationIndex;
+		}
+	}
+
+	delete tokens;
+	return true;
+}
+
+static void moduleManagerWriteCacheFile(ModuleManager& manager)
+{
+	char outputFilename[MAX_PATH_LENGTH] = {0};
+	if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(), "Cache", "cake",
+	                                      outputFilename, sizeof(outputFilename)))
+	{
+		Log("error: failed to create cache file name\n");
+		return;
+	}
+
+	// Combine all CRCs into a single map
+	ArtifactCrcTable outputCrcs;
+	for (ArtifactCrcTablePair& crcPair : manager.cachedCommandCrcs)
+		outputCrcs.insert(crcPair);
+	// New commands override previously cached
+	for (ArtifactCrcTablePair& crcPair : manager.newCommandCrcs)
+		outputCrcs[crcPair.first] = crcPair.second;
+
+	std::vector<Token> outputTokens;
+	const Token openParen = {TokenType_OpenParen, EmptyString, "ModuleManager.cpp", 1, 0, 0};
+	const Token closeParen = {TokenType_CloseParen, EmptyString, "ModuleManager.cpp", 1, 0, 0};
+	const Token crcInvoke = {TokenType_Symbol, "command-crc", "ModuleManager.cpp", 1, 0, 0};
+
+	for (ArtifactCrcTablePair& crcPair : outputCrcs)
+	{
+		outputTokens.push_back(openParen);
+		outputTokens.push_back(crcInvoke);
+
+		Token artifactName = {TokenType_String, crcPair.first, "ModuleManager.cpp", 1, 0, 0};
+		outputTokens.push_back(artifactName);
+
+		Token crcToken = {
+		    TokenType_Symbol, std::to_string(crcPair.second), "ModuleManager.cpp", 1, 0, 0};
+		outputTokens.push_back(crcToken);
+
+		outputTokens.push_back(closeParen);
+	}
+
+	FILE* file = fileOpen(outputFilename, "w");
+	if (!file)
+	{
+		Logf("error: Could not write cache file %s", outputFilename);
+		return;
+	}
+
+	prettyPrintTokensToFile(file, outputTokens);
+
+	fclose(file);
 }

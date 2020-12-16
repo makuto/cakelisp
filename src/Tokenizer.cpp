@@ -221,28 +221,6 @@ bool validateParentheses(const std::vector<Token>& tokens)
 	return true;
 }
 
-void printFormattedToken(const Token& token)
-{
-	switch (token.type)
-	{
-		case TokenType_OpenParen:
-			Log("(");
-			break;
-		case TokenType_CloseParen:
-			Log(")");
-			break;
-		case TokenType_Symbol:
-			Logf("%s", token.contents.c_str());
-			break;
-		case TokenType_String:
-			Logf("\"%s\"", token.contents.c_str());
-			break;
-		default:
-			Log("Unknown type");
-			break;
-	}
-}
-
 bool appendTokenToString(const Token& token, char** at, char* bufferStart, int bufferSize)
 {
 	switch (token.type)
@@ -275,7 +253,29 @@ bool appendTokenToString(const Token& token, char** at, char* bufferStart, int b
 	return false;
 }
 
-static void printTokensInternal(const std::vector<Token>& tokens, bool prettyPrint)
+static void printFormattedToken(FILE* fileOut, const Token& token)
+{
+	switch (token.type)
+	{
+		case TokenType_OpenParen:
+			fprintf(fileOut, "(");
+			break;
+		case TokenType_CloseParen:
+			fprintf(fileOut, ")");
+			break;
+		case TokenType_Symbol:
+			fprintf(fileOut, "%s", token.contents.c_str());
+			break;
+		case TokenType_String:
+			fprintf(fileOut, "\"%s\"", token.contents.c_str());
+			break;
+		default:
+			fprintf(fileOut, "Unknown type");
+			break;
+	}
+}
+
+static void printTokensInternal(FILE* fileOut, const std::vector<Token>& tokens, bool prettyPrint)
 {
 	TokenType previousTokenType = TokenType_OpenParen;
 
@@ -298,10 +298,10 @@ static void printTokensInternal(const std::vector<Token>& tokens, bool prettyPri
 		if (prettyPrint && previousTokenType == TokenType_CloseParen &&
 		    token.type == TokenType_OpenParen)
 		{
-			Log("\n");
+			fprintf(fileOut, "\n");
 			for (int i = 0; i < depth; ++i)
 			{
-				Log(" ");
+				fprintf(fileOut, " ");
 			}
 		}
 
@@ -315,23 +315,28 @@ static void printTokensInternal(const std::vector<Token>& tokens, bool prettyPri
 		if ((tokenIsSymbolOrString && !previousTokenIsParen) ||
 		    (tokenIsSymbolOrString && previousTokenType == TokenType_CloseParen) ||
 		    (token.type == TokenType_OpenParen && previousTokenIsSymbolOrString))
-			Log(" ");
+			fprintf(fileOut, " ");
 
-		printFormattedToken(token);
+		printFormattedToken(fileOut, token);
 
 		previousTokenType = token.type;
 	}
-	Log("\n");
+	fprintf(fileOut, "\n");
 }
 
 void printTokens(const std::vector<Token>& tokens)
 {
-	printTokensInternal(tokens, /*prettyPrint=*/false);
+	printTokensInternal(stderr, tokens, /*prettyPrint=*/false);
 }
 
 void prettyPrintTokens(const std::vector<Token>& tokens)
 {
-	printTokensInternal(tokens, /*prettyPrint=*/true);
+	printTokensInternal(stderr, tokens, /*prettyPrint=*/true);
+}
+
+void prettyPrintTokensToFile(FILE* file, const std::vector<Token>& tokens)
+{
+	printTokensInternal(file, tokens, /*prettyPrint=*/true);
 }
 
 bool writeCharToBufferErrorToken(char c, char** at, char* bufferStart, int bufferSize,

@@ -9,6 +9,7 @@ struct LoggingSettings
 	bool buildProcess;
 	bool buildOmissions;
 	bool compileTimeBuildObjects;
+	bool commandCrcs;
 
 	bool fileSystem;
 	bool fileSearch;
