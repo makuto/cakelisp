@@ -1,5 +1,8 @@
 #pragma once
 
+// Returns zero if the file doesn't exist, or there was some other error
+unsigned long fileGetLastModificationTime(const char* filename);
+
 // Returns true if the reference file doesn't exist. This is under the assumption that this function
 // is always used to check whether it is necessary to e.g. build something if the source is newer
 // than the previous build (or the source has never been built)

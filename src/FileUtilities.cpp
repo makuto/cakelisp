@@ -17,6 +17,23 @@
 #error Need to implement file utilities for this platform
 #endif
 
+unsigned long fileGetLastModificationTime(const char* filename)
+{
+#ifdef UNIX
+	struct stat fileStat;
+	if (stat(filename, &fileStat) == -1)
+	{
+		if (log.fileSystem || errno != ENOENT)
+			perror("fileGetLastModificationTime: ");
+		return 0;
+	}
+
+	return (unsigned long)fileStat.st_mtime;
+#else
+	return 0;
+#endif
+}
+
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 {
 #ifdef UNIX
@@ -34,6 +51,8 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 			perror("fileIsMoreRecentlyModified: ");
 		return true;
 	}
+
+	// Logf("%s vs %s: %lu %lu\n", filename, reference, fileStat.st_mtime, referenceStat.st_mtime);
 
 	return fileStat.st_mtime > referenceStat.st_mtime;
 #else
