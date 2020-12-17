@@ -1161,7 +1161,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		ObjectDefinition& definition = *definitionPointer;
 		const char* defName = definition.name.c_str();
 
-		if (log.buildReasons)
+		if (log.compileTimeBuildReasons)
 			Logf("Checking to build %s\n", defName);
 
 		// Can it be built in the current environment?
@@ -1208,7 +1208,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 							// incorrectly that this was a C call
 							if (referenceStatus.guessState != GuessState_Resolved)
 							{
-								if (log.buildReasons)
+								if (log.compileTimeBuildReasons)
 									Log("\tRequired code has been loaded\n");
 
 								hasRelevantChangeOccurred = true;
@@ -1220,7 +1220,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 						{
 							// If we know we are missing a compile time function, we won't try to
 							// guess
-							if (log.buildReasons)
+							if (log.compileTimeBuildReasons)
 								Logf("\tCannot build until %s is loaded\n",
 								       referenceStatus.name->contents.c_str());
 
@@ -1253,7 +1253,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 				{
 					if (referenceStatus.guessState == GuessState_None)
 					{
-						if (log.buildReasons)
+						if (log.compileTimeBuildReasons)
 							Logf("\tCannot build until %s is guessed. Guessing now\n",
 							       referenceStatus.name->contents.c_str());
 

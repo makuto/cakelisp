@@ -861,9 +861,12 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		uint32_t commandCrc = 0;
 		bool commandEqualsCached = commandEqualsCachedCommand(manager, object->filename.c_str(),
 		                                                      buildArguments, &commandCrc);
-		if (commandEqualsCached &&
-		    canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
-		                     object->filename.c_str()))
+		// We could avoid doing this work, but it makes it easier to log if we do it regardless of
+		// commandEqualsCached invalidating our cache anyways
+		bool canUseCache = canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
+		                                    object->filename.c_str());
+		bool headersModified = false;
+		if (commandEqualsCached && canUseCache)
 		{
 			std::vector<std::string> headerSearchDirectories;
 			{
@@ -889,10 +892,22 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			}
 			else
 			{
+				headersModified = true;
 				if (log.includeScanning || log.buildProcess)
 					Logf("--- Must rebuild %s (header files modified)\n",
 					     object->sourceFilename.c_str());
 			}
+		}
+
+		if (log.buildReasons)
+		{
+			Logf("Build %s reason(s):\n", object->filename.c_str());
+			if (!canUseCache)
+				Log("\tobject files updated\n");
+			if (!commandEqualsCached)
+				Log("\tcommand changed since last run\n");
+			if (headersModified)
+				Log("\theaders modified\n");
 		}
 
 		if (!commandEqualsCached)
@@ -1047,6 +1062,15 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			builtObjectsFree(builtObjects);
 			moduleManagerWriteCacheFile(manager);
 			return true;
+		}
+
+		if (log.buildReasons)
+		{
+			Logf("Link %s reason(s):\n", finalOutputName.c_str());
+			if (objectsDirty)
+				Log("\tobject files updated\n");
+			if (!commandEqualsCached)
+				Log("\tcommand changed since last run\n");
 		}
 
 		if (!commandEqualsCached)

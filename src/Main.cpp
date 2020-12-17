@@ -74,6 +74,8 @@ int main(int numArguments, char* arguments[])
 	    {"--verbose-dependency-propagation", &log.dependencyPropagation,
 	     "Output why objects are being built (why they are required for building)"},
 	    {"--verbose-build-reasons", &log.buildReasons,
+	     "Output why objects are being built (i.e., why the cached version couldn't be used"},
+	    {"--verbose-compile-time-build-reasons", &log.compileTimeBuildReasons,
 	     "Output why objects are or are not being built in each compile-time build cycle"},
 	    {"--verbose-build-process", &log.buildProcess,
 	     "Output object statuses as they move through the compile-time pipeline"},
