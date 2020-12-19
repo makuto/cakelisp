@@ -1061,6 +1061,7 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	EvaluatorContext bodyContext = context;
 	bodyContext.scope = EvaluatorScope_Body;
 	bodyContext.definitionName = &nameToken;
+	bodyContext.delimiterTemplate = {};
 	// The statements will need to handle their ;
 	int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
 	                                              *functionOutput);
@@ -1804,6 +1805,7 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	// Let the reference required propagation step handle this
 	macroBodyContext.isRequired = false;
 	macroBodyContext.definitionName = &nameToken;
+	macroBodyContext.delimiterTemplate = {};
 	int numErrors = EvaluateGenerateAll_Recursive(environment, macroBodyContext, tokens,
 	                                              startBodyIndex, *compTimeOutput);
 	if (numErrors)
@@ -1896,6 +1898,7 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	// Let the reference required propagation step handle this
 	generatorBodyContext.isRequired = false;
 	generatorBodyContext.definitionName = &nameToken;
+	generatorBodyContext.delimiterTemplate = {};
 	int numErrors = EvaluateGenerateAll_Recursive(environment, generatorBodyContext, tokens,
 	                                              startBodyIndex, *compTimeOutput);
 	if (numErrors)
@@ -2040,6 +2043,7 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 		addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[scopedBlockIndex]);
 		EvaluatorContext trueBlockBodyContext = context;
 		trueBlockBodyContext.scope = EvaluatorScope_Body;
+		trueBlockBodyContext.delimiterTemplate = {};
 		int numErrors = 0;
 		if (scopedBlockIndex != blockIndex)
 			numErrors = EvaluateGenerateAll_Recursive(environment, trueBlockBodyContext, tokens,
@@ -2063,6 +2067,7 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 		addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[falseBlockIndex]);
 		EvaluatorContext falseBlockBodyContext = context;
 		falseBlockBodyContext.scope = EvaluatorScope_Body;
+		falseBlockBodyContext.delimiterTemplate = {};
 		int numErrors = 0;
 		if (scopedFalseBlockIndex != falseBlockIndex)
 			numErrors = EvaluateGenerateAll_Recursive(environment, falseBlockBodyContext, tokens,
@@ -2154,6 +2159,7 @@ bool ConditionGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 			addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[blockIndex]);
 			EvaluatorContext trueBlockBodyContext = context;
 			trueBlockBodyContext.scope = EvaluatorScope_Body;
+			trueBlockBodyContext.delimiterTemplate = {};
 			int numErrors = EvaluateGenerateAll_Recursive(environment, trueBlockBodyContext, tokens,
 			                                              blockIndex, output);
 			if (numErrors)

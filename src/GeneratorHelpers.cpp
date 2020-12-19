@@ -1035,6 +1035,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				EvaluatorContext bodyContext = context;
 				bodyContext.scope = EvaluatorScope_Body;
 				// The statements will need to handle their ;
+				bodyContext.delimiterTemplate = {};
 				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
 				                                              startBodyIndex, output);
 				if (numErrors)
