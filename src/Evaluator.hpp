@@ -83,6 +83,9 @@ struct EvaluatorContext
 	// Associate all unknown references with this definition
 	const Token* definitionName;
 	Module* module;
+	// Insert delimiterTemplate between each expression/statement. Only recognized in
+	// EvaluateGenerateAll_Recursive()
+	StringOutput delimiterTemplate;
 };
 
 struct EvaluatorEnvironment;
@@ -356,8 +359,7 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 // Delimiter template will be inserted between the outputs. Pass nullptr for no delimiter
 int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
-                                  int startTokenIndex, const StringOutput* delimiterTemplate,
-                                  GeneratorOutput& output);
+                                  int startTokenIndex, GeneratorOutput& output);
 
 // For compile-time code modification.
 // This destroys the old definition. Don't hold on to references to it for that reason

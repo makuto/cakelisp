@@ -341,8 +341,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 
 		// Note that macros always inherit the current context, whereas bodies change it
 		int result = EvaluateGenerateAll_Recursive(environment, context, *macroOutputTokens,
-		                                           /*startTokenIndex=*/0,
-		                                           /*delimiterTemplate=*/nullptr, output);
+		                                           /*startTokenIndex=*/0, output);
 		if (result != 0)
 		{
 			NoteAtToken(invocationStart,
@@ -510,15 +509,15 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 // Delimiter template will be inserted between the outputs
 int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
-                                  int startTokenIndex, const StringOutput* delimiterTemplate,
-                                  GeneratorOutput& output)
+                                  int startTokenIndex, GeneratorOutput& output)
 {
 	// Note that in most cases, we will continue evaluation in order to turn up more errors
 	int numErrors = 0;
 
-	bool isDelimiterSyntactic =
-	    delimiterTemplate && (!delimiterTemplate->output.empty() ||
-	                          delimiterTemplate->modifiers != StringOutMod_NewlineAfter);
+	bool isDelimiterUsed = !context.delimiterTemplate.output.empty() ||
+	                       context.delimiterTemplate.modifiers != StringOutMod_None;
+	bool isDelimiterSyntactic = !context.delimiterTemplate.output.empty() ||
+	                            context.delimiterTemplate.modifiers != StringOutMod_NewlineAfter;
 
 	// Used to detect when something was actually output during evaluation
 	int lastOutputTotalSize = output.source.size() + output.header.size();
@@ -534,7 +533,7 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 		}
 
 		// Starting a new argument to evaluate
-		if (delimiterTemplate && currentTokenIndex != startTokenIndex)
+		if (isDelimiterUsed && currentTokenIndex != startTokenIndex)
 		{
 			bool outputChanged =
 			    output.source.size() + output.header.size() != (unsigned long)lastOutputTotalSize;
@@ -542,7 +541,7 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 			// ignored if evaluation results in no output
 			if (isDelimiterSyntactic || outputChanged)
 			{
-				StringOutput delimiter = *delimiterTemplate;
+				StringOutput delimiter = context.delimiterTemplate;
 				delimiter.startToken = &tokens[currentTokenIndex];
 				// TODO: Controlling source vs. header output?
 				output.source.push_back(std::move(delimiter));
@@ -599,13 +598,15 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 	definitionOutput->source.clear();
 	definitionOutput->header.clear();
 
-	bool isModuleScope = definitionContext.scope == EvaluatorScope_Module;
-	StringOutput moduleDelimiterTemplate = {};
-	moduleDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
+	if (definitionContext.scope == EvaluatorScope_Module)
+	{
+		StringOutput moduleDelimiterTemplate = {};
+		moduleDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
+		definitionContext.delimiterTemplate = moduleDelimiterTemplate;
+	}
 
-	bool result = EvaluateGenerateAll_Recursive(
-	                  environment, definitionContext, newDefinitionTokens, /*startTokenIndex=*/0,
-	                  isModuleScope ? &moduleDelimiterTemplate : nullptr, *definitionOutput) == 0;
+	bool result = EvaluateGenerateAll_Recursive(environment, definitionContext, newDefinitionTokens,
+	                                            /*startTokenIndex=*/0, *definitionOutput) == 0;
 
 	if (!result)
 	{

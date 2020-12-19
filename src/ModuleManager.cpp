@@ -338,9 +338,10 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	// A delimiter isn't strictly necessary here, but it is nice to space out things
 	StringOutput moduleDelimiterTemplate = {};
 	moduleDelimiterTemplate.modifiers = StringOutMod_NewlineAfter;
-	int numErrors = EvaluateGenerateAll_Recursive(
-	    manager.environment, moduleContext, *newModule->tokens,
-	    /*startTokenIndex=*/0, &moduleDelimiterTemplate, *newModule->generatedOutput);
+	moduleContext.delimiterTemplate = moduleDelimiterTemplate;
+	int numErrors =
+	    EvaluateGenerateAll_Recursive(manager.environment, moduleContext, *newModule->tokens,
+	                                  /*startTokenIndex=*/0, *newModule->generatedOutput);
 	// After this point, the module may have references to its tokens in the environmment, so we
 	// cannot destroy it until we're done evaluating everything
 	if (numErrors)

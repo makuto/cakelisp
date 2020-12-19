@@ -906,14 +906,11 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				bodyContext.scope = EvaluatorScope_ExpressionsOnly;
 				StringOutput spliceDelimiterTemplate = {};
 				spliceDelimiterTemplate.output = operation[i].keywordOrSymbol;
-				if (operation[i].type == Splice)
-				{
-					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
-					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
-				}
+				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
+				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
+				bodyContext.delimiterTemplate = spliceDelimiterTemplate;
 				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
-				                                              startSpliceListIndex,
-				                                              &spliceDelimiterTemplate, output);
+				                                              startSpliceListIndex, output);
 				if (numErrors)
 					return false;
 				break;
@@ -1017,10 +1014,10 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
 				StringOutput listDelimiterTemplate = {};
 				listDelimiterTemplate.modifiers = StringOutMod_ListSeparator;
+				expressionContext.delimiterTemplate = listDelimiterTemplate;
 
 				if (EvaluateGenerateAll_Recursive(environment, expressionContext, tokens,
-				                                  startExpressionIndex, &listDelimiterTemplate,
-				                                  output) != 0)
+				                                  startExpressionIndex, output) != 0)
 					return false;
 				break;
 			}
@@ -1038,9 +1035,8 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				EvaluatorContext bodyContext = context;
 				bodyContext.scope = EvaluatorScope_Body;
 				// The statements will need to handle their ;
-				int numErrors =
-				    EvaluateGenerateAll_Recursive(environment, bodyContext, tokens, startBodyIndex,
-				                                  /*delimiterTemplate=*/nullptr, output);
+				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
+				                                              startBodyIndex, output);
 				if (numErrors)
 					return false;
 				break;
