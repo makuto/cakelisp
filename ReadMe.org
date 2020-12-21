@@ -8,6 +8,8 @@ The goal is a metaprogrammable, hot-reloadable, non-garbage-collected language i
 
 It is a transpiler which generates C/C++ from a Lisp dialect.
 
+You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction to Cakelisp]] and check out the [[https://news.ycombinator.com/item?id=25491568][Hacker News announcement thread]].
+
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
 - *The performance of C:* No heavyweight runtime, boxing/unboxing overhead, etc.
