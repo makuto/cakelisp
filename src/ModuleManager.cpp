@@ -566,6 +566,10 @@ static unsigned long GetMostRecentIncludeModified_Recursive(
 
 					unsigned long includeModifiedTime = GetMostRecentIncludeModified_Recursive(
 					    searchDirectories, foundInclude, resolvedPathBuffer, isModifiedCache);
+
+					if (logging.includeScanning)
+						Logf("\t tree modificaiton time: %lu\n", includeModifiedTime);
+
 					if (includeModifiedTime > mostRecentModTime)
 						mostRecentModTime = includeModifiedTime;
 				}
@@ -885,7 +889,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			    /*includedBy*/ nullptr, headerModifiedCache);
 
 			unsigned long artifactModTime = fileGetLastModificationTime(object->filename.c_str());
-			if (artifactModTime > mostRecentHeaderModTime)
+			if (artifactModTime >= mostRecentHeaderModTime)
 			{
 				if (logging.buildProcess)
 					Logf("Skipping compiling %s (using cached object)\n",
