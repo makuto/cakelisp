@@ -35,7 +35,10 @@ cd cakelisp
 
 This script first builds cakelisp explicitly, then uses the ~cakelisp_bootstrap~ executable to build Cakelisp using Cakelisp. Subsequent executions of ~Build.sh~ will also build using Cakelisp, which means all the caching features will be in effect (making builds much faster).
 
-You can then run ~./bin/cakelisp~. Have fun!
+You can then run ~./bin/cakelisp~. Have fun! A simple test:
+#+BEGIN_SRC sh
+./bin/cakelisp --execute test/Hello.cake
+#+END_SRC
 
 It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ and link them into an executable. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
 ** Dependencies

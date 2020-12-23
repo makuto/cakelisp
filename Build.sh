@@ -8,8 +8,8 @@ LINK=clang++
 #  $CAKELISP_BOOTSTRAP_BIN so that it is updated
 
 if test -f "$CAKELISP_BOOTSTRAP_BIN"; then
-    echo "$CAKELISP_BOOTSTRAP_BIN exists. Building using Cakelisp"
-	$CAKELISP_BOOTSTRAP_BIN --verbose-build-reasons Bootstrap.cake || exit $?
+	echo "$CAKELISP_BOOTSTRAP_BIN exists. Building using Cakelisp"
+	$CAKELISP_BOOTSTRAP_BIN Bootstrap.cake || exit $?
 	echo "Use ./bin/cakelisp to build your files"
 else
 	echo "$CAKELISP_BOOTSTRAP_BIN does not exist. Building bootstrap executable manually"
