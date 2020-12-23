@@ -95,6 +95,44 @@ The function's signature will also be added to the header file so that it can be
 - global
 - static
 - local
+* Type aliases
+Aliases can be created for types. Internally, this uses ~typedef~. For example:
+#+BEGIN_SRC lisp
+;; This will save us a lot of typing!
+(def-type-alias FunctionReferenceArray (<> std::vector (* (* void))))
+;; Build on it!
+(def-type-alias FunctionReferenceMap (<> std::unordered_map std::string FunctionReferenceArray))
+;; Declare a variable using our typedef
+(var registered-functions FunctionReferenceMap)
+#+END_SRC
+
+By default, type aliases are module-local. Use ~def-type-alias-global~ if you want any module which imports the module with the alias to be able to use it.
+** Function pointers
+The syntax for function pointers is shown in [[file:../runtime/HotLoader.cake][HotLoader.cake]]:
+#+BEGIN_SRC lisp
+  ;; Currently you must define the signature so the type is parsed correctly
+  ;; In this case, bool (*)(void)
+  (def-function-signature reload-entry-point-signature (&return bool))
+  (var hot-reload-entry-point-func reload-entry-point-signature null)
+
+  ;; An example of a function which takes any type of function pointer, hence the cast
+  (register-function-pointer (type-cast (addr hot-reload-entry-point-func) (* (* void)))
+                             "reloadableEntryPoint")
+#+END_SRC
+
+ Once set, that variable is called just like a function:
+#+BEGIN_SRC lisp
+  (hot-reload-entry-point-func)
+#+END_SRC
+
+If you wanted to define a function pointer which could point to ~int main(int numArguments, char* arguments[])~, for example:
+ #+BEGIN_SRC lisp
+   (def-function-signature main-signature (num-arguments int
+                                           arguments ([] (* char))
+                                           &return int))
+   (var main-pointer main-signature (addr main))
+#+END_SRC
+
 * Expressions and Statements
 * Tokens
 Tokens are what Cakelisp becomes after the tokenizer processes the text. The Evaluator then reads Tokens in order to decide what to do. Only generators and macros interact with Tokens.
