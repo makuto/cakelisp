@@ -25,18 +25,17 @@ For more advantages, see [[file:doc/NeatUses.org][doc/NeatUses.org]].
 
 Some of these features come naturally from using C as the backend. Eventually it would be cool to not have to generate C (e.g. generate LLVM bytecode instead), but that can a project for another time.
 * Building Cakelisp itself
-Install [[https://www.perforce.com/documentation/jam-documentation][Jam]]:
+/Note:/ Windows support is a work-in-progress.
+
+Run ~Build.sh~ in ~cakelisp/~:
 #+BEGIN_SRC sh
-sudo apt install jam
+cd cakelisp
+./Build.sh
 #+END_SRC
 
-Run jam in ~cakelisp/~:
-#+BEGIN_SRC sh
-jam -j4
-#+END_SRC
-(where ~4~ is the number of cores to use while compiling).
+This script first builds cakelisp explicitly, then uses the ~cakelisp_bootstrap~ executable to build Cakelisp using Cakelisp. Subsequent executions of ~Build.sh~ will also build using Cakelisp, which means all the caching features will be in effect (making builds much faster).
 
-You can also use the ~./Build*.sh~ scripts.
+You can then run ~./bin/cakelisp~. Have fun!
 
 It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ and link them into an executable. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
 ** Dependencies
