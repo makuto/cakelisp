@@ -117,7 +117,7 @@
 
 ;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
 ;; arguments to the link command only
-(set-cakelisp-option build-time-linker "/usr/bin/clang++")
+(set-cakelisp-option build-time-linker "/usr/bin/g++")
 ;; This needs to link -ldl and such (depending on platform...)
 (set-cakelisp-option build-time-link-arguments
                      ;; "-shared" ;; This causes c++ initializers to fail and no linker errors. Need to only enable on lib?

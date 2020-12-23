@@ -1,8 +1,8 @@
 #!/bin/sh
 
 CAKELISP_BOOTSTRAP_BIN=bin/cakelisp_bootstrap
-CC=clang++
-LINK=clang++
+CC=g++
+LINK=g++
 
 # Note: If you make changes to the bootstrap process, you will need to delete
 #  $CAKELISP_BOOTSTRAP_BIN so that it is updated

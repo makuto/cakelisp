@@ -75,7 +75,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 	// Command defaults
 	{
-		manager.environment.compileTimeBuildCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.compileTimeBuildCommand.fileToExecute = "/usr/bin/g++";
 		manager.environment.compileTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
 		    {ProcessCommandArgumentType_String, "-c"},
@@ -85,14 +85,14 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
-		manager.environment.compileTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.compileTimeLinkCommand.fileToExecute = "/usr/bin/g++";
 		manager.environment.compileTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-shared"},
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 
-		manager.environment.buildTimeBuildCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.buildTimeBuildCommand.fileToExecute = "/usr/bin/g++";
 		manager.environment.buildTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
 		    {ProcessCommandArgumentType_String, "-c"},
@@ -103,7 +103,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
 
-		manager.environment.buildTimeLinkCommand.fileToExecute = "/usr/bin/clang++";
+		manager.environment.buildTimeLinkCommand.fileToExecute = "/usr/bin/g++";
 		manager.environment.buildTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
@@ -117,7 +117,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 	manager.environment.useCachedFiles = true;
 	makeDirectory(cakelispWorkingDir);
-	if (log.fileSystem || log.phases)
+	if (logging.fileSystem || logging.phases)
 		Logf("Using cache at %s\n", cakelispWorkingDir);
 
 	// By always searching relative to CWD, any subsequent imports with the module filename will
@@ -157,7 +157,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		bool isFirstLine = true;
 		while (fgets(lineBuffer, sizeof(lineBuffer), file))
 		{
-			if (log.tokenization)
+			if (logging.tokenization)
 				Logf("%s", lineBuffer);
 
 			// Check for shebang and ignore this line if found. This allows users to execute their
@@ -167,7 +167,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 				isFirstLine = false;
 				if (lineBuffer[0] == '#' && lineBuffer[1] == '!')
 				{
-					if (log.tokenization)
+					if (logging.tokenization)
 						Log("Skipping shebang\n");
 					continue;
 				}
@@ -190,7 +190,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		tokens = tokens_CREATIONONLY;
 	}
 
-	if (log.tokenization)
+	if (logging.tokenization)
 		Logf("Tokenized %d lines\n", lineNumber - 1);
 
 	if (tokens->empty())
@@ -206,7 +206,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		return false;
 	}
 
-	if (log.tokenization)
+	if (logging.tokenization)
 	{
 		Log("\nResult:\n");
 
@@ -300,7 +300,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 			if (moduleOut)
 				*moduleOut = module;
 
-			if (log.imports)
+			if (logging.imports)
 				Logf("Already loaded %s\n", normalizedFilename);
 			free((void*)normalizedFilename);
 			free((void*)normalizedProspectiveModuleFilename);
@@ -353,7 +353,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	if (moduleOut)
 		*moduleOut = newModule;
 
-	if (log.imports)
+	if (logging.imports)
 		Logf("Loaded %s\n", newModule->filename);
 	return true;
 }
@@ -414,7 +414,7 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 
 	makeDirectory(outputDirName);
 
-	if (log.fileSystem || log.phases)
+	if (logging.fileSystem || logging.phases)
 		Logf("Outputting artifacts to %s\n", outputDirName);
 
 	outputDirOut = outputDirName;
@@ -474,7 +474,7 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 			return false;
 	}
 
-	if (log.phases || log.performance)
+	if (logging.phases || logging.performance)
 		Logf("Processed %d lines\n", g_totalLinesTokenized);
 
 	return true;
@@ -503,7 +503,7 @@ static unsigned long GetMostRecentIncludeModified_Recursive(
 		const HeaderModificationTimeTable::iterator findIt = isModifiedCache.find(filename);
 		if (findIt != isModifiedCache.end())
 		{
-			if (log.includeScanning)
+			if (logging.includeScanning)
 				Logf("    > cache hit %s\n", filename);
 			return findIt->second;
 		}
@@ -514,7 +514,7 @@ static unsigned long GetMostRecentIncludeModified_Recursive(
 	if (!searchForFileInPaths(filename, includedInFile, searchDirectories, resolvedPathBuffer,
 	                          ArraySize(resolvedPathBuffer)))
 	{
-		if (log.includeScanning || log.strictIncludes)
+		if (logging.includeScanning || logging.strictIncludes)
 			Logf("warning: failed to find %s in search paths\n", filename);
 
 		// Might as well not keep failing to find it. It doesn't cause modification up the stream if
@@ -532,7 +532,7 @@ static unsigned long GetMostRecentIncludeModified_Recursive(
 			return findIt->second;
 	}
 
-	if (log.includeScanning)
+	if (logging.includeScanning)
 		Logf("Checking %s for headers\n", resolvedPathBuffer);
 
 	const unsigned long thisModificationTime = fileGetLastModificationTime(resolvedPathBuffer);
@@ -561,7 +561,7 @@ static unsigned long GetMostRecentIncludeModified_Recursive(
 			{
 				if (*c == '\"' || *c == '>')
 				{
-					if (log.includeScanning)
+					if (logging.includeScanning)
 						Logf("\t%s include: %s\n", resolvedPathBuffer, foundInclude);
 
 					unsigned long includeModifiedTime = GetMostRecentIncludeModified_Recursive(
@@ -656,7 +656,7 @@ void getExecutableOutputName(ModuleManager& manager, std::string& finalOutputNam
 bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cachedOutputExecutable,
                                  const std::string& finalOutputName)
 {
-	if (log.fileSystem)
+	if (logging.fileSystem)
 		Log("Copying executable from cache\n");
 
 	if (!copyBinaryFileTo(cachedOutputExecutable.c_str(), finalOutputName.c_str()))
@@ -685,12 +685,12 @@ static bool commandEqualsCachedCommand(ModuleManager& manager, const char* artif
 	ArtifactCrcTable::iterator findIt = manager.cachedCommandCrcs.find(artifactKey);
 	if (findIt == manager.cachedCommandCrcs.end())
 	{
-		if (log.commandCrcs)
+		if (logging.commandCrcs)
 			Logf("CRC32 for %s: %u (not cached)\n", artifactKey, newCommandCrc);
 		return false;
 	}
 
-	if (log.commandCrcs)
+	if (logging.commandCrcs)
 		Logf("CRC32 for %s: old %u new %u\n", artifactKey, findIt->second, newCommandCrc);
 
 	return findIt->second == newCommandCrc;
@@ -747,11 +747,11 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				buildCommandOverride = &module->buildTimeBuildCommand;
 		}
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Logf("Build module %s\n", module->sourceOutputName.c_str());
 		for (ModuleDependency& dependency : module->dependencies)
 		{
-			if (log.buildProcess)
+			if (logging.buildProcess)
 				Logf("\tRequires %s\n", dependency.name.c_str());
 
 			// Cakelisp files are built at the module manager level, so we need not concern
@@ -887,7 +887,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			unsigned long artifactModTime = fileGetLastModificationTime(object->filename.c_str());
 			if (artifactModTime > mostRecentHeaderModTime)
 			{
-				if (log.buildProcess)
+				if (logging.buildProcess)
 					Logf("Skipping compiling %s (using cached object)\n",
 					     object->sourceFilename.c_str());
 				continue;
@@ -895,13 +895,13 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			else
 			{
 				headersModified = true;
-				if (log.includeScanning || log.buildProcess)
+				if (logging.includeScanning || logging.buildProcess)
 					Logf("--- Must rebuild %s (header files modified)\n",
 					     object->sourceFilename.c_str());
 			}
 		}
 
-		if (log.buildReasons)
+		if (logging.buildReasons)
 		{
 			Logf("Build %s reason(s):\n", object->filename.c_str());
 			if (!canUseCache)
@@ -941,7 +941,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		}
 	}
 
-	if (log.includeScanning || log.performance)
+	if (logging.includeScanning || logging.performance)
 		Logf("%lu files tested for modification times\n", headerModifiedCache.size());
 
 	waitForAllProcessesClosed(OnCompileProcessOutput);
@@ -983,7 +983,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			continue;
 		}
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Logf("Need to link %s\n", object->filename.c_str());
 
 		++numObjectsToLink;
@@ -1044,7 +1044,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		// Check if we can use the cached version
 		if (!objectsDirty && commandEqualsCached)
 		{
-			if (log.buildProcess)
+			if (logging.buildProcess)
 				Log("Skipping linking (no built objects are newer than cached executable, command "
 				    "identical)\n");
 
@@ -1066,7 +1066,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			return true;
 		}
 
-		if (log.buildReasons)
+		if (logging.buildReasons)
 		{
 			Logf("Link %s reason(s):\n", finalOutputName.c_str());
 			if (objectsDirty)

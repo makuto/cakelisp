@@ -23,7 +23,7 @@ unsigned long fileGetLastModificationTime(const char* filename)
 	struct stat fileStat;
 	if (stat(filename, &fileStat) == -1)
 	{
-		if (log.fileSystem || errno != ENOENT)
+		if (logging.fileSystem || errno != ENOENT)
 			perror("fileGetLastModificationTime: ");
 		return 0;
 	}
@@ -41,13 +41,13 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 	struct stat referenceStat;
 	if (stat(filename, &fileStat) == -1)
 	{
-		if (log.fileSystem || errno != ENOENT)
+		if (logging.fileSystem || errno != ENOENT)
 			perror("fileIsMoreRecentlyModified: ");
 		return true;
 	}
 	if (stat(reference, &referenceStat) == -1)
 	{
-		if (log.fileSystem || errno != ENOENT)
+		if (logging.fileSystem || errno != ENOENT)
 			perror("fileIsMoreRecentlyModified: ");
 		return true;
 	}
@@ -73,7 +73,7 @@ void makeDirectory(const char* path)
 	if (mkdir(path, 0755) == -1)
 	{
 		// We don't care about EEXIST, we just want the dir
-		if (log.fileSystem || errno != EEXIST)
+		if (logging.fileSystem || errno != EEXIST)
 			perror("makeDirectory: ");
 	}
 #else
@@ -245,13 +245,13 @@ bool copyBinaryFileTo(const char* srcFilename, const char* destFilename)
 		numRead = fread(buffer, sizeof(buffer[0]), ArraySize(buffer), srcFile);
 	}
 
-	if (log.fileSystem)
+	if (logging.fileSystem)
 		Logf("%lu bytes copied\n", totalCopied);
 
 	fclose(srcFile);
 	fclose(destFile);
 
-	if (log.fileSystem)
+	if (logging.fileSystem)
 		Logf("Wrote %s\n", destFilename);
 
 	return true;
@@ -275,7 +275,7 @@ bool copyFileTo(const char* srcFilename, const char* destFilename)
 	fclose(srcFile);
 	fclose(destFile);
 
-	if (log.fileSystem)
+	if (logging.fileSystem)
 		Logf("Wrote %s\n", destFilename);
 
 	return true;

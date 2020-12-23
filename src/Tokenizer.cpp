@@ -98,7 +98,7 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				// Finished the symbol
 				if (std::isspace(*currentChar) || *currentChar == '\n' || isParenthesis)
 				{
-					if (log.tokenization)
+					if (logging.tokenization)
 						Logf("%s\n", contentsBuffer);
 					Token symbol = {TokenType_Symbol, EmptyString, source,
 					                lineNumber,       columnStart, currentColumn};

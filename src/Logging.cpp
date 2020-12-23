@@ -1,3 +1,3 @@
 #include "Logging.hpp"
 
-LoggingSettings log = {};
+LoggingSettings logging = {};

@@ -121,7 +121,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 	}
 
 	const char* defName = definitionName.c_str();
-	if (log.references)
+	if (logging.references)
 		Logf("Adding reference %s to %s\n", referenceNameToken.contents.c_str(), defName);
 
 	// Add the reference requirement to the definition it occurred in
@@ -132,7 +132,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 		if (definitionName.compare(globalDefinitionName) != 0)
 		{
 			Logf("error: expected definition %s to already exist. Things will break\n",
-			       definitionName.c_str());
+			     definitionName.c_str());
 		}
 		else
 		{
@@ -571,7 +571,7 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 	if (findIt == environment.definitions.end())
 	{
 		Logf("error: ReplaceAndEvaluateDefinition() could not find definition '%s'\n",
-		       definitionToReplaceName);
+		     definitionToReplaceName);
 		return false;
 	}
 
@@ -641,16 +641,16 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 
 				if (findIt != environment.requiredCompileTimeFunctions.end())
 				{
-					if (log.dependencyPropagation)
-						Logf("Define %s promoted to required because %s\n",
-						       definition.name.c_str(), findIt->second);
+					if (logging.dependencyPropagation)
+						Logf("Define %s promoted to required because %s\n", definition.name.c_str(),
+						     findIt->second);
 
 					definition.isRequired = true;
 					definition.environmentRequired = true;
 				}
 			}
 
-			if (log.dependencyPropagation)
+			if (logging.dependencyPropagation)
 			{
 				const char* status = definition.isRequired ? "(required)" : "(not required)";
 				Logf("Define %s %s\n", definition.name.c_str(), status);
@@ -660,7 +660,7 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 			{
 				ObjectReferenceStatus& referenceStatus = reference.second;
 
-				if (log.dependencyPropagation)
+				if (logging.dependencyPropagation)
 					Logf("\tRefers to %s\n", referenceStatus.name->contents.c_str());
 
 				if (definition.isRequired)
@@ -669,9 +669,9 @@ static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
 					    environment.definitions.find(referenceStatus.name->contents);
 					if (findIt != environment.definitions.end() && !findIt->second.isRequired)
 					{
-						if (log.dependencyPropagation)
+						if (logging.dependencyPropagation)
 							Logf("\t Infecting %s with required due to %s\n",
-							       referenceStatus.name->contents.c_str(), definition.name.c_str());
+							     referenceStatus.name->contents.c_str(), definition.name.c_str());
 
 						++numRequiresStatusChanged;
 						findIt->second.isRequired = true;
@@ -729,7 +729,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	{
 		ObjectDefinition* definition = buildObject.definition;
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Logf("Build %s\n", definition->name.c_str());
 
 		if (!definition->output)
@@ -847,7 +847,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		if (canUseCachedFile(environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
 		{
-			if (log.buildProcess)
+			if (logging.buildProcess)
 				Logf("Skipping compiling %s (using cached library)\n", sourceOutputName);
 			// Skip straight to linking, which immediately becomes loading
 			buildObject.stage = BuildStage_Linking;
@@ -930,7 +930,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		buildObject.stage = BuildStage_Linking;
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Logf("Compiled %s successfully\n", buildObject.definition->name.c_str());
 
 		ProcessCommandInput linkTimeInputs[] = {
@@ -973,7 +973,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		buildObject.stage = BuildStage_Loading;
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Logf("Linked %s successfully\n", buildObject.definition->name.c_str());
 
 		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
@@ -1036,8 +1036,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (referencePoolIt == environment.referencePools.end())
 		{
 			if (!buildObject.definition->environmentRequired)
-				Log(
-				    "error: built an object which had no references. It should not have been "
+				Log("error: built an object which had no references. It should not have been "
 				    "required. There must be a problem with Cakelisp internally\n");
 			continue;
 		}
@@ -1075,7 +1074,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				// function, clear that invocation output
 				resetGeneratorOutput(*referenceValidPreEval->spliceOutput);
 
-				if (log.buildProcess)
+				if (logging.buildProcess)
 					NoteAtToken((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
 					            "resolving reference");
 
@@ -1112,7 +1111,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (hasErrors)
 			continue;
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Logf("Resolved %d references\n", numReferencesResolved);
 
 		// Remove need to build
@@ -1120,9 +1119,9 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		buildObject.stage = BuildStage_Finished;
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Logf("Successfully built, loaded, and executed %s\n",
-			       buildObject.definition->name.c_str());
+			     buildObject.definition->name.c_str());
 	}
 
 	return numReferencesResolved;
@@ -1162,7 +1161,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		ObjectDefinition& definition = *definitionPointer;
 		const char* defName = definition.name.c_str();
 
-		if (log.compileTimeBuildReasons)
+		if (logging.compileTimeBuildReasons)
 			Logf("Checking to build %s\n", defName);
 
 		// Can it be built in the current environment?
@@ -1209,7 +1208,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 							// incorrectly that this was a C call
 							if (referenceStatus.guessState != GuessState_Resolved)
 							{
-								if (log.compileTimeBuildReasons)
+								if (logging.compileTimeBuildReasons)
 									Log("\tRequired code has been loaded\n");
 
 								hasRelevantChangeOccurred = true;
@@ -1221,9 +1220,9 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 						{
 							// If we know we are missing a compile time function, we won't try to
 							// guess
-							if (log.compileTimeBuildReasons)
+							if (logging.compileTimeBuildReasons)
 								Logf("\tCannot build until %s is loaded\n",
-								       referenceStatus.name->contents.c_str());
+								     referenceStatus.name->contents.c_str());
 
 							referenceStatus.guessState = GuessState_WaitingForLoad;
 							canBuild = false;
@@ -1254,9 +1253,9 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 				{
 					if (referenceStatus.guessState == GuessState_None)
 					{
-						if (log.compileTimeBuildReasons)
+						if (logging.compileTimeBuildReasons)
 							Logf("\tCannot build until %s is guessed. Guessing now\n",
-							       referenceStatus.name->contents.c_str());
+							     referenceStatus.name->contents.c_str());
 
 						// Find all the times the definition makes this reference
 						// We must use indices because the call to FunctionInvocationGenerator can
@@ -1305,7 +1304,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		}
 	}
 
-	if (log.compileTimeBuildObjects && !definitionsToBuild.empty())
+	if (logging.compileTimeBuildObjects && !definitionsToBuild.empty())
 	{
 		int numToBuild = (int)definitionsToBuild.size();
 		Logf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
@@ -1325,7 +1324,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 {
 	// Print state
-	if (log.references)
+	if (logging.references)
 	{
 		for (ObjectDefinitionPair& definitionPair : environment.definitions)
 		{
@@ -1349,12 +1348,12 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		bool needsAnotherPass = false;
 		do
 		{
-			if (log.buildProcess)
+			if (logging.buildProcess)
 				Log("Propagate references\n");
 
 			PropagateRequiredToReferences(environment);
 
-			if (log.buildProcess)
+			if (logging.buildProcess)
 				Log("Build and evaluate references\n");
 
 			needsAnotherPass = BuildEvaluateReferences(environment, numBuildResolveErrors);
@@ -1365,7 +1364,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		if (numBuildResolveErrors)
 			break;
 
-		if (log.buildProcess)
+		if (logging.buildProcess)
 			Log("Run post references resolved hooks\n");
 
 		// At this point, all known references are resolved. Time to let the user do arbitrary code
@@ -1390,7 +1389,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	} while (codeModified);
 
 	// Check whether everything is resolved
-	if (log.phases)
+	if (logging.phases)
 		Log("\nResult:\n");
 
 	if (numBuildResolveErrors)
@@ -1457,7 +1456,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 		else
 		{
-			if (log.buildOmissions && isCompileTimeObject(definition.type))
+			if (logging.buildOmissions && isCompileTimeObject(definition.type))
 				NoteAtTokenf(*definition.definitionInvocation,
 				             "did not build %s (not required by any module)",
 				             definition.name.c_str());
@@ -1472,8 +1471,7 @@ EvaluatorEnvironment::~EvaluatorEnvironment()
 {
 	if (!comptimeTokens.empty())
 	{
-		Log(
-		    "Warning: environmentDestroyInvalidateTokens() has not been called. This will leak "
+		Log("Warning: environmentDestroyInvalidateTokens() has not been called. This will leak "
 		    "memory.\n Call it once you are certain no tokens in any expansions will be "
 		    "referenced.\n");
 	}
@@ -1498,8 +1496,7 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 					if (!tokenizeLinePrintError(g_environmentCompileTimeVariableDestroySignature,
 					                            __FILE__, __LINE__, expectedSignature))
 					{
-						Log(
-						    "error: failed to tokenize "
+						Log("error: failed to tokenize "
 						    "g_environmentCompileTimeVariableDestroySignature! Internal code "
 						    "error. Compile time variable memory will leak\n");
 						continue;
@@ -1510,8 +1507,7 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 				    findObjectDefinition(environment, destroyFuncName.c_str());
 				if (!destroyFuncDefinition)
 				{
-					Log(
-					    "error: could not find compile-time variable destroy function to verify "
+					Log("error: could not find compile-time variable destroy function to verify "
 					    "signature. Internal code error?\n");
 					continue;
 				}
@@ -1635,16 +1631,16 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 		getDirectoryFromPath(encounteredInFile, relativePathBuffer, sizeof(relativePathBuffer));
 		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", relativePathBuffer, shortPath);
 
-		if (log.fileSearch)
+		if (logging.fileSearch)
 			Logf("File exists? %s (", foundFilePathOut);
 
 		if (fileExists(foundFilePathOut))
 		{
-			if (log.fileSearch)
+			if (logging.fileSearch)
 				Log("yes)\n");
 			return true;
 		}
-		if (log.fileSearch)
+		if (logging.fileSearch)
 			Log("no)\n");
 	}
 
@@ -1652,20 +1648,20 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 	{
 		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", path.c_str(), shortPath);
 
-		if (log.fileSearch)
+		if (logging.fileSearch)
 			Logf("File exists? %s (", foundFilePathOut);
 
 		if (fileExists(foundFilePathOut))
 		{
-			if (log.fileSearch)
+			if (logging.fileSearch)
 				Log("yes)\n");
 			return true;
 		}
-		if (log.fileSearch)
+		if (logging.fileSearch)
 			Log("no)\n");
 	}
 
-	if (log.fileSearch)
+	if (logging.fileSearch)
 		Logf("> Not found: %s\n", shortPath);
 
 	return false;

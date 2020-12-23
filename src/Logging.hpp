@@ -25,4 +25,4 @@ struct LoggingSettings
 	bool strictIncludes;
 };
 
-extern LoggingSettings log;
+extern LoggingSettings logging;

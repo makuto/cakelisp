@@ -2,10 +2,10 @@
 ## Compilation
 ##
 
-C++ = clang++ ;
-LINK = clang++ ;
-# C++ = g++ ;
-# LINK = g++ ;
+# C++ = clang++ ;
+# LINK = clang++ ;
+C++ = g++ ;
+LINK = g++ ;
 
 if $(UNIX)      { SUFSHR = .so ; }
 else if $(NT)   { SUFSHR = .dll ; }

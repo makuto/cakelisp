@@ -57,7 +57,7 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
 {
 #ifdef UNIX
-	if (log.processes)
+	if (logging.processes)
 	{
 		Log("RunProcess command: ");
 		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
@@ -122,7 +122,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 				goto childProcessFailed;
 			}
 
-			if (log.processes)
+			if (logging.processes)
 				Logf("Set working directory to %s\n", arguments.workingDir);
 		}
 
@@ -143,7 +143,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		// Only read
 		close(pipeFileDescriptors[PipeWrite]);
 
-		if (log.processes)
+		if (logging.processes)
 			Logf("Created child process %d\n", pid);
 
 		std::string command = "";

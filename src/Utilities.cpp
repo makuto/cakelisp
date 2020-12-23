@@ -23,7 +23,7 @@ FILE* fileOpen(const char* filename, const char* mode)
 	}
 	else
 	{
-		if (log.fileSystem)
+		if (logging.fileSystem)
 			Logf("Opened %s\n", filename);
 	}
 	return file;

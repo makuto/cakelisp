@@ -25,14 +25,14 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 	if (!oldFile)
 	{
 		// Write new and remove temp
-		if (log.fileSystem)
+		if (logging.fileSystem)
 			Log("Destination file didn't exist. Writing\n");
 
 		return moveFile(tempFilename, outputFilename);
 	}
 	else
 	{
-		if (log.fileSystem)
+		if (logging.fileSystem)
 			Log("Destination file exists. Comparing\n");
 
 		char newBuffer[1024] = {0};
@@ -58,7 +58,7 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 
 		if (identical)
 		{
-			if (log.fileSystem)
+			if (logging.fileSystem)
 				Log("Files are identical. Skipping\n");
 
 			fclose(newFile);
@@ -71,7 +71,7 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 			return true;
 		}
 
-		if (log.fileSystem)
+		if (logging.fileSystem)
 			Log("File changed. writing\n");
 
 		fclose(newFile);
@@ -110,8 +110,7 @@ static NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
 		if (!hasWarned && mode == NameStyleMode_PascalCase)
 		{
 			hasWarned = true;
-			Log(
-			    "\nWarning: Use of PascalCase for type names is discouraged because it will "
+			Log("\nWarning: Use of PascalCase for type names is discouraged because it will "
 			    "destroy lowercase C type names. You should use PascalCaseIfPlural instead, which "
 			    "will only apply case changes if the name looks lisp-y. This warning will only "
 			    "appear once.\n");
@@ -307,7 +306,7 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 		if (!operation.output.empty() && false)
 		{
 			Logf("%s \t%d\tline %d\n", operation.output.c_str(), outputState.numCharsOutput + 1,
-			       outputState.currentLine + 1);
+			     outputState.currentLine + 1);
 		}
 
 		if (operation.modifiers == StringOutMod_Splice)
@@ -349,11 +348,7 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		// To determine if anything was actually written
 		StringOutputState stateBeforeOutputWrite;
 		char tempFilename[MAX_PATH_LENGTH];
-	} outputs[] = {{/*isHeader=*/false,
-	                outputSettings.sourceOutputName,
-	                {},
-	                {},
-	                {0}},
+	} outputs[] = {{/*isHeader=*/false, outputSettings.sourceOutputName, {}, {}, {0}},
 	               {
 	                   /*isHeader=*/true,
 	                   outputSettings.headerOutputName,
@@ -405,7 +400,7 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		if (outputs[i].outputState.numCharsOutput ==
 		    outputs[i].stateBeforeOutputWrite.numCharsOutput)
 		{
-			if (log.fileSystem)
+			if (logging.fileSystem)
 				Logf("%s had no meaningful output\n", outputs[i].tempFilename);
 
 			fclose(outputs[i].outputState.fileOut);
@@ -460,14 +455,13 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
 		return false;
 
 	// TODO: Write mapping and metadata
-	if (log.metadata)
+	if (logging.metadata)
 	{
 		// Metadata
 		Log("\n\tImports:\n");
 		for (const ImportMetadata& import : generatedOutput.imports)
 		{
-			Logf("%s\t(%s)\n", import.importName.c_str(),
-			       importLanguageToString(import.language));
+			Logf("%s\t(%s)\n", import.importName.c_str(), importLanguageToString(import.language));
 		}
 
 		Log("\n\tFunctions:\n");
