@@ -1,7 +1,7 @@
 (c-import "<stdio.h>"
         ;; realpath
         "<stdlib.h>")
-
+(add-cakelisp-search-directory "runtime")
 (import &comptime-only "Macros.cake")
 
 (defun main (&return int)

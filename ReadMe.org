@@ -10,15 +10,6 @@ It is a transpiler which generates C/C++ from a Lisp dialect.
 
 You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction to Cakelisp]] and check out the [[https://news.ycombinator.com/item?id=25491568][Hacker News announcement thread]].
 
-* Terms
-Cakelisp is copyright (C) 2020 Macoy Madson ~<macoy@macoy.me>~.
-
-Licensed under ~GPL-3.0-or-later~, with added [[https://www.gnu.org/licenses/gpl-faq.en.html#LinkingOverControlledInterface][Linking Over Controlled Interface]] exception.
-~runtime/~ is licensed under MIT License.
-
-Please see [[file:doc/Legal.org][doc/Legal.org]] for a detailed explanation.
-
-Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your use-case.
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
 - *The performance of C:* No heavyweight runtime, boxing/unboxing overhead, etc.
@@ -33,6 +24,15 @@ Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your us
 For more advantages, see [[file:doc/NeatUses.org][doc/NeatUses.org]].
 
 Some of these features come naturally from using C as the backend. Eventually it would be cool to not have to generate C (e.g. generate LLVM bytecode instead), but that can a project for another time.
+* Terms
+Cakelisp is copyright (C) 2020 Macoy Madson ~<macoy@macoy.me>~.
+
+Licensed under ~GPL-3.0-or-later~, with added [[https://www.gnu.org/licenses/gpl-faq.en.html#LinkingOverControlledInterface][Linking Over Controlled Interface]] exception.
+~runtime/~ is licensed under MIT License.
+
+Please see [[file:doc/Legal.org][doc/Legal.org]] for a detailed explanation.
+
+Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your use-case.
 * Building Cakelisp itself
 /Note:/ Windows support is a work-in-progress.
 
@@ -88,6 +88,10 @@ Generators keep track of when they require C++ support and will add that require
 Hot-reloading won't work with features like templates or class member functions. This is partially a constraint imposed by dynamic loading, which has to be able to find the symbol. C++ name mangling makes that much more complicated, and compiler-dependent.
 
 I'm personally fine with this limitation because I would like to move more towards an Only C environment anyway. This might be evident when reading Cakelisp's source code: I don't use ~class~, define new templates, or define struct/class member functions, but I do rely on some C++ standard library containers and ~&~ references.
+* Learning Cakelisp
+Check out [[file:doc/Cakelisp.org][doc/Cakelisp.org]] for a detailed explanation of the Cakelisp language and build system.
+
+Explore ~test/~ and ~runtime/~ for examples of Cakelisp code. [[https://macoy.me/code/macoy/gamelib][GameLib]] is a collection of modules built for making games in Cakelisp. Check both ~src/~ and ~test/~ in GameLib for more extensive code examples.
 * Tooling support
 ** Emacs
 Open ~.cake~ files in ~lisp-mode~:

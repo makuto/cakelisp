@@ -41,4 +41,4 @@ From a high level:
 ** Things which are *not* permitted
 - Releasing a proprietary game/software project which ships any of Cakelisp, *excluding* ~runtime/~, without also releasing the source code of that project
 - Distributing modified versions of Cakelisp without also releasing the full modified source code
-- i.e., you must follow ~GPL-3.0-or-later~ if you actually "ship" any Cakelisp code
+- i.e., you must follow ~GPL-3.0-or-later~ if you actually "ship" any of Cakelisp's code, especially the files in ~src/~
