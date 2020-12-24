@@ -42,7 +42,8 @@ struct Module
 	ProcessCommand compileTimeLinkCommand;
 
 	ProcessCommand buildTimeBuildCommand;
-	ProcessCommand buildTimeLinkCommand;
+	// This doesn't really make sense
+	// ProcessCommand buildTimeLinkCommand;
 
 	std::vector<ModulePreBuildHook> preBuildHooks;
 };

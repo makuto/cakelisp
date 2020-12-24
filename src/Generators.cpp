@@ -260,9 +260,10 @@ bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& 
 	     SetProcessCommandFileToExec},
 	    {"build-time-compile-arguments", &context.module->buildTimeBuildCommand,
 	     SetProcessCommandArguments},
-	    {"build-time-linker", &context.module->buildTimeLinkCommand, SetProcessCommandFileToExec},
-	    {"build-time-link-arguments", &context.module->buildTimeLinkCommand,
-	     SetProcessCommandArguments},
+		// Doesn't really make sense
+	    // {"build-time-linker", &context.module->buildTimeLinkCommand, SetProcessCommandFileToExec},
+	    // {"build-time-link-arguments", &context.module->buildTimeLinkCommand,
+	     // SetProcessCommandArguments},
 	};
 
 	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
@@ -274,7 +275,8 @@ bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& 
 		}
 	}
 
-	return true;
+	ErrorAtToken(tokens[optionNameIndex], "unrecognized option");
+	return false;
 }
 
 bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,

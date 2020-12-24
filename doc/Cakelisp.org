@@ -322,6 +322,8 @@ Additionally, the ~Expect~ functions are quick ways to validate your inputs. The
 * Build system
 Cakelisp's build system is powerful enough at this point to serve as a general-purpose C/C++ build system, even if you aren't using Cakelisp for any runtime code.
 
+Basic projects don't need any build customization at all. Cakelisp uses its module system to automatically determine how to link ~.cake~ files together and build them.
+** Example: Bootstrap
 For example, Cakelisp itself consists of C++ code. [[file:../Bootstrap.cake][Bootstrap.cake]] builds Cakelisp, and serves as a good demonstration of the build system. I'll explain it here.
 
 #+BEGIN_SRC lisp
@@ -359,9 +361,22 @@ If ~global~ is specified instead, all modules and build dependencies would inclu
  "Main.cpp")
 #+END_SRC
 
+When the build system reaches this module, it should also build the files in this list. This mechanism allows you to use Cakelisp as a build system for pure C/C++ projects, and makes it easier to integrate Cakelisp in projects which are partially C/C++.
+
+These dependencies will be built with the same compilation command as the module. They will be built in the cache along with the Cakelisp-generated files, and will have all the same cache-validity checks as Cakelisp-generated files.
+
 #+BEGIN_SRC lisp
 (add-build-options "-DUNIX")
 #+END_SRC
+
+Add an argument to the compilation command. In this case, we need to specify an operating system so that the correct system calls are used.
+
+You can specify multiple options. For example, we could set a debug build with warnings as errors like so:
+#+BEGIN_SRC lisp
+(add-build-options "-g" "-Werror")
+#+END_SRC
+
+These options are appended to the default or module-overridden build command.
 
 #+BEGIN_SRC lisp
 (defun-comptime cakelisp-link-hook (manager (& ModuleManager)
@@ -382,17 +397,92 @@ If ~global~ is specified instead, all modules and build dependencies would inclu
 (add-compile-time-hook pre-link cakelisp-link-hook)
 #+END_SRC
 
+Before linking, we need to add some flags to the linker. We use a ~hook~ to give us a chance to do so. ~(add-compile-time-hook pre-link cakelisp-link-hook)~ adds the hook, then ~cakelisp-link-hook~ is invoked before link time.
+
+/Note:/ An easier way to specify Link arguments is on the roadmap. They will resemble ~add-build-options~.
+
 #+BEGIN_SRC lisp
 ;; Use separate build configuration in case other things build files from src/
 (add-build-config-label "Bootstrap")
 #+END_SRC
+
+This configuration label ensures Cakelisp itself doesn't get affected by your runtime programs. It does this by using a separate folder in the cache.
+
+** Build commands
+The environment comes with default commands. Build commands can be overridden to whatever process you choose, with the structure you choose. For example, the linker can be changed like so:
+
+#+BEGIN_SRC lisp
+(set-cakelisp-option build-time-linker "/usr/bin/g++")
+(set-cakelisp-option build-time-link-arguments
+                     "-o" 'executable-output 'object-input
+                     "-ldl" "-lpthread" "-Wl,-rpath,.,--export-dynamic")
+#+END_SRC
+~'executable-output~ and ~'object-input~ determine slots where the build system will insert arguments specified dynamically, or from other Cakelisp invocations.
+
+The compiler command has more of these slots:
+- ~'source-input~: Created by Cakelisp, e.g. ~cakelisp_cache/default/Generated.cake.cpp~
+- ~'object-output~: Created by Cakelisp, e.g. ~cakelisp_cache/default/Generated.cake.cpp.o~
+- ~'include-search-dirs~: Constructed from ~add-c-search-directory~ - a combination of ~global~ and ~module~ search directories. ~module~ search directories are searched first
+- ~'additional-options~: The list of options from ~add-build-options~
+
+The following commands can be overridden:
+- ~compile-time-compiler~
+- ~compile-time-compile-arguments~
+- ~compile-time-linker~
+- ~compile-time-link-arguments~
+- ~build-time-compiler~
+- ~build-time-compile-arguments~
+- ~build-time-linker~
+- ~build-time-link-arguments~
+
+You want ~compile-time-compiler~ to match the platform of the system which is running Cakelisp. You can set ~build-time-compiler~ to match the /target/ platform, e.g. a cross-compiler.
+
+Using ~set-cakelisp-option~ overrides the global commands. ~set-module-option~ allows commands to be changed on a per-module basis.
+
+The following commands can be overridden per-module:
+- ~build-time-compiler~
+- ~build-time-compile-arguments~
+** Build configurations
+Build configurations allow you to easily manage multiple different versions of a program or collection of programs while still utilizing the Cakelisp cache. They could be different based on target platform, compilation settings, etc.
+
+Build configurations are constructed "lazily", meaning all you need to do to create a new configuration is make the necessary changes to the environment and add a unique label.
+
+For example, a build configuration ~Debug-HotReloadable~ could be constructed via:
+- Overriding the build command via ~(set-cakelisp-option build-time-compile-arguments ...)~, adding debug flags. ~(add-build-config-label "Debug")~ and that's all needed to create the Debug configuration
+- Importing ~HotReloadingCodeModifier.cake~, which adds ~(add-build-config-label "HotReloadable")~. This is important because hot-reloadable builds are different from regular builds - they expect their variables to be initialized by the loader, and a dynamically linked library is created instead of a standalone executable
+
+This gives the user the ability to make their configurations as complex as they want, without having to face any additional/introductory complexity. For example, we could add processor architecture, operating system, and C standard library selections to our configurations, if necessary. A/B comparisons between runtime performance could also be done easily, just by adding a label to the alternate. If you are just writing a quick one-off script, you need not worry about configurations at all.
+
+Because all options must be provided in Cakelisp files, it encourages composable configurations. For example, we could take the ~Debug~ configuration from above and put it in ~Config_Debug.cake~, then import it and build the program via ~cakelisp Config_Debug.cake MyProgram.cake~.
 
 ** Cache validity
 The C/C++ compilation time dominates the total time from ~.cake~ to executable. In order to minimize this, Cakelisp maintains a cache of previously built "artifacts" and reuses them when possible.
 
 It is critical that the cache does not become stale. To the developer, a stale cache results in confusion, because the developer might have made a change but does not see the change reflected in the output. Cakelisp's build system errs on the side of caution at the cost of build time performance to ensure this doesn't occur.
 
+If things are being rebuilt unnecessarily, add the option ~--verbose-build-reasons~. This will tell you why Cakelisp thinks it may be holding a stale artifact.
+
+If you are building several different executables/libraries, you may need to separate them into different build configurations via ~add-build-config-label~, because these targets may be building the the same artifact differently. Each build configuration is stored separately.
+
 The following things are checked before a cached artifact is used (not all are relevant to all types of artifacts):
 *** Command signature
+When a compile command changes from e.g. ~g++~ to ~clang++~, all affected files will be recompiled. The entire command is checked, so adding additional warnings, search directories, etc. will invalidate cache files, because these could change what gets built.
 *** Modification time
+If e.g. a ~.cpp~ source file is more recently modified than it's cached ~.o~, the ~.o~ file will be invalid, and the source file will be rebuilt.
+
+If any ~.o~ files are newer, the executable/library will be re-linked.
+
+Note that the build system only inspects /generated/ ~.cake.cpp~ files, not ~.cake~ files themselves. This gives you the freedom to add comments, reformat whitespace, etc. without causing rebuilds. If you /do/ want to force a rebuild of a single file for whatever reason, ~touch~ or delete the corresponding generated ~.cake.cpp~ file in the cache.
 *** Includes modification times
+It is essential to recursively scan the ~#include~ files of all source files to determine if any of the headers have been modified, because changing them could require a rebuild. For example, if you change the size or order of a struct declared in a header, all source files which include that header now need updated sizeof calls.
+
+This is somewhat complex and expensive, but must be done every time a build is run, just in case headers change.
+
+If this step was skipped, it opens the door to very frustrating bugs involving stale builds and mismatched
+headers, which usually result in strange segmentation faults and other crashes.
+
+It does have some nice properties: if you update a 3rd-party library, Cakelisp will automatically determine which files need to be rebuilt based on which headers in that library changed.
+** Building "clean"
+If you want to test a clean build, i.e. one which does not use any existing artifacts, you can do either of the following:
+- Delete the ~cakelisp_cache~ directory in the same working directory you have been executing ~cakelisp~
+- Pass the ~--ignore-cache~ argument, which will cause all artifacts to be marked stale and invalid
