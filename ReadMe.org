@@ -10,6 +10,10 @@ It is a transpiler which generates C/C++ from a Lisp dialect.
 
 You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction to Cakelisp]] and check out the [[https://news.ycombinator.com/item?id=25491568][Hacker News announcement thread]].
 
+* Terms
+Cakelisp is copyright (C) 2020 Macoy Madson ~<macoy@macoy.me>~.
+
+Licensed under ~GPL-3.0-or-later~. Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your use-case.
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
 - *The performance of C:* No heavyweight runtime, boxing/unboxing overhead, etc.
