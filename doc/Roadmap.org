@@ -1,0 +1,227 @@
+#+title: Roadmap
+
+None of this is set in stone. Some features will prove to be more or less valuable over time, so I'd like to stay nimble.
+
+Most of these are only a few hours of work. Cakelisp is still at a really fun point in development that way. If you see something on this list which is a deal-breaker, realize that it's not a big ask to have it moved up in priority.
+
+Additionally, this list emphasizes what Cakelisp /doesn't/ have, but there are quite a few things Cakelisp /does/ have, which might not be apparent if you only look here.
+
+If you want to help out, please contact me! Email ~macoy [at] macoy [dot] me~.
+
+* Build system
+Cakelisp's build system is powerful enough at this point to serve as a general-purpose C/C++ build system, even if you aren't using Cakelisp for any runtime code. It makes sense to me to invest more time into it, because faster setup and faster builds directly translate to happier developers.
+** Precompiled headers
+Compile-time code execution on clean builds is a big drag on build performance. I found I could get at least 60% faster via precompiling ~Evaluator.hpp~. That amount of speedup is absolutely worth going after.
+
+I plan on supporting precompiled headers for the user's runtime code as well. Here are timings for speeding up modules which include ~Ogre~ headers (lower numbers are better):
+
+| Method                   | First build   | Second build  | Subsequent builds |
+|--------------------------+---------------+---------------+-------------------|
+| No PCH                   | 1.4s (1.0x)   | 1.4s (1.0x)   | 1.4s (1.0x)       |
+| PCH                      | 2.35s (1.68x) | 0.6s (0.43x)  | 0.6s (0.43x)      |
+| PCH only on second build | 1.4s (1.0x)   | 2.35s (1.68x) | 0.6s (0.43x)      |
+
+As you can see, the gains are significant. I would consider this a reasonable test case for larger projects, because including Ogre headers causes scanning of 200-300 headers, which amounts to thousands of lines of code to work through.
+
+The syntax will be opt-in because it does make first/clean build times longer. Example syntax:
+#+BEGIN_SRC lisp
+  (c-import &precompile
+            "OgreItem.h"
+            "OgreMesh.h"
+            "OgreMesh2.h"
+            "OgreMeshManager.h"
+            "OgreMeshManager2.h"
+            "OgreRoot.h"
+            "OgreSceneManager.h"
+            "OgreWindowEventUtilities.h")
+#+END_SRC
+All of those header files will be grouped into one header, then that header will be precompiled. Any other modules which share the same header group will also use the same precompiled header.
+
+Another stage will be added to the build system which will check all headers for modifications, and build/rebuild the precompiled header if necessary. For 3rd party dependencies, PCH builds should only occur when you update the dependency (or create a new build configuration).
+** External process execution
+It should be easy to run external dependencies' build systems within a Cakelisp build phase. For example, I want to be able to lazily build Ogre during the ~pre-build~ hook of my game. Ogre requires CMake and ninja to build. Utilizing the ~RunProcess~ and file system code should make this straightforward.
+** General-purpose dependency system
+I would like to build my game assets using Cakelisp's build system.
+
+For example, Blender ~.blend~ files need to be exported to ~.mesh~ files in order to be loaded into the game. Many of Cakelisp's build system features facilitate this type of operation.
+
+The general-purpose system will let the user define relevant files and the conditions required to used cached versions. The build system will be able to call external processes to handle the conversions. The initial version can be specific to the task and rely mostly on existing tech.
+** Compile-time build update
+Several of the features of the runtime build system are not supported on compile-time code yet:
+- CRC-based command change checking
+- Header include scanning
+- Build configurations
+
+These are all useful to ensure compile-time code does not get out-of-sync with Cakelisp, and to make it easy to change compile-time configurations (e.g. switching from ~debug~ to ~optimized~).
+** /Stretch/ Distributed builds
+Tools like Incredibuild and ~distcc~ are neat. If a contributer wants to get after it, they should feel free to work on making Cakelisp have deep distributed build support. I'm not going to consider it high-priority personally.
+
+For example, you could have one of your computers with spare cycles run ~cakelisp --build-slave <master-ip>~, then the master or clients could delegate compiling of artifacts to any build slaves on the network.
+
+Ideally, this wouldn't require any 3rd-party dependencies. It's made trickier by the requirement that build slaves should be able to cross-compile things for the master/client architecture, which might not match the slave architecture.
+* Language
+** Conditionals based on build configuration
+It is useful to be able to define blocks of code which are e.g. operating-system specific, e.g. something like:
+#+BEGIN_SRC lisp
+  (defun file-exists ()
+   (comptime-when 'Unix (return (!= -1 (access filename F_OK))))
+   (comptime-when 'Windows (return (windows-code-here))))
+#+END_SRC
+
+I don't have an idea what the cleanest, easiest, and reasonably flexible solution is yet.
+** Classes with member functions
+While I have been focusing on a C-style implementation that doesn't emphasize member function usage, defining classses with member functions is an essential feature for interfacing with 3rd party libraries. For example, Ogre requires it for window callbacks:
+#+BEGIN_SRC C++
+static bool g_ogre_window_should_quit = false;
+
+class MyWindowEventListener : public Ogre::WindowEventListener
+{
+public:
+	virtual void windowClosed(Ogre::Window* window)
+	{
+		printf("Window closed!\n");
+		g_ogre_window_should_quit = true;
+	}
+};
+#+END_SRC
+
+It needs to be possible to declare this style of thing in Cakelisp. The syntax does not need to resemble the structure of this C++, but it shouldn't be novel for no reason either.
+** Pure-C output
+It should be possible to output only C for most of the features. Language features which require C++ can throw an error if used in these strict contexts.
+
+It needs to be possible to mix strict C and C++ modules, because it's unlikely to have a project that can stay completely in C.
+** Compile-time function imports
+Currently, defining which headers to include from compile-time functions is not possible. This is important to support complex compile-time code bases spread across multiple functions and headers. It's also necessary to be able to include Cakelisp headers optionally, so compile-time functions can help macros/generators/etc.
+
+This shouldn't be a hard add, but it is tricky to decide where import list should go: within each function, at the module level, both of those, etc.
+** ~defer~ support
+This one is going to be a bit tricky, because scopes are going to need to be tracked. I think it's a really nice to have feature, but one of the harder, more error-prone ones.
+
+I don't want to just use C++ destructors because I want a pure-C option.
+** ~for~ loop
+In GameLib, almost all loops would be fine with a number range, e.g. here are some ideas:
+#+BEGIN_SRC lisp
+;; Current pattern:
+(var i int 0)
+(while (< i buffer-size)
+  (fprintf dest-file "%d %d\n" i (at i buffer))
+  (incr i)))
+
+;; Replace with
+(each-range (buffer-size) ;; Starts at 0 and defines 'it' as the iterator
+    (fprintf dest-file "%d %d\n" it (at it buffer)))
+;; Automatically name the iterator, unless one is provided:
+(each-range (:iter i int buffer-size)
+    (fprintf dest-file "%d %d\n" i (at i buffer)))
+;; Custom range
+(each-range (weird-start buffer-size)
+    (fprintf dest-file "%d %d\n" it (at it buffer)))
+(each-range (:iter i int weird-start buffer-size)
+    (fprintf dest-file "%d %d\n" i (at i buffer)))
+;; Reversing?
+(each-range (:iter i int weird-start buffer-size :reverse)
+    (fprintf dest-file "%d %d\n" i (at i buffer)))
+;; Custom increments
+(each-range (:iter i int weird-start buffer-size :incr 4)
+    (fprintf dest-file "%d %d\n" i (at i buffer)))
+
+;; Pointer types, end as an expression
+;; This is a little bit too clunky for this construct
+(each-range (:iter c (* char) buffer (- (+ buffer (array-size buffer)) 1))
+  (printf "Char is '%c'\n" (deref c)))
+#+END_SRC
+
+I'm open to input on the topic. I'm not sure I want to take much from ~dolist~ and such.
+** Auto-symbols
+I want to be able to define symbols like lisp, e.g. ~(var state int 'Start-State)~, without having to define ~'Start-State~ first (in an enum, for example).
+
+There are several different ways this could work. My first thought is CRC the symbol string, that way they can be CRC'd at runtime (important for serialization). This would require some tracking to ensure collisions get handled appropriately.
+** Imports: Option to import includes inside the import? (or, module auto-export system)
+
+e.g. ~(import &recursive "SDL.cake")~ would add SDL headers
+Rather than making the user care, have it as an import like so:
+#+BEGIN_SRC lisp
+;; Module
+(c-import &export "SDL.h")
+;; Importer
+(import "SDL.cake")
+#+END_SRC
+
+What about build options, e.g. how do I also add ~-IDependencies/SDL/include~?
+#+BEGIN_SRC lisp
+  (export-append-build-module-arguments "-IDependencies/SDL/include")
+#+END_SRC
+
+What if it was instead whole code blocks exported?
+#+BEGIN_SRC lisp
+(export
+ (c-import "SDL.h")
+ (append-build-module-arguments "-IDependencies/SDL/include"))
+
+;; And if I want to run it as well?
+(evaluate-and-export
+ (c-import "SDL.h")
+ (append-build-module-arguments "-IDependencies/SDL/include"))
+
+;; Make sure it's at the top
+(evaluate-and-export &source-heading
+ (c-import "SDL.h")
+ ;; Allow mode changes? Probably too complicated to be worth; use a different block instead
+ ;; &source-footer
+ (append-build-module-arguments "-IDependencies/SDL/include"))
+#+END_SRC
+
+Essentially, "run this block of code in the importer's module context".
+
+Tricky part: Where should it output? Let the user decide from
+- ~&source-heading~: Normal place for ~#include~
+- ~&source-footer~: Dumping ground for functions/etc., good way to limit scope and keep things out of the way of debugging/reading output
+- ~&header-heading~: ~#include~ for exported types, etc.
+- ~&header-footer~: Any other exported things
+
+Other ways to write it:
+- ~&source-heading~
+- ~:source-heading~
+- ~&to-source-heading~
+- ~:to-source-heading~
+- ~:to-defs-heading~
+- ~:to-decls-heading~
+** Function definition within other functions
+I want to be able to do this:
+#+BEGIN_SRC lisp
+(defun example ()
+ (defun helper () (printf "Helped!\n"))
+ (helper))
+#+END_SRC
+I don't want to rely on C++ lambdas because that removes C support of this feature.
+
+It may be defining that function automatically moves its actual definition to above the function it's in, then renames it to ensure it's only used local to that function.
+** Missing C/C++ features
+- ~switch~. While ~cond~ is nice, it's probably a good idea to generate actual ~switch~ statements for performance reasons
+- ~enum~. This should be quick
+- ~enum~ for flags, i.e. automatically make each subsequent field ~1 << field index~
+- ~struct~ packing and padding specification
+** Order agnostic definitions
+Module-local variables, type definitions, and module-local functions should be order-agnostic, e.g. you can declare the main function above all its helpers, without having to forward declare the helpers. (To be clear, anything /within/ a function body or structure definition shall /not/ be order agnostic). This greatly helps readability of code by letting the programmer order based on relevance.
+
+The easiest solution to this is likely to rely on the ~ObjectReference~ list to find dependencies, then automatically forward-declare dependencies right before the function body. Variables may need to be moved around, which could be trickier.
+* Tooling
+** GitHub syntax highlighting
+The ~.cake~ files look really terrible in GitHub. For comparison, check them out on [[https://macoy.me/code/macoy/cakelisp/src/branch/master/runtime/TextAdventure.cake][my site]], where it just magically works.
+
+This will be important to leave a good impression of Cakelisp, because if the highlighting is wrong, it's much harder to pay attention to the code.
+** Mapping system
+When I was starting out I had the idea to generate ~.cake<=>.cpp~ mapping files. These would be useful for several things:
+- Jump from C++ error to Cakelisp code which caused the error (this would be the biggest immediate usability improvement from this feature)
+- Debuggers could show you the C++ line you are on as well as the Cakelisp line which generated it, giving you line-by-line debugging in Cakelisp
+- Jump to generated definition and back, for reading code and seeing where things end up
+
+After adding macros and code modification, it is going to be much trickier to implement these successfully. Something like "poison" or lineage of tokens as they go through multiple modifiers/macros may need to be recorded.
+** Language Server Protocol (LSP) support
+Someone expressed interest in this feature. I'm going to consider it *Help Wanted* because it's low on my list.
+** Emacs indentation fix
+Emacs' SLIME/Lisp modes get confused by some of my forms, especially function arguments.
+
+I need to turn off most of the special indentation rules.
+** ETags/CTags support
+Mostly listing this because it's what I use (LSP is a bit too heavyweight for my tastes). I think this only requires a few regexes to be written which cover the important Cakelisp definition signatures.

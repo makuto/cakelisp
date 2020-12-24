@@ -19,6 +19,7 @@ The following I believe have little or no activity, implying they are no longer 
 - [[https://github.com/tomhrr/dale][Dale]]: "Lisp-flavoured C". Hasn't been touched in over two years
 - [[https://github.com/wolfgangj/bone-lisp][Bone Lisp]]: Lisp with no GC. Creator has abandoned it, but it still gets some attention
 - [[https://github.com/ska80/thinlisp][Thinlisp]]: No GC option available. Write your stuff in CL using the cushy SBCL environment, then compile down to C for good performance
+- [[https://gitlab.com/count.j0ecool/shiv][Shiv]]: Notably has a non-S-expr wrapper that still gets tokenized into S-exprs
 
 Additional related works:
 - [[https://github.com/eudoxia0/cmacro][CMacro]]: "Lisp macros for C"
@@ -30,7 +31,8 @@ The most similar thing to Cakelisp is [[https://github.com/kiselgra/c-mera][C-me
 - Powerful mapping file for debugging, error reporting, etc. on the source code, not just the generated code
 - Scope-aware generators. You can make the same generator work in multiple contexts (at module vs. body vs. expression scopes)
 - Intended to support more than "just" code generation, e.g. code to support hot-reloading and runtime type information will be created
-- I will likely add some global environment that will be modifiable by any modules in the project. This is useful for things like automatic "command" function generation with project-wide scope
+- /DONE/ I will likely add some global environment that will be modifiable by any modules in the project. This is useful for things like automatic "command" function generation with project-wide scope
+- Built-in build system can manage entire project build process
 
 Features C-mera has that Cakelisp doesn't:
 - Access to Common Lisp macros, which is a huge swath of useful code generators
@@ -50,3 +52,8 @@ This is good and bad: the advantages of writing it in C/C++ are:
 The bad things:
 - There's no macro-writing library to draw from (macros which help write macros)
 - Like previously mentioned, macros and generators need to be converted to C/C++ and compiled by an external compiler to be executed, whereas Common Lisp would make this whole process much easier by natively supporting macro code generation and evaluation
+
+* Other languages of interest
+- Jai: [[https://www.youtube.com/user/jblow888][Jonathan Blow's talks on Jai]] have been a source of ideas and inspiration to continue
+- [[https://github.com/vlang/v][V]]: Cakelisp has different goals, but V acts as another reference for how fast things should be, and how easy they should be to set up. I agree with their assessment of the validity of [[https://github.com/vlang/v/wiki/On-the-benefits-of-using-C-as-a-language-backend][using C as a backend]] instead of native code generation
+- [[https://github.com/ziglang/zig][Zig]]: I'm primarily interested in the ease of cross-compiling which Zig provides, plus [[https://github.com/andrewrk][Andrew]] seems like a good guy

@@ -92,9 +92,16 @@ This function will become the following C code:
 
 The function's signature will also be added to the header file so that it can be called by other Cakelisp modules as well as external C/C++ code.
 * Variables
-- global
-- static
-- local
+The following invocations will declare variables:
+- ~var~: Module- or body-scope local. This is the most-used variable type
+- ~global-var~: Only valid in module-scope. Defines a variable accessible to any module which imports the module with the definition
+- ~static-var~: Only valid within functions. Defines a ~static~ variable, i.e. a variable which holds its value even after the function's stack frame is popped
+
+Use ~set~ to modify variables:
+#+BEGIN_SRC lisp
+(var the-answer int 0)
+(set the-answer 42)
+#+END_SRC
 * Type aliases
 Aliases can be created for types. Internally, this uses ~typedef~. For example:
 #+BEGIN_SRC lisp
@@ -134,13 +141,131 @@ If you wanted to define a function pointer which could point to ~int main(int nu
 #+END_SRC
 
 * Expressions and Statements
+Use the argument ~--list-built-ins~ to see an up-to-date list of all possible expressions and statements.
+** Special symbols
+- ~null~: Does the language-correct thing for ~null~, e.g. ~nullptr~ in C++ and ~NULL~ in C. This is the only thing in Cakelisp which does something outside generated code but is not an invocation (i.e. doesn't require parentheses)
+- ~true~ and ~false~ are processed as regular symbols
+** Control flow, conditionals
+- ~while~:
+- ~for-in~:
+- ~continue~:
+- ~break~:
+- ~return~:
+- ~if~
+- ~cond~
+- ~when~:
+- ~unless~:
+- ~array~: Used for initializer lists, e.g. ~(var my-array ([] int) (array 1 2 3))~. Without arguments, equals the default initializer, e.g. ~(array)~ becomes ~{}~ in generated code
+- ~set~: Sets a variable to a value, e.g. ~(set my-var 5)~ sets ~(var my-var int)~ to ~5~
+- ~block~: Defines a scope, where variables declared within it are limited to that scope
+- ~scope~: Alias of block, in case you want to be explicit. For example, creating a scope to reduce scope of variables vs. creating a block to have more than one statement in an ~(if)~ body
+- ~?~: Ternary operator. For example, the expression ~(? true 1 2)~ will return 1, whereas ~(? false 1 2)~ returns 2. Handy for when you don't want to use a full ~if~ statement, for example
+** Pointers, members
+- ~new~: Calls C++ ~new~ with the given type, e.g. ~(new (* char))~ will allocate memory for a pointer to a character
+- ~deref~: Return the value at the pointer's address
+- ~addr~: Take the address of a variable/member
+- ~field~: Access a struct/class member. For example, with struct ~(defstruct my-struct num int)~, and variable ~(var my-thing my-struct)~, access ~num~: ~(field my-thing num)~
+- ~on-call~: Call a member function. For example, if I have a variable ~my-bar~ of type ~Bar~ with member function ~do-thing~, I can call it like so: ~(on-call my-bar do-thing arg-1 arg-2)~
+- ~on-call-ptr~: Like ~on-call~, only it works on pointers, e.g. ~(var my-pointer-to-bar (* Bar) (addr a-bar))~, call its member: ~(on-call-ptr my-pointer-to-bar do-thing arg-1 arg-2)~. These can be nested as necessary
+- ~call~: Call the first argument as a function. For example, to call a static member function: ~(call (in my-class do-static-thing) arg-1 arg-2)~
+- ~in~: Scope resolution operator (~::~). Used for both namespaces and static member access. For e.g. ~(in SuperSpace SubSpace Thing)~ would generate ~SuperSpace::SubSpace::Thing~. ~in~ may be used within type signatures
+- ~type-cast~: Cast the variable to given type, e.g. ~(var actually-int (* void) (get-stored-var-pointer "my-int"))~ could become an int via ~(type-cast actually-int (* int))~
+- ~type~: Parse the first argument as a type. Types are a domain-specific language, so the evaluator needs to know when it should use that special evaluation mode
+** Logical expressions
+- ~not~: Inverts the boolean result of the argument. ~(not true)~ equals ~false~
+
+The following take any number of arguments:
+- ~or~:
+- ~and~:
+- ~=~:
+- ~!=~:
+- ~eq~: Alias of ~=~
+- ~neq~: Alias of ~!=~
+- ~<=~:
+- ~>=~:
+- ~<~:
+- ~>~:
+** Arithmetic
+The following operators take any number of arguments:
+- ~+~:
+- ~-~:
+- ~*~:
+- ~/~:
+- ~%~: Modulo operator. Returns the remainder of the division, e.g. ~(% 5 2)~ returns ~1~
+- ~mod~: Alias for ~%~
+
+The following modify the argument:
+- ~++~: Add 1 to the argument and set it
+- ~incr~: Alias for ~++~
+- ~--~: Subtract 1 from the argument and set it
+- ~decr~: Alias for ~--~
+** Bitwise
+- ~bit-or~:
+- ~bit-and~:
+- ~bit-xor~:
+- ~bit-ones-complement~:
+- ~bit-<<~: Left-shift. E.g. ~(bit-<< 1 1)~ shifts 1 to the left once, which in binary becomes ~10~, or 2 in decimal
+- ~bit->>~: Right-shift. E.g. ~(bit->> 2 1)~ shifts 2 to the right once, which in binary becomes ~1~, or 1 in decimal
 * Tokens
 Tokens are what Cakelisp becomes after the tokenizer processes the text. The Evaluator then reads Tokens in order to decide what to do. Only generators and macros interact with Tokens.
 
 Unlike Lisp, Tokens are stored in flat, resizable arrays. This helps with CPU cache locality while processing Tokens. It does mean, however, that there is no abstract syntax tree. Functions like ~getArgument()~ and ~FindCloseParenTokenIndex()~ help with interacting with these arrays.
 
 Once some text has been parsed into Tokens, the Token array should be kept around for the lifetime of the environment, and should not be resized. Other things in the Evaluator will refer to Tokens by pointers, so they must not be moved.
-* Macros
+* Compile-time code execution
+There are four major types of compile-time code execution:
+- *Macros:* Input is tokens, output is tokens
+- *Generators:* Input is Cakelisp tokens, output is C/C++ code. Generators output to both header (~.hpp~) and source files (~.cpp~). All built-ins are generators, though some generators don't output anything, and instead modify the environment in some way
+- *Hooks:* Cakelisp provides opportunities to run compile-time functions at various stages in the process. For example, the ~pre-link~ hook can be used to add link arguments. The ~post-references-resolved~ hook is when code modification and arbitrary code generation can occur.
+
+  Each hook has a required function signature. Cakelisp will helpfully output the signature it expected if you forget/make a mistake
+- *Compile-time functions:* Functions which can be called by other compile-time functions/generators/macros. Used to break up any of the three types above as desired. Declared via ~defun-comptime~, but otherwise are like ~defun~ declaration-wise
+** Destructuring signatures
+Macros and generators use a special syntax for their signatures. For example:
+#+BEGIN_SRC lisp
+  (defmacro get-or-create-comptime-var (bound-var-name (ref symbol) var-type (ref any)
+                                        &optional initializer-index (index any))
+    (return true))
+#+END_SRC
+Notice that the signature does not look like ~defun~ signatures. This is because under the hood, all macros and generators have the same signatures corresponding to their types. ~defmacro~ and ~defgenerator~ overload the second argument (the first argument after the name of the macro/generator) to "destructure" arguments from the tokens received.
+
+Let's go argument-by-argument for the above signature:
+- ~bound-var-name (ref symbol)~: A C++-style reference to a ~Token~ (~const Token&~) of type ~Symbol~ is required to run this macro. If the user passed in a ~String~, the macro would fail to be invoked. ~(ref)~ denotes a binding to a Token, while ~symbol~ determines the type of token we expect.
+- ~var-type (ref any)~: Like ~bound-var-name~, only this will take the second argument to the macro invocation, and it will accept any type of token. We use ~any~ here because types could start with ~(~ or be a single symbol
+- ~&optional initializer-index (index any)~: This time, we need the index into the array of tokens. There are a couple reasons to require an index binding. In this case, we cannot use ~(ref)~ because the argument is marked ~&optional~ (references cannot be made in C++ if they could be ~null~). If the argument is present, the ~any~ type means we don't need to perform token type checking. If the argument is omitted, the variable will be set to ~-1~
+
+If we do not specify ~(ref)~ nor ~(index)~, the implicit binding type is a pointer to a ~Token~, which is perfect for ~(token-splice)~. For example, we could say ~(bound-var-name symbol)~ to get a single argument of type ~symbol~ which is bound to a Token pointer.
+
+If you want to get an unlimited number of arguments, specify ~&rest~ before the final argument. The final argument will be the first of the rest of the arguments. Also specify ~&optional~ if you expect zero or more arguments.
+
+The available types to validate against are as follows:
+- ~any~: Do not validate the type. This is useful when your macro/generator accepts a variety of types, or needs to verify the type based on some condition specific to your use-case
+- ~string~: Accept only strings. Note that the ~contents~ of the token does not have ~"~ like the invocation does in text, e.g. ~(my-macro "A string")~ will set the bound var to a token with ~contents~ ~A String~
+- ~symbol~: Accept only symbols. Symbols are anything that isn't one of the other types (open/close parens, strings). This includes constants like ~4.f~, Symbols which aren't valid names, like ~*~, "special symbols" like ~'Thing~ or ~:thing~, etc.
+- ~array~: Expect a "list" of things, e.g. ~(1 2 3)~ or ~(my dsl-symbol (nested thing))~. This is called ~array~ becauses it is stored as a flat array, not a linked list or tree. You can use ~FindCloseParenTokenIndex()~ or ~FindTokenExpressionEnd()~ to find the final token in the array (the closing paren)
+
+Note that you have unlimited control over how you process the provided tokens array - the destructuring signature is provided only as syntactic sugar/convenience. If you have a macro/generator which has a signature which cannot be defined with destructuring (e.g. morphs types, number of arguments, etc. based on first argument), you can still implement it, but you will need to operate using the implicitly-provided ~tokens~ and ~startTokenIndex~ directly.
+
+Here's an invocation of that macro:
+#+BEGIN_SRC lisp
+(get-or-create-comptime-var modified-vars bool false)
+#+END_SRC
+
+The binding would result like so:
+- ~bound-var-name~ would hold a validated reference to token of type ~symbol~ with contents ~"modified-vars"~
+- ~var-type~ would hold a reference to token of type ~symbol~ with contents ~"bool"~
+- ~initializer-index~ would hold an index to a token equal to ~"false"~ , accessible via ~(at initializer-index tokens)~ (but the code should only perform that lookup if ~(!= -1 intializer-index)~)
+
+We could output a variable declaration like so:
+#+BEGIN_SRC lisp
+  (var (<> std::vector Token) initializer)
+  (when (!= -1 initializer-index)
+    (tokenize-push initializer (token-splice-addr (at initializer-index tokens))))
+  (tokenize-push output
+                 (var (token-splice-addr bound-var-name) (token-splice-addr var-type)
+                      (token-splice-array initializer)))
+#+END_SRC
+** Macros
 Macros are defined via ~defmacro~. The macro function signature is implicitly added by ~defmacro~. This means that any arguments passed to ~MacroFunc~ are in the scope of ~defmacro~. The signature is as follows:
 #+BEGIN_SRC C++
 typedef bool (*MacroFunc)(EvaluatorEnvironment& environment, const EvaluatorContext& context,
@@ -152,7 +277,7 @@ The purpose of macros is to take inputs from ~tokens~ starting at ~startTokenInd
 
 Macros must return ~true~ or ~false~ to denote whether the expansion was successful. The more validation a macro has early on, the fewer compilation errors the user will have to deal with if the macro output is erroneous.
 
-** ~tokenize-push~
+*** ~tokenize-push~
 ~tokenize-push~ is the main "quoting" function. The first argument is the output variable. ~output~ is passed in to ~defmacro~ automatically, but you can define other token arrays like so:
 #+BEGIN_SRC lisp
   (var my-tokens (<> std::vector Token))
@@ -175,7 +300,7 @@ The output would look like this:
 #+BEGIN_SRC lisp
 (defstruct my-struct a int b int)
 #+END_SRC
-* Generators
+** Generators
 Generators output C/C++ source code to both header and source files. All Cakelisp code eventually becomes generator invocations, because only C/C++ code can actually perform work. If this were a true machine-code compiler, you could imagine generators as functions which take language statements and turn them into machine code instructions. In Cakelisp's case, it turns them into C/C++ expressions.
 
 Generators are defined via ~defgenerator~. The generator function signature is implicitly added by ~defgenerator~. This means that any arguments passed to ~GeneratorFunc~ are in the scope of ~defgenerator~. The signature is as follows:
