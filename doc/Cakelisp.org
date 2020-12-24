@@ -71,6 +71,31 @@ The destination of imports may be specified:
 By default, ~&with-defs~ is specified.
 
 You shouldn't expect Cakelisp features to work with external C/C++ code. Features like hot-reloading or introspection aren't available to external code because Cakelisp does not parse any C/C++ headers. This doesn't mean you cannot call C/C++ code from a hot-reloaded Cakelisp function, it just means you cannot magically hot-reload the C/C++ code you're calling.
+* Types
+Types are identical to types in C, but specified in an S-expression notation. Here are some example C++ types and their corresponding Cakelisp:
+| C/C++                        | Cakelisp                            |
+|------------------------------+-------------------------------------|
+| ~int~                        | ~int~                               |
+| ~int*~                       | ~(* int)~                           |
+| ~const int*~                 | ~(* (const int))~                   |
+| ~const int* const~           | ~(const (* (const int)))~           |
+| ~int x[]~                    | ~([] int)~                          |
+| ~int x[5]~                   | ~([] 5 int)~                        |
+| ~int x[4][4]~                | ~([] 4 ([] 4 int))~                 |
+| ~int x[][4]~                 | ~([] ([] 4 int))~                   |
+| ~std::vector<int>~           | ~(<> std::vector int)~              |
+| ~std::map<std::string, int>~ | ~(<> std::map (in std string) int)~ |
+| ~int&~                       | ~(& int)~                           |
+| ~int&&~                      | ~(&& int)~                          |
+| ~int&&~                      | ~(rval-ref-to int)~                 |
+
+Note that C++ scope resolution operator can be used or ~in~ can be used. The latter is preferable.
+
+While this is more verbose than C types, they are much more easily parsed and constructed dynamically in this form.
+
+To read C types properly, you must [[http://unixwiz.net/techtips/reading-cdecl.html][work backwards from the name]] and apply several heuristics. The parentheses do add more typing, but they're more clear, machine-parseable, and can be read naturally (e.g. read left to right "pointer to constant character" vs. C's "constant character pointer", which seems worse in my mind).
+
+This form also handles arrays as part of the type: ~(var my-array ([] 5 int))~ rather than ~int myArray[5];~, another way it is more consistent, readable, and parsable.
 * Functions
 Functions are defined with ~defun~. ~defun~ provides some variants via different invocations:
 - ~defun~: Define a function which is intended to be public, i.e. exported in the header file
@@ -90,7 +115,11 @@ This function will become the following C code:
   }
 #+END_SRC
 
-The function's signature will also be added to the header file so that it can be called by other Cakelisp modules as well as external C/C++ code.
+The example function's signature will also be added to the header file so that it can be called by other Cakelisp modules as well as external C/C++ code.
+
+Unlike Lisps, function returns must be explicitly specified via ~(return)~, unless the function has no ~&return~ (implicit ~void~ return).
+
+Notice that argument names come first. I chose to swap the order of name and type because it places more emphasis on the name. A well-written program will convey more useful information in the name than in the type, so it makes sense to me to have it come first for the reader. This also applies to ~defstruct~ members, ~type-cast~, ~var~ declarations, etc.
 * Variables
 The following invocations will declare variables:
 - ~var~: Module- or body-scope local. This is the most-used variable type
@@ -102,6 +131,16 @@ Use ~set~ to modify variables:
 (var the-answer int 0)
 (set the-answer 42)
 #+END_SRC
+
+Arrays have the same syntactic sugar as C, e.g.:
+#+BEGIN_SRC C
+(var my-numbers ([] int) (array 1 2 3))
+#+END_SRC
+...is a better way than
+#+BEGIN_SRC C
+(var my-numbers ([] 3 int) (array 1 2 3))
+#+END_SRC
+...because the compiler will automatically determine the size.
 * Type aliases
 Aliases can be created for types. Internally, this uses ~typedef~. For example:
 #+BEGIN_SRC lisp
