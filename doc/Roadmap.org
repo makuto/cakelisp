@@ -206,10 +206,6 @@ Module-local variables, type definitions, and module-local functions should be o
 
 The easiest solution to this is likely to rely on the ~ObjectReference~ list to find dependencies, then automatically forward-declare dependencies right before the function body. Variables may need to be moved around, which could be trickier.
 * Tooling
-** GitHub syntax highlighting
-The ~.cake~ files look really terrible in GitHub. For comparison, check them out on [[https://macoy.me/code/macoy/cakelisp/src/branch/master/runtime/TextAdventure.cake][my site]], where it just magically works.
-
-This will be important to leave a good impression of Cakelisp, because if the highlighting is wrong, it's much harder to pay attention to the code.
 ** Mapping system
 When I was starting out I had the idea to generate ~.cake<=>.cpp~ mapping files. These would be useful for several things:
 - Jump from C++ error to Cakelisp code which caused the error (this would be the biggest immediate usability improvement from this feature)
@@ -225,3 +221,10 @@ Emacs' SLIME/Lisp modes get confused by some of my forms, especially function ar
 I need to turn off most of the special indentation rules.
 ** ETags/CTags support
 Mostly listing this because it's what I use (LSP is a bit too heavyweight for my tastes). I think this only requires a few regexes to be written which cover the important Cakelisp definition signatures.
+* DONE Archive
+** GitHub syntax highlighting
+~bab33b7b0744af46faefc857bce8aec2b97e45a4~ fixed this via ~.gitattributes. See [[https://stackoverflow.com/questions/13597892/how-to-change-the-language-of-a-repository-on-github/13599737#13599737][How to change the language of a repository]].
+
+The ~.cake~ files look really terrible in GitHub. For comparison, check them out on [[https://macoy.me/code/macoy/cakelisp/src/branch/master/runtime/TextAdventure.cake][my site]], where it just magically works.
+
+This will be important to leave a good impression of Cakelisp, because if the highlighting is wrong, it's much harder to pay attention to the code.
