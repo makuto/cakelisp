@@ -319,3 +319,80 @@ See [[file:../src/GeneratorHelpers.hpp][GeneratorHelpers.hpp]]. All of these fun
 Additionally, the ~Expect~ functions are quick ways to validate your inputs. They will write an error if the expectation isn't met.
 
 [[file:../src/Generators.cpp][Generators.cpp]] serves as a good reference to how generators are written. However, they are rather verbose because they don't use any macros and have extensive validation. Generators written in Cakelisp can be much more compact thanks to macros.
+* Build system
+Cakelisp's build system is powerful enough at this point to serve as a general-purpose C/C++ build system, even if you aren't using Cakelisp for any runtime code.
+
+For example, Cakelisp itself consists of C++ code. [[file:../Bootstrap.cake][Bootstrap.cake]] builds Cakelisp, and serves as a good demonstration of the build system. I'll explain it here.
+
+#+BEGIN_SRC lisp
+(skip-build)
+#+END_SRC
+This indicates the current module should not be built, nor be linked into the final executable. ~Bootstrap.cake~ doesn't contain any runtime code, so we omit it. Modules which contain only compile-time functions like macros should also ~skip-build~.
+
+#+BEGIN_SRC lisp
+(set-cakelisp-option executable-output "bin/cakelisp")
+#+END_SRC
+This changes the location where the final executable is output. Note that if you don't have a ~(main)~ function defined, you can change this output to e.g. ~lib/libCakelisp.so~ to output a dynamic library (on Linux).
+
+#+BEGIN_SRC lisp
+(add-c-search-directory module "src")
+#+END_SRC
+It is good practice to refer to files without any directories in the path. This helps future developers if they need to relocate files. In this case, we add ~src~ to the ~module~ search paths, which means only this module and its dependencies will have that search path.
+
+If ~global~ is specified instead, all modules and build dependencies would include the search path. Generally, you should try to use ~module~ only, because it lessens the chances of unnecessary rebuilds due to command signature changes, and is one less directory for the compiler to search.
+
+#+BEGIN_SRC lisp
+(add-cpp-build-dependency
+ "Tokenizer.cpp"
+ "Evaluator.cpp"
+ "Utilities.cpp"
+ "FileUtilities.cpp"
+ "Converters.cpp"
+ "Writer.cpp"
+ "Generators.cpp"
+ "GeneratorHelpers.cpp"
+ "RunProcess.cpp"
+ "OutputPreambles.cpp"
+ "DynamicLoader.cpp"
+ "ModuleManager.cpp"
+ "Logging.cpp"
+ "Main.cpp")
+#+END_SRC
+
+#+BEGIN_SRC lisp
+(add-build-options "-DUNIX")
+#+END_SRC
+
+#+BEGIN_SRC lisp
+(defun-comptime cakelisp-link-hook (manager (& ModuleManager)
+                                    linkCommand (& ProcessCommand)
+                                    linkTimeInputs (* ProcessCommandInput) numLinkTimeInputs int
+                                    &return bool)
+  (Log "Cakelisp: Adding link arguments\n")
+  ;; Dynamic loading
+  (on-call (field linkCommand arguments) push_back
+           (array ProcessCommandArgumentType_String
+                  "-ldl"))
+  ;; Expose Cakelisp symbols for compile-time function symbol resolution
+  (on-call (field linkCommand arguments) push_back
+           (array ProcessCommandArgumentType_String
+                  "-Wl,--export-dynamic"))
+  (return true))
+
+(add-compile-time-hook pre-link cakelisp-link-hook)
+#+END_SRC
+
+#+BEGIN_SRC lisp
+;; Use separate build configuration in case other things build files from src/
+(add-build-config-label "Bootstrap")
+#+END_SRC
+
+** Cache validity
+The C/C++ compilation time dominates the total time from ~.cake~ to executable. In order to minimize this, Cakelisp maintains a cache of previously built "artifacts" and reuses them when possible.
+
+It is critical that the cache does not become stale. To the developer, a stale cache results in confusion, because the developer might have made a change but does not see the change reflected in the output. Cakelisp's build system errs on the side of caution at the cost of build time performance to ensure this doesn't occur.
+
+The following things are checked before a cached artifact is used (not all are relevant to all types of artifacts):
+*** Command signature
+*** Modification time
+*** Includes modification times
