@@ -13,7 +13,12 @@ You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction 
 * Terms
 Cakelisp is copyright (C) 2020 Macoy Madson ~<macoy@macoy.me>~.
 
-Licensed under ~GPL-3.0-or-later~. Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your use-case.
+Licensed under ~GPL-3.0-or-later~, with added [[https://www.gnu.org/licenses/gpl-faq.en.html#LinkingOverControlledInterface][Linking Over Controlled Interface]] exception.
+~runtime/~ is licensed under MIT License.
+
+Please see [[file:doc/Legal.org][doc/Legal.org]] for a detailed explanation.
+
+Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your use-case.
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
 - *The performance of C:* No heavyweight runtime, boxing/unboxing overhead, etc.
