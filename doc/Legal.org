@@ -17,6 +17,8 @@ Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your us
 The ~LICENSE_EXCEPTION~ file allows the creation of plug-ins for compile-time code execution under licenses that are not the GPL. *However*, if you distribute Cakelisp with these plug-ins, you still need to distribute the source code of the plug-ins.
 
 If your program is intended to be GPL, you must release any compile time code used to build the program along with the program's source code, because it is otherwise impossible to build the program, therefore violating the GPL.
+
+If you use compile-time code execution, but do not release any form of Cakelisp itself, and your program does not need to comply with the GPL for any other reason, you retain the full rights and license decisions of that compile-time code.
 * Cakelisp runtime exception
 The files in ~runtime/~ are under MIT license instead of GPL. This is to ensure your freedom to determine license for your non-derivative work by providing minimal constraints.
 
