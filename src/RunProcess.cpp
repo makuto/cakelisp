@@ -9,6 +9,11 @@
 #include <sys/types.h>  // pid
 #include <sys/wait.h>   // waitpid
 #include <unistd.h>     // exec, fork
+
+#elif WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
 #else
 #error Platform support is needed for running subprocesses
 #endif
@@ -25,7 +30,11 @@ typedef int ProcessId;
 struct Subprocess
 {
 	int* statusOut;
+#ifdef UNIX
 	ProcessId processId;
+#elif WINDOWS
+	PROCESS_INFORMATION* processInfo;
+#endif
 	int pipeReadFileDescriptor;
 	std::string command;
 };
@@ -56,7 +65,6 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
 {
-#ifdef UNIX
 	if (logging.processes)
 	{
 		Log("RunProcess command: ");
@@ -67,6 +75,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		Log("\n");
 	}
 
+#ifdef UNIX
 	int pipeFileDescriptors[2] = {0};
 	const int PipeRead = 0;
 	const int PipeWrite = 1;
@@ -157,6 +166,61 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	}
 
 	return 0;
+#elif WINDOWS
+	STARTUPINFO startupInfo;
+	PROCESS_INFORMATION* processInfo = new PROCESS_INFORMATION;
+
+	ZeroMemory(&startupInfo, sizeof(startupInfo));
+	startupInfo.cb = sizeof(startupInfo);
+	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
+
+	char* commandLineString = nullptr;
+	{
+		size_t commandLineLength = 0;
+		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
+		{
+			commandLineLength += strlen(*arg);
+			// Room for space
+			commandLineLength += 1;
+		}
+
+		commandLineString = (char*)calloc(commandLineLength, sizeof(char));
+		commandLineString[commandLineLength] = '\0';
+		char* writeHead = commandLineString;
+		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
+		{
+			if (!writeStringToBuffer(*arg, &writeHead, commandLineString, commandLineLength))
+			{
+				free(commandLineString);
+				return 1;
+			}
+		}
+	}
+
+	// Start the child process.
+	if (!CreateProcess(arguments.fileToExecute,           // No module name (use command line)
+	                   commandLineString,        // Command line
+	                   NULL,           // Process handle not inheritable
+	                   NULL,           // Thread handle not inheritable
+	                   FALSE,          // Set handle inheritance to FALSE
+	                   0,              // No creation flags
+	                   NULL,           // Use parent's environment block
+	                   NULL,           // Use parent's starting directory
+	                   &startupInfo,   // Pointer to STARTUPINFO structure
+	                   processInfo))  // Pointer to PROCESS_INFORMATION structure
+	{
+		Logf("CreateProcess failed (%d).\n", GetLastError());
+		return 1;
+	}
+
+	std::string command = "";
+	for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
+	{
+		command.append(*arg);
+		command.append(" ");
+	}
+
+	s_subprocesses.push_back({statusOut, processInfo, 0, command});
 #endif
 	return 1;
 }
@@ -188,6 +252,19 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		// It's pretty useful to see the command which resulted in failure
 		if (*process.statusOut != 0)
 			Logf("%s\n", process.command.c_str());
+#elif WINDOWS
+		// Wait until child process exits.
+		WaitForSingleObject(process.processInfo->hProcess, INFINITE);
+
+		DWORD exit_code;
+		if (!GetExitCodeProcess(process.processInfo->hProcess, &exit_code) || exit_code != 0)
+			Logf("%s\n", process.command.c_str());
+
+		*process.statusOut = exit_code;
+
+		// Close process and thread handles.
+		CloseHandle(process.processInfo->hProcess);
+		CloseHandle(process.processInfo->hThread);
 #endif
 	}
 

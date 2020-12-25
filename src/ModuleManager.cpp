@@ -110,9 +110,9 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 
 		// TODO: Add defaults for Windows
-#ifdef WINDOWS
-#error Set sensible defaults for compile time build command
-#endif
+// #ifdef WINDOWS
+// #error Set sensible defaults for compile time build command
+// #endif
 	}
 
 	manager.environment.useCachedFiles = true;

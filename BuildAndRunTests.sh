@@ -20,5 +20,7 @@
 						  # runtime/HotReloadingCodeModifier.cake runtime/TextAdventure.cake || exit $?
 
 # TestMain is the loader. It doesn't care at all about fancy hot reloading macros, it just loads libs
-./bin/cakelisp --verbose-processes --verbose-include-scanning \
-						  runtime/HotLoader.cake  || exit $?
+# ./bin/cakelisp --verbose-processes --verbose-include-scanning \
+						  # runtime/HotLoader.cake  || exit $?
+
+./bin/cakelisp CrossCompile_Windows.cake
