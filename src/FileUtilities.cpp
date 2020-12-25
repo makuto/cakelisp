@@ -185,8 +185,8 @@ void makePathRelativeToFile(const char* filePath, const char* referencedFilePath
 {
 	getDirectoryFromPath(filePath, bufferOut, bufferSize);
 	// TODO: Need to make this safe!
-	strcat(bufferOut, "/");
-	strcat(bufferOut, referencedFilePath);
+	strcat_s(bufferOut, bufferSize, "/");
+	strcat_s(bufferOut, bufferSize, referencedFilePath);
 }
 
 const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* filePath)

@@ -259,7 +259,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 
 	char resolvedPath[MAX_PATH_LENGTH] = {0};
 	makeAbsoluteOrRelativeToWorkingDir(filename, resolvedPath, ArraySize(resolvedPath));
-	const char* normalizedFilename = strdup(resolvedPath);
+	const char* normalizedFilename = _strdup(resolvedPath);
 	// Enabling this makes all file:line messages really long. For now, I'll keep it as relative to
 	// current working directory of this executable.
 	// const char* normalizedFilename = makeAbsolutePath_Allocated(".", filename);

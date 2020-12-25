@@ -38,18 +38,18 @@
 
 ;; (add-compile-time-hook pre-link cakelisp-link-hook)
 
-(set-cakelisp-option build-time-compiler "CL")
+(set-cakelisp-option build-time-compiler "cl.exe")
 (set-cakelisp-option build-time-compile-arguments
                      "/c" 'source-input "/Fo" 'object-output
                      'include-search-dirs 'additional-options)
 
-(set-cakelisp-option compile-time-compiler "CL")
+(set-cakelisp-option compile-time-compiler "cl.exe")
 (set-cakelisp-option compile-time-compile-arguments
                      "/c" 'source-input "/Fo" 'object-output
                      'cakelisp-headers-include)
 ;; "-fPIC"
 
-(set-cakelisp-option build-time-linker "CL")
+(set-cakelisp-option build-time-linker "cl.exe")
 (set-cakelisp-option build-time-link-arguments
                      "/Fo" 'executable-output 'object-input)
 

@@ -14,6 +14,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+// _tprintf() Remove me!
+#include <tchar.h>
+
 #else
 #error Platform support is needed for running subprocesses
 #endif
@@ -62,6 +65,20 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 // {
 // 	Logf("%s", processOutputBuffer);
 // }
+
+// Does not work
+#ifdef WINDOWS
+void LogLastError()
+{
+	LPTSTR lpMsgBuf = nullptr;
+    DWORD dw = GetLastError();
+
+	FormatMessage(
+	    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+	    NULL, dw, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), lpMsgBuf, 0, NULL);
+	printf("%s\n", lpMsgBuf);
+}
+#endif
 
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
 {
@@ -167,6 +184,99 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 
 	return 0;
 #elif WINDOWS
+	// List all environment variables
+	if (false)
+	{
+		LPTSTR lpszVariable;
+		LPTCH lpvEnv;
+		lpvEnv = GetEnvironmentStrings();
+		// If the returned pointer is NULL, exit.
+		if (lpvEnv == nullptr)
+		{
+			Logf("GetEnvironmentStrings failed (%d)\n", GetLastError());
+			return 1;
+		}
+
+		// Variable strings are separated by NULL byte, and the block is
+		// terminated by a NULL byte.
+
+		lpszVariable = (LPTSTR)lpvEnv;
+
+		while (*lpszVariable)
+		{
+			_tprintf(TEXT("%s\n"), lpszVariable);
+			lpszVariable += lstrlen(lpszVariable) + 1;
+		}
+		FreeEnvironmentStrings(lpvEnv);
+
+		Log("\nDone listing vars\n");
+	}
+
+	// We need to do some extra legwork to find which compiler they actually want to use, based on
+	// the current environment variables set by vcvars*.bat
+	// See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
+	char fileToExecuteOverride[MAX_PATH_LENGTH] = {0};
+	if (_stricmp(arguments.fileToExecute, "CL.exe") == 0 ||
+	    _stricmp(arguments.fileToExecute, "link.exe") == 0)
+	{
+		LPTSTR vcInstallDir = nullptr;
+		LPTSTR vcHostArchitecture = nullptr;
+		LPTSTR vcTargetArchitecture = nullptr;
+		const int bufferSize = 4096;
+		struct
+		{
+			const char* variableName;
+			LPTSTR* outputString;
+		} msvcVariables[] = {{"VCToolsInstallDir", &vcInstallDir},
+		                     {"VSCMD_ARG_HOST_ARCH", &vcHostArchitecture},
+		                     {"VSCMD_ARG_TGT_ARCH", &vcTargetArchitecture}};
+		bool variablesFound = true;
+		for (int i = 0; i < ArraySize(msvcVariables); ++i)
+		{
+			*msvcVariables[i].outputString = (LPTSTR)malloc(bufferSize * sizeof(TCHAR));
+			if (!GetEnvironmentVariable(msvcVariables[i].variableName,
+			                            *msvcVariables[i].outputString, bufferSize) || true)
+			{
+				Logf(
+				    "error: could not find environment variable '%s'.\n Please read the "
+				    "following "
+				    "URL:\nhttps://docs.microsoft.com/en-us/cpp/build/"
+				    "building-on-the-command-line?view=msvc-160\nYou must run Cakelisp in a "
+				    "command prompt which has already run vcvars* scripts.\nSee "
+				    "cakelisp/Build.bat for an example.\nYou can define variables when running "
+				    "Cakelisp from Visual Studio via Project -> Properties -> Configuration "
+				    "Properties -> Debugging -> Environment\n",
+				    msvcVariables[i].variableName);
+
+				Log("The following vars need to be defined in the environment:\n");
+				for (int n = 0; n < ArraySize(msvcVariables); ++n)
+					Logf("\t%s\n", msvcVariables[n].variableName);
+
+				variablesFound = false;
+
+				break;
+			}
+		}
+
+		if (variablesFound)
+		{
+			// PrintfBuffer(fileToExecuteOverride, "%sHost%s/%s/%s", vcInstallDir, vcHostArchitecture,
+			PrintfBuffer(fileToExecuteOverride, "%sbin\\Host%s\\%s\\%s", vcInstallDir, vcHostArchitecture,
+			             vcTargetArchitecture, arguments.fileToExecute);
+
+			Logf("\nOverriding command to:\n%s\n\n", fileToExecuteOverride);
+		}
+
+		for (int n = 0; n < ArraySize(msvcVariables); ++n)
+			if (*msvcVariables[n].outputString)
+				free(*msvcVariables[n].outputString);
+
+		if (!variablesFound)
+			return 1;
+	}
+	else
+		Log("Not doing override\n");
+
 	STARTUPINFO startupInfo;
 	PROCESS_INFORMATION* processInfo = new PROCESS_INFORMATION;
 
@@ -174,6 +284,11 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	startupInfo.cb = sizeof(startupInfo);
 	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
 
+	const char* fileToExecute =
+	    fileToExecuteOverride[0] ? fileToExecuteOverride : arguments.fileToExecute;
+
+	// TODO: Make command line use fileToExecuteOverride if necessary!
+	// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 	char* commandLineString = nullptr;
 	{
 		size_t commandLineLength = 0;
@@ -191,6 +306,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		{
 			if (!writeStringToBuffer(*arg, &writeHead, commandLineString, commandLineLength))
 			{
+				Log("error: ran out of space to write command\n");
 				free(commandLineString);
 				return 1;
 			}
@@ -198,20 +314,35 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	}
 
 	// Start the child process.
-	if (!CreateProcess(arguments.fileToExecute,           // No module name (use command line)
-	                   commandLineString,        // Command line
-	                   NULL,           // Process handle not inheritable
-	                   NULL,           // Thread handle not inheritable
-	                   FALSE,          // Set handle inheritance to FALSE
-	                   0,              // No creation flags
-	                   NULL,           // Use parent's environment block
-	                   NULL,           // Use parent's starting directory
-	                   &startupInfo,   // Pointer to STARTUPINFO structure
-	                   processInfo))  // Pointer to PROCESS_INFORMATION structure
+	if (!CreateProcess(fileToExecute,      // No module name (use command line)
+	                   commandLineString,  // Command line
+	                   NULL,               // Process handle not inheritable
+	                   NULL,               // Thread handle not inheritable
+	                   FALSE,              // Set handle inheritance to FALSE
+	                   0,                  // No creation flags
+	                   NULL,               // Use parent's environment block
+	                   NULL,               // Use parent's starting directory
+	                   &startupInfo,       // Pointer to STARTUPINFO structure
+	                   processInfo))       // Pointer to PROCESS_INFORMATION structure
 	{
-		Logf("CreateProcess failed (%d).\n", GetLastError());
+		int errorCode = GetLastError();
+		if (errorCode == ERROR_FILE_NOT_FOUND)
+		{
+			Logf("CreateProcess failed to find file: %s\n", fileToExecute);
+		}
+		else if (errorCode == ERROR_PATH_NOT_FOUND)
+		{
+			Logf("CreateProcess failed to find path: %s\n", fileToExecute);
+		}
+		else
+		{
+			Logf("CreateProcess failed: %d\n", errorCode);
+		}
+		// LogLastError();
 		return 1;
 	}
+
+	Log("Executed successfully\n");
 
 	std::string command = "";
 	for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
@@ -221,6 +352,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	}
 
 	s_subprocesses.push_back({statusOut, processInfo, 0, command});
+	return 0;
 #endif
 	return 1;
 }

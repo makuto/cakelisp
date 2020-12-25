@@ -236,7 +236,7 @@ int main(int numArguments, char* arguments[])
 			// Need to use absolute path when executing
 			const char* executablePath = makeAbsolutePath_Allocated(nullptr, output.c_str());
 			arguments.fileToExecute = executablePath;
-			const char* commandLineArguments[] = {strdup(arguments.fileToExecute), nullptr};
+			const char* commandLineArguments[] = {_strdup(arguments.fileToExecute), nullptr};
 			arguments.arguments = commandLineArguments;
 			char workingDirectory[MAX_PATH_LENGTH] = {0};
 			getDirectoryFromPath(arguments.fileToExecute, workingDirectory,
