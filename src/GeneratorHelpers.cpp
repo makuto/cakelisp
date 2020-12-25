@@ -1,5 +1,7 @@
 #include "GeneratorHelpers.hpp"
 
+#include <cctype> // isdigit
+
 #include "Evaluator.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"

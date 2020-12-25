@@ -16,7 +16,6 @@
 
 #elif WINDOWS
 #define WIN32_LEAN_AND_MEAN
-#include <fileapi.h>
 #include <windows.h>
 
 #else
