@@ -486,7 +486,7 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	return true;
 }
 
-typedef std::unordered_map<std::string, unsigned long> HeaderModificationTimeTable;
+typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTable;
 
 // It is essential to scan the #include files to determine if any of the headers have been modified,
 // because changing them could require a rebuild (for e.g., you change the size or order of a struct
@@ -500,7 +500,7 @@ typedef std::unordered_map<std::string, unsigned long> HeaderModificationTimeTab
 // objects is faster. We must find the absolute time because different build objects may be more
 // recently modified than others, so they shouldn't get built. If we wanted to early out, we cannot
 // share the cache because of this
-static unsigned long GetMostRecentIncludeModified_Recursive(
+static FileModifyTime GetMostRecentIncludeModified_Recursive(
     const std::vector<std::string>& searchDirectories, const char* filename,
     const char* includedInFile, HeaderModificationTimeTable& isModifiedCache)
 {
@@ -541,12 +541,12 @@ static unsigned long GetMostRecentIncludeModified_Recursive(
 	if (logging.includeScanning)
 		Logf("Checking %s for headers\n", resolvedPathBuffer);
 
-	const unsigned long thisModificationTime = fileGetLastModificationTime(resolvedPathBuffer);
+	const FileModifyTime thisModificationTime = fileGetLastModificationTime(resolvedPathBuffer);
 
 	// To prevent loops, add ourselves to the cache now. We'll revise our answer higher if necessary
 	isModifiedCache[filename] = thisModificationTime;
 
-	unsigned long mostRecentModTime = thisModificationTime;
+	FileModifyTime mostRecentModTime = thisModificationTime;
 
 	FILE* file = fileOpen(resolvedPathBuffer, "r");
 	if (!file)
@@ -570,7 +570,7 @@ static unsigned long GetMostRecentIncludeModified_Recursive(
 					if (logging.includeScanning)
 						Logf("\t%s include: %s\n", resolvedPathBuffer, foundInclude);
 
-					unsigned long includeModifiedTime = GetMostRecentIncludeModified_Recursive(
+					FileModifyTime includeModifiedTime = GetMostRecentIncludeModified_Recursive(
 					    searchDirectories, foundInclude, resolvedPathBuffer, isModifiedCache);
 
 					if (logging.includeScanning)
@@ -901,11 +901,11 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			// Note that I use the .o as "includedBy" because our header may not have needed any
 			// changes if our include changed. We have to use the .o as the time reference that
 			// we've rebuilt
-			unsigned long mostRecentHeaderModTime = GetMostRecentIncludeModified_Recursive(
+			FileModifyTime mostRecentHeaderModTime = GetMostRecentIncludeModified_Recursive(
 			    headerSearchDirectories, object->sourceFilename.c_str(),
 			    /*includedBy*/ nullptr, headerModifiedCache);
 
-			unsigned long artifactModTime = fileGetLastModificationTime(object->filename.c_str());
+			FileModifyTime artifactModTime = fileGetLastModificationTime(object->filename.c_str());
 			if (artifactModTime >= mostRecentHeaderModTime)
 			{
 				if (logging.buildProcess)
@@ -917,8 +917,12 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			{
 				headersModified = true;
 				if (logging.includeScanning || logging.buildProcess)
+				{
 					Logf("--- Must rebuild %s (header files modified)\n",
 					     object->sourceFilename.c_str());
+					Logf("Artifact: %ul Most recent header: %ul\n", artifactModTime,
+					     mostRecentHeaderModTime);
+				}
 			}
 		}
 

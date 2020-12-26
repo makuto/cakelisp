@@ -185,8 +185,10 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	return 0;
 #elif WINDOWS
 	// List all environment variables
-	if (false)
+	static bool hasListed = false;
+	if (!hasListed)
 	{
+		hasListed = true;
 		LPTSTR lpszVariable;
 		LPTCH lpvEnv;
 		lpvEnv = GetEnvironmentStrings();

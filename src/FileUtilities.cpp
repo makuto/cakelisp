@@ -22,7 +22,7 @@
 #error Need to implement file utilities for this platform
 #endif
 
-unsigned long fileGetLastModificationTime(const char* filename)
+FileModifyTime fileGetLastModificationTime(const char* filename)
 {
 #ifdef UNIX
 	struct stat fileStat;
@@ -33,7 +33,7 @@ unsigned long fileGetLastModificationTime(const char* filename)
 		return 0;
 	}
 
-	return (unsigned long)fileStat.st_mtime;
+	return (FileModifyTime)fileStat.st_mtime;
 #elif WINDOWS
 	// Doesn't actually create new due to OPEN_EXISTING
 	HANDLE hFile =
@@ -44,16 +44,21 @@ unsigned long fileGetLastModificationTime(const char* filename)
 
 	FILETIME ftCreate, ftAccess, ftWrite;
 	if (!GetFileTime(hFile, &ftCreate, &ftAccess, &ftWrite))
+	{
+		CloseHandle(hFile);
 		return 0;
+	}
+
+	CloseHandle(hFile);
 
 	ULARGE_INTEGER lv_Large;
 	lv_Large.LowPart = ftWrite.dwLowDateTime;
 	lv_Large.HighPart = ftWrite.dwHighDateTime;
 
-	__int64 ftWriteTime = lv_Large.QuadPart;
+	FileModifyTime ftWriteTime = (FileModifyTime)lv_Large.QuadPart;
 	if (ftWriteTime < 0)
 		return 0;
-	return (unsigned long)ftWriteTime;
+	return ftWriteTime;
 #else
 	return 0;
 #endif
@@ -85,18 +90,33 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 	HANDLE hFile =
 	    CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, /*lpSecurityAttributes=*/nullptr,
 	               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, /*hTemplateFile=*/nullptr);
+	if (hFile == INVALID_HANDLE_VALUE)
+		return true;
 	HANDLE hReference =
 	    CreateFile(reference, GENERIC_READ, FILE_SHARE_READ, /*lpSecurityAttributes=*/nullptr,
 	               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, /*hTemplateFile=*/nullptr);
-	if (hFile == INVALID_HANDLE_VALUE || hReference == INVALID_HANDLE_VALUE)
-		return 0;
+	if (hReference == INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(hFile);
+		return true;
+	}
 	FILETIME ftCreate, ftAccess, ftWrite;
 	if (!GetFileTime(hFile, &ftCreate, &ftAccess, &ftWrite))
+	{
+		CloseHandle(hFile);
+		CloseHandle(hReference);
 		return true;
+	}
 	FILETIME ftCreateRef, ftAccessRef, ftWriteRef;
 	if (!GetFileTime(hReference, &ftCreateRef, &ftAccessRef, &ftWriteRef))
+	{
+		CloseHandle(hFile);
+		CloseHandle(hReference);
 		return true;
+	}
 
+	CloseHandle(hFile);
+	CloseHandle(hReference);
 	return CompareFileTime(&ftWrite, &ftWriteRef) >= 1;
 
 	return true;

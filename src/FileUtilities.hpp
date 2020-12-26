@@ -1,7 +1,11 @@
 #pragma once
 
+#include <stdint.h> // int64_t
+
+typedef int64_t FileModifyTime;
+
 // Returns zero if the file doesn't exist, or there was some other error
-unsigned long fileGetLastModificationTime(const char* filename);
+FileModifyTime fileGetLastModificationTime(const char* filename);
 
 // Returns true if the reference file doesn't exist. This is under the assumption that this function
 // is always used to check whether it is necessary to e.g. build something if the source is newer
