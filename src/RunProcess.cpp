@@ -400,7 +400,6 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		// Wait until child process exits.
 		WaitForSingleObject(process.processInfo->hProcess, INFINITE);
 
-		// TODO: Why isn't this working? I always get 0
 		DWORD exit_code = 0;
 		if (!GetExitCodeProcess(process.processInfo->hProcess, &exit_code))
 		{
