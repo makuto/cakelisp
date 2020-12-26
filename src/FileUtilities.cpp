@@ -94,7 +94,7 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 	if (!GetFileTime(hFile, &ftCreate, &ftAccess, &ftWrite))
 		return true;
 	FILETIME ftCreateRef, ftAccessRef, ftWriteRef;
-	if (!GetFileTime(hFile, &ftCreateRef, &ftAccessRef, &ftWriteRef))
+	if (!GetFileTime(hReference, &ftCreateRef, &ftAccessRef, &ftWriteRef))
 		return true;
 
 	return CompareFileTime(&ftWrite, &ftWriteRef) >= 1;
