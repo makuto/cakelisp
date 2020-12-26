@@ -18,7 +18,13 @@
 #include "Utilities.hpp"
 #include "Writer.hpp"
 
+#ifdef WINDOWS
+const char* compilerObjectExtension = "obj";
+const char* defaultExecutableName = "output.exe";
+#else
 const char* compilerObjectExtension = "o";
+const char* defaultExecutableName = "a.out";
+#endif
 
 // The ' symbols tell the signature validator that the actual contents of those symbols can be
 // user-defined (just like C letting you specify arguments without names)
@@ -651,7 +657,7 @@ void getExecutableOutputName(ModuleManager& manager, std::string& finalOutputNam
 	if (!manager.environment.executableOutput.empty())
 		finalOutputNameOut = manager.environment.executableOutput;
 	else
-		finalOutputNameOut = "a.out";
+		finalOutputNameOut = defaultExecutableName;
 }
 
 // Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
@@ -847,9 +853,20 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		                                   *object->buildCommandOverride :
 		                                   manager.environment.buildTimeBuildCommand;
 
+		// Annoying exception for MSVC not having spaces between some arguments
+		std::string* objectOutput = &object->filename;
+		std::string objectOutputOverride;
+		if (_stricmp(buildCommand.fileToExecute.c_str(), "CL.exe") == 0)
+		{
+			char msvcObjectOutput[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(msvcObjectOutput, "/Fo\"%s\"", object->filename.c_str());
+			objectOutputOverride = msvcObjectOutput;
+			objectOutput = &objectOutputOverride;
+		}
+
 		ProcessCommandInput buildTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
-		    {ProcessCommandArgumentType_ObjectOutput, {object->filename.c_str()}},
+		    {ProcessCommandArgumentType_ObjectOutput, {objectOutput->c_str()}},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
 		    {ProcessCommandArgumentType_AdditionalOptions, std::move(additionalOptions)}};
 		const char** buildArguments = MakeProcessArgumentsFromCommand(buildCommand, buildTimeInputs,
@@ -961,7 +978,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		outputExecutableName = outputExecutableFilename;
 	}
 	if (outputExecutableName.empty())
-		outputExecutableName = "a.out";
+		outputExecutableName = defaultExecutableName;
 
 	char outputExecutableCachePath[MAX_PATH_LENGTH] = {0};
 	if (!outputFilenameFromSourceFilename(
@@ -980,7 +997,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	{
 		// Module* module = manager.modules[moduleIndex];
 		int buildResult = object->buildStatus;
-		if (buildResult != 0)
+		if (buildResult != 0 || !fileExists(object->filename.c_str()))
 		{
 			Logf("error: failed to make target %s\n", object->filename.c_str());
 			succeededBuild = false;
@@ -1016,10 +1033,29 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			objectsToLink[i] = object->filename.c_str();
 		}
 
-		// Copy it so hooks can modify it
 		ProcessCommand linkCommand = manager.environment.buildTimeLinkCommand;
+
+		// Annoying exception for MSVC not having spaces between some arguments
+		std::string* executableOutput = &outputExecutableName;
+		std::string executableOutputOverride;
+		if (_stricmp(linkCommand.fileToExecute.c_str(), "cl.exe") == 0)
+		{
+			char msvcExecutableOutput[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(msvcExecutableOutput, "/Fe\"%s\"", outputExecutableName.c_str());
+			executableOutputOverride = msvcExecutableOutput;
+			executableOutput = &executableOutputOverride;
+		}
+		else if (_stricmp(linkCommand.fileToExecute.c_str(), "link.exe") == 0)
+		{
+			char msvcExecutableOutput[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(msvcExecutableOutput, "/out:\"%s\"", outputExecutableName.c_str());
+			executableOutputOverride = msvcExecutableOutput;
+			executableOutput = &executableOutputOverride;
+		}
+
+		// Copy it so hooks can modify it
 		ProcessCommandInput linkTimeInputs[] = {
-		    {ProcessCommandArgumentType_ExecutableOutput, {outputExecutableName.c_str()}},
+		    {ProcessCommandArgumentType_ExecutableOutput, {executableOutput->c_str()}},
 		    {ProcessCommandArgumentType_ObjectInput, objectsToLink}};
 
 		// Hooks should cooperate with eachother, i.e. try to only add things

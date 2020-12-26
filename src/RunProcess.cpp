@@ -235,7 +235,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		{
 			*msvcVariables[i].outputString = (LPTSTR)malloc(bufferSize * sizeof(TCHAR));
 			if (!GetEnvironmentVariable(msvcVariables[i].variableName,
-			                            *msvcVariables[i].outputString, bufferSize) || true)
+			                            *msvcVariables[i].outputString, bufferSize))
 			{
 				Logf(
 				    "error: could not find environment variable '%s'.\n Please read the "
@@ -277,13 +277,6 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	else
 		Log("Not doing override\n");
 
-	STARTUPINFO startupInfo;
-	PROCESS_INFORMATION* processInfo = new PROCESS_INFORMATION;
-
-	ZeroMemory(&startupInfo, sizeof(startupInfo));
-	startupInfo.cb = sizeof(startupInfo);
-	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
-
 	const char* fileToExecute =
 	    fileToExecuteOverride[0] ? fileToExecuteOverride : arguments.fileToExecute;
 
@@ -310,18 +303,37 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 				free(commandLineString);
 				return 1;
 			}
+
+			if (*(arg + 1) != nullptr)
+			{
+				if (!writeCharToBuffer(' ', &writeHead, commandLineString, commandLineLength))
+				{
+					Log("error: ran out of space to write command\n");
+					free(commandLineString);
+					return 1;
+				}
+			}
 		}
 	}
+
+	STARTUPINFO startupInfo;
+	PROCESS_INFORMATION* processInfo = new PROCESS_INFORMATION;
+	
+	ZeroMemory(&startupInfo, sizeof(startupInfo));
+	startupInfo.cb = sizeof(startupInfo);
+	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
+	
+	Logf("Final command string: %s\n", commandLineString);
 
 	// Start the child process.
 	if (!CreateProcess(fileToExecute,      // No module name (use command line)
 	                   commandLineString,  // Command line
-	                   NULL,               // Process handle not inheritable
-	                   NULL,               // Thread handle not inheritable
-	                   FALSE,              // Set handle inheritance to FALSE
+	                   nullptr,            // No security attributes
+	                   nullptr,            // Thread handle not inheritable
+	                   true,               // Set handle inheritance to true
 	                   0,                  // No creation flags
-	                   NULL,               // Use parent's environment block
-	                   NULL,               // Use parent's starting directory
+	                   nullptr,            // Use parent's environment block
+	                   nullptr,            // Use parent's starting directory
 	                   &startupInfo,       // Pointer to STARTUPINFO structure
 	                   processInfo))       // Pointer to PROCESS_INFORMATION structure
 	{
@@ -388,9 +400,17 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		// Wait until child process exits.
 		WaitForSingleObject(process.processInfo->hProcess, INFINITE);
 
-		DWORD exit_code;
-		if (!GetExitCodeProcess(process.processInfo->hProcess, &exit_code) || exit_code != 0)
+		// TODO: Why isn't this working? I always get 0
+		DWORD exit_code = 0;
+		if (!GetExitCodeProcess(process.processInfo->hProcess, &exit_code))
+		{
+			Log("error: failed to get exit code for process\n");
+			exit_code = 1;
+		}
+		else if (exit_code != 0)
+		{
 			Logf("%s\n", process.command.c_str());
+		}
 
 		*process.statusOut = exit_code;
 
