@@ -667,6 +667,16 @@ void builtObjectsFree(std::vector<BuiltObject*>& objects)
 	objects.clear();
 }
 
+void makeIncludeArgument(char* buffer, int bufferSize, const char* searchDir)
+{
+// TODO: Make this a setting rather than a define
+#ifdef WINDOWS
+	SafeSnprinf(buffer, bufferSize, "/I \"%s\"", searchDir);
+#else
+	SafeSnprinf(buffer, bufferSize, "-I%s", searchDir);
+#endif
+}
+
 void copyModuleBuildOptionsToBuiltObject(Module* module, ProcessCommand* buildCommandOverride,
                                          BuiltObject* object)
 {
@@ -675,7 +685,7 @@ void copyModuleBuildOptionsToBuiltObject(Module* module, ProcessCommand* buildCo
 	for (const std::string& searchDir : module->cSearchDirectories)
 	{
 		char searchDirToArgument[MAX_PATH_LENGTH + 2];
-		PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
+		makeIncludeArgument(searchDirToArgument, sizeof(searchDirToArgument), searchDir.c_str());
 		object->includesSearchDirs.push_back(searchDirToArgument);
 	}
 
@@ -876,7 +886,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		for (const std::string& searchDir : manager.environment.cSearchDirectories)
 		{
 			char searchDirToArgument[MAX_PATH_LENGTH + 2];
-			PrintfBuffer(searchDirToArgument, "-I%s", searchDir.c_str());
+			makeIncludeArgument(searchDirToArgument, sizeof(searchDirToArgument),
+			                    searchDir.c_str());
 			globalSearchDirArgs.push_back(searchDirToArgument);
 			searchDirArgs.push_back(globalSearchDirArgs.back().c_str());
 		}
