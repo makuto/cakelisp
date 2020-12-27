@@ -50,9 +50,11 @@ You can then run ~./bin/cakelisp~. Have fun! A simple test:
 
 It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ and link them into an executable which also links ~-ldl~. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
 ** Windows
-Windows does not come with a compiler installed by default.
+Windows does not come with a compiler installed by default. In order to provide a solid "native" experience, Cakelisp supports MSVC. It should be possible to compile on Windows using MinGW as well (in which case, you should refer to the Linux instructions, or open an Issue requesting Windows-native MinGW bootstrap building).
 
-In order to provide a solid "native" experience, Cakelisp supports MSVC by default. It should be possible to compile on Windows using MinGW as well.
+Once you do have a compiler, I aspire to make Cakelisp the /easiest/ way to make C/C++-based projects on Windows. You shouldn't need to touch Visual Studio project files ever again!
+
+The following instructions will assume you are using MSVC.
 
 1. Install Visual Studio. You can download the Community edition for free [[https://visualstudio.microsoft.com/downloads/][here]].
 
@@ -62,12 +64,12 @@ In order to provide a solid "native" experience, Cakelisp supports MSVC by defau
 2. Download Cakelisp. If you have git or any git client installed, clone this repository using the URL provided on this page. If you don't have Git, download the ~.zip~ file from the repository home page
 3. In ~cakelisp/~, double-click ~Build.bat~.
 
-   This should automatically find your Visual Studio and set the proper environment variables. If it doesn't, see the [[https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160#developer_command_file_locations][MSVC documentation]] on running from the command line. You may have to update the path to ~vcvars64.bat~ to whatever Visual Studio version you installed. You should be able to find the script via searching for `vcvars` in your ~C:\Program Files (x86)~ folder.
+   This should automatically find your Visual Studio and set the proper environment variables. If it doesn't, see the [[https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160#developer_command_file_locations][MSVC documentation]] on running from the command line. You may have to update the path to ~vcvars64.bat~ set in ~Build.bat~ to whatever Visual Studio version you installed. You should be able to find the script via searching for ~vcvars~ in your ~C:\Program Files (x86)~ folder.
 
-4. Check that the build succeeded. Cakelisp is first built manually, then bootstrap builds itself using ~Bootstrap_MSVC.cake~. You may need to modify ~Build.bat~ or ~Bootstrap_MSVC.cake~ to change compiler settings
+4. Check that the build succeeded. Cakelisp is first built manually, then bootstrap builds itself using ~Bootstrap_MSVC.cake~. You may need to modify ~Build.bat~ or ~Bootstrap_MSVC.cake~ to change compiler settings. Subsequent executions of ~Build.bat~ will use cached versions to only build changed files
 
 If you have ~cakelisp.exe~ in ~bin/~, you are ready to use Cakelisp! Due to the use of environment variables to select the compiler, you can only build programs if you've set the variables. To do so, refer to ~Build.bat~, or create a ~.bat~ file based on this template:
-#+BEGIN_SRC sh
+#+BEGIN_SRC bat
 echo off
 rem Set environment variables for compiler/linker selection
 rem Include help message in case this file isn't present
@@ -121,7 +123,7 @@ You can refer to an existing project in ~cakelisp/VisualStudio~. The steps to cr
 - In the ~Debugging~ section, set ~Working Directory~ to wherever your project's working directory is, e.g. where your ~.cake~ files are
 - Set ~Command Arguments~ to the ~.cake~ files you want to build. You can leave this empty to see the Cakelisp help page
 - Set the ~Environment~ to include the necessary environment variables. This is required so that Cakelisp knows how to find MSVC when launching it as a sub-process. The easiest way to find these is to open a Command Prompt, then run a ~vcvars~ script. For example, I run the following:
-  #+BEGIN_SRC sh
+  #+BEGIN_SRC bat
   "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
   #+END_SRC
   Your path may be different based on your Visual Studio version and installation. See [[https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160][documentation]] on how to find this file.
@@ -157,23 +159,6 @@ For example, you could have a ~.cake~ module which includes a 3rd party graphics
 The build hooks are all regular Cakelisp code, which means you could do something as advanced as cloning a repository from the internet, launching a subprocess to ~cmake~ and ~make~ that project, then let Cakelisp finish the build by linking the output libraries.
 
 One huge advantage to defining your build process in a "real" programming language (as opposed to a domain-specific language interpreted by a build system) is that you can attach a debugger and single step through the build process when things go wrong.
-** C or C++?
-Cakelisp itself is written in C++. Macros and generators must generate C++ code to interact with the evaluator.
-
-However, you have more options for your project's /generated/ code:
-- Only C: Generate pure C. Error if any generators which require C++ features are invoked
-- Only C++: Assume all code is compiled with a C++ compiler, even if a Cakelisp module does not use any C++ features
-- Mixed C/C++, warn on promotion: Try to generate pure C, but if a C++ feature is used, automatically change the file extension to indicate it requires a C++ compiler (~.c~ to ~.cpp~) and print a warning so the build system can be updated
-
-/Note:/ The ability to output only C is not yet implemented.
-
-I may also add declarations which allow you to constrain generation to a single module, if e.g. you want your project to be only C except for when you must interact with external C++ code.
-
-Generators keep track of when they require C++ support and will add that requirement to the generator output as necessary.
-
-Hot-reloading won't work with features like templates or class member functions. This is partially a constraint imposed by dynamic loading, which has to be able to find the symbol. C++ name mangling makes that much more complicated, and compiler-dependent.
-
-I'm personally fine with this limitation because I would like to move more towards an Only C environment anyway. This might be evident when reading Cakelisp's source code: I don't use ~class~, define new templates, or define struct/class member functions, but I do rely on some C++ standard library containers and ~&~ references.
 * Learning Cakelisp
 Check out [[file:doc/Cakelisp.org][doc/Cakelisp.org]] for a detailed explanation of the Cakelisp language and build system.
 
@@ -185,18 +170,12 @@ Open ~.cake~ files in ~lisp-mode~:
 (add-to-list 'auto-mode-alist '("\\.cake?\\'" . lisp-mode))
 #+END_SRC
 ** Build systems
-A build system will work fine with Cakelisp, because Cakelisp outputs C/C++ source/header files. Note that Cakelisp is expected to be run before your regular build system runs, or in a stage where Cakelisp can create and add files to the build. This is because Cakelisp handles its own modules such that adding support to an existing build system would be challenging.
+A build system may work with Cakelisp, because Cakelisp outputs C/C++ source/header files. Cakelisp must run before your regular build system runs, or in a stage where Cakelisp can create and add files to the build. This is because Cakelisp handles its own modules such that adding support to an existing build system would be challenging.
 
 Ideally, you should be able to rely on Cakelisp's built-in build system. This allows Cakelisp files to know how to build themselves.
 ** Debugging
 See [[file:doc/Debugging.org][doc/Debugging.org]]. Cakelisp doesn't really have an interpreter. Cakelisp always generates C/C++ code to do meaningful work. This means the Cakelisp transpiler, macros, generators, and final code output can be debugged using a regular C/C++ debugger like GDB, LLDB, or Visual Studio Debugger.
 
 Mapping files will make it possible to step through code in the Cakelisp language (i.e. not in the generated language). This is similar to how debuggers allow you to step through code in C files, when under the hood it's actually stepping through machine code. It will require building support into your editor in order to properly jump to the right Cakelisp file and line (among other things).
-* Why Lisp?
-The primary benefit of using a Lisp S-expression-style dialect is its ease of extensibility. The tokenizer is extremely simple, and parsing S-expressions is also simple. This consistent syntax makes it easy to write macros, which generate more S-expressions.
-
-Additionally, S-expressions are good for representing data, which means writing domain-specific languages is easier, because you can have the built-in tokenizer do most of the work.
-
-It's also a reaction to the high difficulty of parsing C and especially C++, which requires something like [[https://clang.llvm.org/doxygen/group__CINDEX.html][libclang]] to sanely parse.
 * Similar applications/languages
 See [[file:doc/VsOtherLanguages.org][doc/VsOtherLanguages.org]] for projects similar to Cakelisp.
