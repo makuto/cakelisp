@@ -28,6 +28,7 @@ bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 		if (logging.fileSystem)
 			Log("Destination file didn't exist. Writing\n");
 
+		fclose(newFile);
 		return moveFile(tempFilename, outputFilename);
 	}
 	else

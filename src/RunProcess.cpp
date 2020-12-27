@@ -184,41 +184,11 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 
 	return 0;
 #elif WINDOWS
-	// List all environment variables
-	static bool hasListed = false;
-	if (!hasListed)
-	{
-		hasListed = true;
-		LPTSTR lpszVariable;
-		LPTCH lpvEnv;
-		lpvEnv = GetEnvironmentStrings();
-		// If the returned pointer is NULL, exit.
-		if (lpvEnv == nullptr)
-		{
-			Logf("GetEnvironmentStrings failed (%d)\n", GetLastError());
-			return 1;
-		}
-
-		// Variable strings are separated by NULL byte, and the block is
-		// terminated by a NULL byte.
-
-		lpszVariable = (LPTSTR)lpvEnv;
-
-		while (*lpszVariable)
-		{
-			_tprintf(TEXT("%s\n"), lpszVariable);
-			lpszVariable += lstrlen(lpszVariable) + 1;
-		}
-		FreeEnvironmentStrings(lpvEnv);
-
-		Log("\nDone listing vars\n");
-	}
-
 	// We need to do some extra legwork to find which compiler they actually want to use, based on
 	// the current environment variables set by vcvars*.bat
 	// See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
 	char fileToExecuteOverride[MAX_PATH_LENGTH] = {0};
-	if (_stricmp(arguments.fileToExecute, "CL.exe") == 0 ||
+	if (_stricmp(arguments.fileToExecute, "cl.exe") == 0 ||
 	    _stricmp(arguments.fileToExecute, "link.exe") == 0)
 	{
 		LPTSTR vcInstallDir = nullptr;
@@ -250,9 +220,12 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 				    "Properties -> Debugging -> Environment\n",
 				    msvcVariables[i].variableName);
 
-				Log("The following vars need to be defined in the environment:\n");
+				Log("The following vars need to be defined in the environment to be read from "
+				    "Cakelisp directly:\n");
 				for (int n = 0; n < ArraySize(msvcVariables); ++n)
 					Logf("\t%s\n", msvcVariables[n].variableName);
+				Log("Note that MSVC relies on more variables which vcvars*.bat define, so you need "
+				    "to define those as well (if you do not use vcvars script).\n");
 
 				variablesFound = false;
 
@@ -355,11 +328,11 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 
 	STARTUPINFO startupInfo;
 	PROCESS_INFORMATION* processInfo = new PROCESS_INFORMATION;
-	
+
 	ZeroMemory(&startupInfo, sizeof(startupInfo));
 	startupInfo.cb = sizeof(startupInfo);
 	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
-	
+
 	Logf("Final command string: %s\n", commandLineString);
 
 	// Start the child process.

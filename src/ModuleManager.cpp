@@ -80,6 +80,43 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 	// Command defaults
 	{
+#ifdef WINDOWS
+		manager.environment.compileTimeBuildCommand.fileToExecute = "cl.exe";
+		manager.environment.compileTimeBuildCommand.arguments = {
+			{ProcessCommandArgumentType_String, "/nologo"},
+			// Not 100% sure what the right default for this is
+			{ProcessCommandArgumentType_String, "/EHsc"},
+		    {ProcessCommandArgumentType_String, "/c"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
+			// TODO: Dynamic linking support
+		    // {ProcessCommandArgumentType_String, "-fPIC"}};
+
+		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
+		manager.environment.compileTimeLinkCommand.arguments = {
+			// TODO: Dynamic linking support
+			// {ProcessCommandArgumentType_String, "-shared"},
+		    // {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+
+		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
+		manager.environment.buildTimeBuildCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "/nologo"},
+		    {ProcessCommandArgumentType_String, "/EHsc"},
+		    {ProcessCommandArgumentType_String, "/c"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+
+		manager.environment.buildTimeLinkCommand.fileToExecute = "link.exe";
+		manager.environment.buildTimeLinkCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "/nologo"},
+		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+#else
 		manager.environment.compileTimeBuildCommand.fileToExecute = "/usr/bin/g++";
 		manager.environment.compileTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
@@ -113,11 +150,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
-
-		// TODO: Add defaults for Windows
-// #ifdef WINDOWS
-// #error Set sensible defaults for compile time build command
-// #endif
+#endif
 	}
 
 	manager.environment.useCachedFiles = true;
