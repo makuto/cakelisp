@@ -48,7 +48,7 @@ You can then run ~./bin/cakelisp~. Have fun! A simple test:
 ./bin/cakelisp --execute test/Hello.cake
 #+END_SRC
 
-It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ and link them into an executable which also links ~-ldl~. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
+It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ (with ~UNIX~ defined), then link them into an executable which also links ~-ldl~. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
 ** Windows
 Windows does not come with a compiler installed by default. In order to provide a solid "native" experience, Cakelisp supports MSVC. It should be possible to compile on Windows using MinGW as well (in which case, you should refer to the Linux instructions, or open an Issue requesting Windows-native MinGW bootstrap building).
 
@@ -86,8 +86,10 @@ echo https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?vie
 goto fail
 )
 
-rem EDIT ME!
-"bin\cakelisp_bootstrap.exe" YourProgram.cake
+rem EDIT ME! If you keep this build script in the same directory as your project, update
+rem "bin\cakelisp.exe" to wherever you have a built version of Cakelisp
+rem Add --execute before the .cake files to run your project after building
+"bin\cakelisp.exe" YourProgram.cake
 
 rem Make the result clear
 @if %ERRORLEVEL% == 0 (
