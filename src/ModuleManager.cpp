@@ -1,7 +1,6 @@
 #include "ModuleManager.hpp"
 
 #include <string.h>
-
 #include <cstring>
 
 #include "Converters.hpp"
@@ -684,10 +683,16 @@ static bool commandEqualsCachedCommand(ModuleManager& manager, const char* artif
                                        const char** commandArguments, uint32_t* crcOut)
 {
 	uint32_t newCommandCrc = 0;
+	if (logging.commandCrcs)
+		Logf("\"");
 	for (const char** currentArg = commandArguments; *currentArg; ++currentArg)
 	{
 		crc32(*currentArg, strlen(*currentArg), &newCommandCrc);
+		if (logging.commandCrcs)
+			Logf("%s ", *currentArg);
 	}
+	if (logging.commandCrcs)
+		Logf("\"\n");
 
 	if (crcOut)
 		*crcOut = newCommandCrc;
@@ -1210,7 +1215,7 @@ static bool moduleManagerReadCacheFile(ModuleManager& manager)
 
 				char* endPtr;
 				manager.cachedCommandCrcs[(*tokens)[artifactIndex].contents] =
-				    strtol((*tokens)[crcIndex].contents.c_str(), &endPtr, /*base=*/10);
+				    static_cast<uint32_t>(std::stoul((*tokens)[crcIndex].contents));
 			}
 			else
 			{

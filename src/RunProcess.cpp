@@ -282,28 +282,63 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	const char* fileToExecute =
 	    fileToExecuteOverride[0] ? fileToExecuteOverride : arguments.fileToExecute;
 
-	// TODO: Make command line use fileToExecuteOverride if necessary!
-	// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 	char* commandLineString = nullptr;
 	{
 		size_t commandLineLength = 0;
+		bool isFirstArg = true;
 		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
 		{
-			commandLineLength += strlen(*arg);
+			if (isFirstArg)
+			{
+				commandLineLength += strlen(fileToExecute);
+				// Room for quotes
+				commandLineLength += 2;
+				isFirstArg = false;
+			}
+			else
+				commandLineLength += strlen(*arg);
 			// Room for space
 			commandLineLength += 1;
 		}
 
 		commandLineString = (char*)calloc(commandLineLength, sizeof(char));
-		commandLineString[commandLineLength] = '\0';
+		commandLineString[commandLineLength - 1] = '\0';
 		char* writeHead = commandLineString;
+		isFirstArg = true;
 		for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
 		{
-			if (!writeStringToBuffer(*arg, &writeHead, commandLineString, commandLineLength))
+			// Support executable with spaces in path
+			if (isFirstArg)
 			{
-				Log("error: ran out of space to write command\n");
-				free(commandLineString);
-				return 1;
+				isFirstArg = false;
+				if (!writeCharToBuffer('"', &writeHead, commandLineString, commandLineLength))
+				{
+					Log("error: ran out of space to write command\n");
+					free(commandLineString);
+					return 1;
+				}
+				if (!writeStringToBuffer(fileToExecute, &writeHead, commandLineString,
+				                         commandLineLength))
+				{
+					Log("error: ran out of space to write command\n");
+					free(commandLineString);
+					return 1;
+				}
+				if (!writeCharToBuffer('"', &writeHead, commandLineString, commandLineLength))
+				{
+					Log("error: ran out of space to write command\n");
+					free(commandLineString);
+					return 1;
+				}
+			}
+			else
+			{
+				if (!writeStringToBuffer(*arg, &writeHead, commandLineString, commandLineLength))
+				{
+					Log("error: ran out of space to write command\n");
+					free(commandLineString);
+					return 1;
+				}
 			}
 
 			if (*(arg + 1) != nullptr)
@@ -339,6 +374,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	                   &startupInfo,       // Pointer to STARTUPINFO structure
 	                   processInfo))       // Pointer to PROCESS_INFORMATION structure
 	{
+		free(commandLineString);
 		int errorCode = GetLastError();
 		if (errorCode == ERROR_FILE_NOT_FOUND)
 		{
@@ -355,6 +391,8 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		// LogLastError();
 		return 1;
 	}
+
+	free(commandLineString);
 
 	Log("Executed successfully\n");
 
