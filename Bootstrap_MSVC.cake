@@ -21,23 +21,6 @@
 
 (add-build-options "/DWINDOWS" "/EHsc")
 
-;; (defun-comptime cakelisp-link-hook (manager (& ModuleManager)
-;;                                     linkCommand (& ProcessCommand)
-;;                                     linkTimeInputs (* ProcessCommandInput) numLinkTimeInputs int
-;;                                     &return bool)
-;;   (Log "Cakelisp: Adding link arguments\n")
-;;   ;; Dynamic loading
-;;   (on-call (field linkCommand arguments) push_back
-;;            (array ProcessCommandArgumentType_String
-;;                   "-ldl"))
-;;   ;; Expose Cakelisp symbols for compile-time function symbol resolution
-;;   (on-call (field linkCommand arguments) push_back
-;;            (array ProcessCommandArgumentType_String
-;;                   "-Wl,--export-dynamic"))
-;;   (return true))
-
-;; (add-compile-time-hook pre-link cakelisp-link-hook)
-
 (set-cakelisp-option build-time-compiler "cl.exe")
 (set-cakelisp-option build-time-compile-arguments
                      "/nologo" "/c" 'source-input 'object-output

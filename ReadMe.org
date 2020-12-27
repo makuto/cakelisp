@@ -34,8 +34,7 @@ Please see [[file:doc/Legal.org][doc/Legal.org]] for a detailed explanation.
 
 Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your use-case.
 * Building Cakelisp itself
-/Note:/ Windows support is a work-in-progress.
-
+** Linux
 Run ~Build.sh~ in ~cakelisp/~:
 #+BEGIN_SRC sh
 cd cakelisp
@@ -49,7 +48,94 @@ You can then run ~./bin/cakelisp~. Have fun! A simple test:
 ./bin/cakelisp --execute test/Hello.cake
 #+END_SRC
 
-It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ and link them into an executable. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
+It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ and link them into an executable which also links ~-ldl~. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
+** Windows
+Windows does not come with a compiler installed by default.
+
+In order to provide a solid "native" experience, Cakelisp supports MSVC by default. It should be possible to compile on Windows using MinGW as well.
+
+1. Install Visual Studio. You can download the Community edition for free [[https://visualstudio.microsoft.com/downloads/][here]].
+
+   Ensure that you pick the C++ track, and make sure the C++ Developer Tools box is checked (if you clicked C++, you shouldn't need to make any other changes).
+
+   *Note* that you need to upgrade depending on what kinds of projects you use, e.g. if you are in a team making proprietary software, you must pay for Professional or Enterprise
+2. Download Cakelisp. If you have git or any git client installed, clone this repository using the URL provided on this page. If you don't have Git, download the ~.zip~ file from the repository home page
+3. In ~cakelisp/~, double-click ~Build.bat~.
+
+   This should automatically find your Visual Studio and set the proper environment variables. If it doesn't, see the [[https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160#developer_command_file_locations][MSVC documentation]] on running from the command line. You may have to update the path to ~vcvars64.bat~ to whatever Visual Studio version you installed. You should be able to find the script via searching for `vcvars` in your ~C:\Program Files (x86)~ folder.
+
+4. Check that the build succeeded. Cakelisp is first built manually, then bootstrap builds itself using ~Bootstrap_MSVC.cake~. You may need to modify ~Build.bat~ or ~Bootstrap_MSVC.cake~ to change compiler settings
+
+If you have ~cakelisp.exe~ in ~bin/~, you are ready to use Cakelisp! Due to the use of environment variables to select the compiler, you can only build programs if you've set the variables. To do so, refer to ~Build.bat~, or create a ~.bat~ file based on this template:
+#+BEGIN_SRC sh
+echo off
+rem Set environment variables for compiler/linker selection
+rem Include help message in case this file isn't present
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat" (
+call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
+) else (
+echo This script builds using MSVC.
+echo You must download and install MSVC before it will work. Download it here:
+echo https://visualstudio.microsoft.com/downloads/
+echo Select workloads for C++ projects. Ensure you install the C++ developer tools.
+echo If you're still seeing this, you may need to edit Build.bat to your vcvars path
+echo Please see the following link:
+echo https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
+goto fail
+)
+
+rem EDIT ME!
+"bin\cakelisp_bootstrap.exe" YourProgram.cake
+
+rem Make the result clear
+@if %ERRORLEVEL% == 0 (
+  echo Success!
+  goto success
+) else (
+  echo Error while building
+  goto fail
+)
+
+:fail
+goto end
+
+:success
+goto end
+
+:end
+rem Give the user a chance to read the input (not required)
+pause
+#+END_SRC
+*** Building from Visual Studio
+It is also possible to create a Visual Studio project to build Cakelisp. This is especially useful if you are debugging Cakelisp itself.
+
+You can refer to an existing project in ~cakelisp/VisualStudio~. The steps to create a new project are as follows:
+
+- Open Visual Studio
+- ~File -> New -> New Project~
+- ~Visual C++ -> Empty Project~
+- Set the name, location, and solution as desired, then click OK
+- ~Project -> Add Existing Item~
+- Browse to ~cakelisp/src~, then select all the files (via ~Ctrl-A~, etc.) and click Add. This makes Cakelisp itself built by Visual Studio (i.e., not bootstrap built)
+- ~Project -> <Project Name> Properties...~
+- In the ~Debugging~ section, set ~Working Directory~ to wherever your project's working directory is, e.g. where your ~.cake~ files are
+- Set ~Command Arguments~ to the ~.cake~ files you want to build. You can leave this empty to see the Cakelisp help page
+- Set the ~Environment~ to include the necessary environment variables. This is required so that Cakelisp knows how to find MSVC when launching it as a sub-process. The easiest way to find these is to open a Command Prompt, then run a ~vcvars~ script. For example, I run the following:
+  #+BEGIN_SRC sh
+  "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
+  #+END_SRC
+  Your path may be different based on your Visual Studio version and installation. See [[https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160][documentation]] on how to find this file.
+
+  Next, run ~set~ in that same Command Prompt. Select all of the text output by that command and hit Enter to copy it. Finally, return to the ~Environment~ setting in Visual Studio, click the down arrow on the field, then ~<Edit...>~. Paste into the top text field, then hit OK.
+- Expand ~Configuration Properties -> C/C++ -> Preprocessor~
+- Double click or ~<Edit...>~ the ~Preprocessor Definitions~ field and add the following to the beginning:
+  #+BEGIN_SRC sh
+  _CRT_SECURE_NO_WARNINGS;WINDOWS;
+  #+END_SRC
+  The first definition is going to be removed eventually; it makes MSVC more lenient with some errors Cakelisp has. The second definition ensures you build with Cakelisp's Windows-specific code enabled
+- Hit ~F5~ or go to ~Debug -> Start Debugging~. Visual Studio will build Cakelisp, and if it succeeds, launch Cakelisp. If you have no ~Command Arguments~ set, you should see the Cakelisp help output in a command window.
+
+This project is for building Cakelisp itself; you don't need to make any new projects for your projects written in Cakelisp (in ~.cake~ files). Change the ~Debugging -> Command Arguments~ setting to build different Cakelisp files, or change the ~Working Directory~ to build a different Cakelisp project (e.g. one in a separate repository).
 ** Dependencies
 Currently, Cakelisp has no dependencies other than:
 - C++ STL and runtime: These are normally included in your toolset

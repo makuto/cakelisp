@@ -47,3 +47,6 @@ bin/
 lib/
 a.out
 cakelisp_cache/
+
+VisualStudio/Cakelisp/Debug
+VisualStudio/Cakelisp/.vs
