@@ -35,10 +35,12 @@ struct Subprocess
 	int* statusOut;
 #ifdef UNIX
 	ProcessId processId;
+	int pipeReadFileDescriptor;
 #elif WINDOWS
 	PROCESS_INFORMATION* processInfo;
+	HANDLE hChildStd_IN_Wr;
+	HANDLE hChildStd_OUT_Rd;
 #endif
-	int pipeReadFileDescriptor;
 	std::string command;
 };
 
@@ -239,7 +241,8 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 			PrintfBuffer(fileToExecuteOverride, "%sbin\\Host%s\\%s\\%s", vcInstallDir, vcHostArchitecture,
 			             vcTargetArchitecture, arguments.fileToExecute);
 
-			Logf("\nOverriding command to:\n%s\n\n", fileToExecuteOverride);
+			if (logging.processes)
+				Logf("\nOverriding command to:\n%s\n\n", fileToExecuteOverride);
 		}
 
 		for (int n = 0; n < ArraySize(msvcVariables); ++n)
@@ -249,12 +252,11 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		if (!variablesFound)
 			return 1;
 	}
-	else
-		Log("Not doing override\n");
 
 	const char* fileToExecute =
 	    fileToExecuteOverride[0] ? fileToExecuteOverride : arguments.fileToExecute;
 
+	// Build a single string with all arguments
 	char* commandLineString = nullptr;
 	{
 		size_t commandLineLength = 0;
@@ -326,14 +328,73 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		}
 	}
 
-	STARTUPINFO startupInfo;
-	PROCESS_INFORMATION* processInfo = new PROCESS_INFORMATION;
+	if (logging.processes)
+		Logf("Final command string: %s\n", commandLineString);
 
+	// Redirect child process std in/out
+	HANDLE hChildStd_IN_Rd = nullptr;
+	HANDLE hChildStd_IN_Wr = nullptr;
+	HANDLE hChildStd_OUT_Rd = nullptr;
+	HANDLE hChildStd_OUT_Wr = nullptr;
+	{
+		SECURITY_ATTRIBUTES securityAttributes;
+		// Set the bInheritHandle flag so pipe handles are inherited.
+		securityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+		securityAttributes.bInheritHandle = TRUE;
+		securityAttributes.lpSecurityDescriptor = NULL;
+
+		// Create a pipe for the child process's STDOUT.
+		if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &securityAttributes, 0))
+		{
+			Logf("StdoutRd CreatePipe error %d\n", GetLastError());
+			free(commandLineString);
+			return 1;
+		}
+
+		// Ensure the read handle to the pipe for STDOUT is not inherited.
+		if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0))
+		{
+			Logf("Stdout SetHandleInformation error %d\n", GetLastError());
+			free(commandLineString);
+			CloseHandle(hChildStd_OUT_Rd);
+			CloseHandle(hChildStd_OUT_Wr);
+			return 1;
+		}
+
+		// Create a pipe for the child process's STDIN.
+		if (!CreatePipe(&hChildStd_IN_Rd, &hChildStd_IN_Wr, &securityAttributes, 0))
+		{
+			Logf("Stdin CreatePipe error %d\n", GetLastError());
+			free(commandLineString);
+			CloseHandle(hChildStd_OUT_Rd);
+			CloseHandle(hChildStd_OUT_Wr);
+			return 1;
+		}
+
+		// Ensure the write handle to the pipe for STDIN is not inherited.
+		if (!SetHandleInformation(hChildStd_IN_Wr, HANDLE_FLAG_INHERIT, 0))
+		{
+			Logf("Stdin SetHandleInformation error %d\n", GetLastError());
+			free(commandLineString);
+			CloseHandle(hChildStd_OUT_Rd);
+			CloseHandle(hChildStd_OUT_Wr);
+			CloseHandle(hChildStd_IN_Rd);
+			CloseHandle(hChildStd_IN_Wr);
+			return 1;
+		}
+	}
+
+	STARTUPINFO startupInfo;
 	ZeroMemory(&startupInfo, sizeof(startupInfo));
 	startupInfo.cb = sizeof(startupInfo);
-	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
+	// This structure specifies the STDIN and STDOUT handles for redirection.
+	startupInfo.hStdError = hChildStd_OUT_Wr;
+	startupInfo.hStdOutput = hChildStd_OUT_Wr;
+	startupInfo.hStdInput = hChildStd_IN_Rd;
+	startupInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-	Logf("Final command string: %s\n", commandLineString);
+	PROCESS_INFORMATION* processInfo = new PROCESS_INFORMATION;
+	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
 
 	// Start the child process.
 	if (!CreateProcess(fileToExecute,      // No module name (use command line)
@@ -347,6 +408,10 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	                   &startupInfo,       // Pointer to STARTUPINFO structure
 	                   processInfo))       // Pointer to PROCESS_INFORMATION structure
 	{
+		CloseHandle(hChildStd_OUT_Rd);
+		CloseHandle(hChildStd_OUT_Wr);
+		CloseHandle(hChildStd_IN_Rd);
+		CloseHandle(hChildStd_IN_Wr);
 		free(commandLineString);
 		int errorCode = GetLastError();
 		if (errorCode == ERROR_FILE_NOT_FOUND)
@@ -365,27 +430,36 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		return 1;
 	}
 
+	// Close handles to the stdin and stdout pipes no longer needed by the child process.
+	// If they are not explicitly closed, there is no way to recognize that the child process ended
+	CloseHandle(hChildStd_OUT_Wr);
+	CloseHandle(hChildStd_IN_Rd);
+
+	Subprocess newProcess = {0};
+	newProcess.statusOut = statusOut;
+	newProcess.processInfo = processInfo;
+	newProcess.hChildStd_IN_Wr = hChildStd_IN_Wr;
+	newProcess.hChildStd_OUT_Rd = hChildStd_OUT_Rd;
+	newProcess.command = commandLineString;
+	s_subprocesses.push_back(std::move(newProcess));
+
 	free(commandLineString);
 
-	Log("Executed successfully\n");
-
-	std::string command = "";
-	for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
-	{
-		command.append(*arg);
-		command.append(" ");
-	}
-
-	s_subprocesses.push_back({statusOut, processInfo, 0, command});
 	return 0;
 #endif
 	return 1;
 }
 
+// This function prints all the output for each process in one contiguous block, so that outputs
+// between two processes aren't mangled together terribly
 void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 {
 	if (s_subprocesses.empty())
 		return;
+
+#ifdef WINDOWS
+	HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
 
 	for (Subprocess& process : s_subprocesses)
 	{
@@ -413,22 +487,55 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		// Wait until child process exits.
 		WaitForSingleObject(process.processInfo->hProcess, INFINITE);
 
-		DWORD exit_code = 0;
-		if (!GetExitCodeProcess(process.processInfo->hProcess, &exit_code))
+		// Read all output
+		{
+			DWORD bytesRead, bytesWritten;
+			char buffer[4096] = {0};
+			bool encounteredError = false;
+			while (true)
+			{
+				bool success =
+				    ReadFile(process.hChildStd_OUT_Rd, buffer, sizeof(buffer), &bytesRead, NULL);
+				if (!success || bytesRead == 0)
+				{
+					encounteredError = !success;
+					break;
+				}
+
+				success = WriteFile(hParentStdOut, buffer, bytesRead, &bytesWritten, NULL);
+				if (!success)
+				{
+					encounteredError = true;
+					break;
+				}
+
+				onOutput(buffer);
+			}
+
+			// This seems to give a lot of false-positives
+			// if (encounteredError)
+			// 	Log("warning: encountered read or write error while receiving sub-process "
+			// 	    "output\n");
+		}
+
+		DWORD exitCode = 0;
+		if (!GetExitCodeProcess(process.processInfo->hProcess, &exitCode))
 		{
 			Log("error: failed to get exit code for process\n");
-			exit_code = 1;
+			exitCode = 1;
 		}
-		else if (exit_code != 0)
+		else if (exitCode != 0)
 		{
 			Logf("%s\n", process.command.c_str());
 		}
 
-		*process.statusOut = exit_code;
+		*process.statusOut = exitCode;
 
-		// Close process and thread handles.
+		// Close process, thread, and stdin/out handles.
 		CloseHandle(process.processInfo->hProcess);
 		CloseHandle(process.processInfo->hThread);
+		CloseHandle(process.hChildStd_IN_Wr);
+		CloseHandle(process.hChildStd_OUT_Rd);
 #endif
 	}
 
