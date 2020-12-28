@@ -4,7 +4,9 @@
 #include <cstdio>     //  sprintf
 #include <string>
 
+#ifdef UNIX
 #include <strings.h>
+#endif
 
 #define MAX_NAME_LENGTH 64
 #define MAX_PATH_LENGTH 128
@@ -37,7 +39,7 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 #ifdef WINDOWS
 #define StrCatSafe(bufferOut, bufferSize, strToAppend) strcat_s(bufferOut, bufferSize, strToAppend)
 #define StrDuplicate(str) _strdup(str)
-#define StrCompareIgnoreCase(strA, strB) strcasecmp(strA, strB)
+#define StrCompareIgnoreCase(strA, strB) _stricmp(strA, strB)
 #else
 // TODO: Safe version
 #define StrCatSafe(bufferOut, bufferSize, strToAppend) \
