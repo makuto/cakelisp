@@ -82,8 +82,12 @@ void moduleManagerInitialize(ModuleManager& manager)
 			// Need this to properly add declspec for importing symbols
 			{ProcessCommandArgumentType_String, "/DWINDOWS"},
 			// TODO Fix
-			{ProcessCommandArgumentType_String, "/DEBUG"},
+			{ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
 			{ProcessCommandArgumentType_String, "/Zi"},
+			// Need to use dynamic runtime so everything is shared. Cakelisp must be built with this as well
+			// (use just /MD for release)
+			// SEe https://stackoverflow.com/questions/22279052/c-passing-stdstring-by-reference-to-function-in-dll
+			{ProcessCommandArgumentType_String, "/MDd"},
 			{ProcessCommandArgumentType_String, "/Fp\"cakelisp_cache\\comptime_my_print.pdb\""},
 			{ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
@@ -94,11 +98,12 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.compileTimeLinkCommand.arguments = {
-			{ProcessCommandArgumentType_String, "/nologo"},
-			{ProcessCommandArgumentType_String, "/DLL"},
+		    {ProcessCommandArgumentType_String, "/nologo"},
+		    {ProcessCommandArgumentType_String, "/DLL"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
-			// On Windows, .exes create .lib files for exports
+		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
+		    // On Windows, .exes create .lib files for exports
 		    {ProcessCommandArgumentType_String, "/LIBPATH:\"bin\""},
 		    {ProcessCommandArgumentType_String, "cakelisp.lib"}};
 

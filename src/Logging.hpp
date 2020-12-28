@@ -1,3 +1,7 @@
+#pragma once
+
+#include "Exporting.hpp"
+
 struct LoggingSettings
 {
 	// verbosity
@@ -25,4 +29,4 @@ struct LoggingSettings
 	bool strictIncludes;
 };
 
-extern LoggingSettings logging;
+extern CAKELISP_API LoggingSettings logging;

@@ -47,4 +47,4 @@ bool writeStringToBufferErrorToken(const char* str, char** at, char* bufferStart
                                    const Token& token);
 bool appendTokenToString(const Token& token, char** at, char* bufferStart, int bufferSize);
 
-extern int g_totalLinesTokenized;
+extern CAKELISP_API int g_totalLinesTokenized;
