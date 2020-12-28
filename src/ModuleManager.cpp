@@ -74,38 +74,41 @@ void moduleManagerInitialize(ModuleManager& manager)
 	// Command defaults
 	{
 #ifdef WINDOWS
+		// MSVC by default
+		// Our lives could be easier by using Clang or MinGW, but it wouldn't be the ideal for
+		// hardcore Windows users, who we should support
 		manager.environment.compileTimeBuildCommand.fileToExecute = "cl.exe";
 		manager.environment.compileTimeBuildCommand.arguments = {
-			{ProcessCommandArgumentType_String, "/nologo"},
-			// Not 100% sure what the right default for this is
-			{ProcessCommandArgumentType_String, "/EHsc"},
-			// Need this to properly add declspec for importing symbols
-			{ProcessCommandArgumentType_String, "/DWINDOWS"},
-			// TODO Fix
-			{ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
-			{ProcessCommandArgumentType_String, "/Zi"},
-			// Need to use dynamic runtime so everything is shared. Cakelisp must be built with this as well
-			// (use just /MD for release)
-			// SEe https://stackoverflow.com/questions/22279052/c-passing-stdstring-by-reference-to-function-in-dll
-			{ProcessCommandArgumentType_String, "/MDd"},
-			{ProcessCommandArgumentType_String, "/Fp\"cakelisp_cache\\comptime_my_print.pdb\""},
-			{ProcessCommandArgumentType_String, "/c"},
+		    {ProcessCommandArgumentType_String, "/nologo"},
+		    // Not 100% sure what the right default for this is
+		    {ProcessCommandArgumentType_String, "/EHsc"},
+		    // Need this to properly add declspec for importing symbols (on Linux, we don't need
+		    // declspec, so it's ifdef'd based on platform)
+		    {ProcessCommandArgumentType_String, "/DWINDOWS"},
+		    // Need to use dynamic runtime so everything is shared. Cakelisp itself must be built
+		    // with this matching as well (use just /MD for release) See
+		    // https://stackoverflow.com/questions/22279052/c-passing-stdstring-by-reference-to-function-in-dll
+		    {ProcessCommandArgumentType_String, "/MDd"},
+			// Debug only
+		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
+		    {ProcessCommandArgumentType_String, "/Zi"},
+		    {ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
-			// TODO: Dynamic linking support
-		    // };
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.compileTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "/nologo"},
 		    {ProcessCommandArgumentType_String, "/DLL"},
-		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
-		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
-		    // On Windows, .exes create .lib files for exports
+		    // On Windows, .exes create .lib files for exports. Link it here so we don't get
+		    // unresolved externals
 		    {ProcessCommandArgumentType_String, "/LIBPATH:\"bin\""},
-		    {ProcessCommandArgumentType_String, "cakelisp.lib"}};
+		    {ProcessCommandArgumentType_String, "cakelisp.lib"},
+			// Debug only
+			{ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
+			{ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
 		manager.environment.buildTimeBuildCommand.arguments = {
@@ -123,6 +126,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 #else
+		// G++ by default
 		manager.environment.compileTimeBuildCommand.fileToExecute = "/usr/bin/g++";
 		manager.environment.compileTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
@@ -147,6 +151,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    // Probably unnecessary to make the user's code position-independent, but it does make
+		    // hotreloading a bit easier to try out
 		    {ProcessCommandArgumentType_String, "-fPIC"},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};

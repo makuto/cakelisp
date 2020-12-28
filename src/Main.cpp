@@ -9,6 +9,11 @@
 #include "RunProcess.hpp"
 #include "Utilities.hpp"
 
+#ifdef WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include "windows.h"
+#endif
+
 struct CommandLineOption
 {
 	const char* handle;
@@ -43,6 +48,7 @@ int main(int numArguments, char* arguments[])
 	bool ignoreCachedFiles = false;
 	bool executeOutput = false;
 	bool listBuiltInGeneratorsThenQuit = false;
+	bool waitForDebugger = false;
 
 	const CommandLineOption options[] = {
 	    {"--ignore-cache", &ignoreCachedFiles,
@@ -56,6 +62,8 @@ int main(int numArguments, char* arguments[])
 	    {"--list-built-ins", &listBuiltInGeneratorsThenQuit,
 	     "List all built-in compile-time procedures, then exit. This list contains every procedure "
 	     "you can possibly call, until you import more or define your own"},
+	    {"--wait-for-debugger", &waitForDebugger,
+	     "Wait for a debugger to be attached before starting loading and evaluation"},
 	    // Logging
 	    {"--verbose-phases", &logging.phases,
 	     "Output labels for each major phase Cakelisp goes through"},
@@ -151,6 +159,16 @@ int main(int numArguments, char* arguments[])
 				return 1;
 			}
 		}
+	}
+
+	if (waitForDebugger)
+	{
+		Log("Waiting for debugger...");
+#ifdef WINDOWS
+		while (!IsDebuggerPresent())
+			Sleep(100);
+#endif
+		Log("attached\n");
 	}
 
 	if (listBuiltInGeneratorsThenQuit)
