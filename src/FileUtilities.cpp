@@ -161,7 +161,7 @@ void makeDirectory(const char* path)
 void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize)
 {
 #ifdef UNIX
-	char* pathCopy = strdup(path);
+	char* pathCopy = StrDuplicate(path);
 	const char* dirName = dirname(pathCopy);
 	SafeSnprinf(bufferOut, bufferSize, "%s", dirName);
 	free(pathCopy);
@@ -183,7 +183,7 @@ void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize)
 void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize)
 {
 #ifdef UNIX
-	char* pathCopy = strdup(path);
+	char* pathCopy = StrDuplicate(path);
 	const char* fileName = basename(pathCopy);
 	SafeSnprinf(bufferOut, bufferSize, "%s", fileName);
 	free(pathCopy);
@@ -205,8 +205,8 @@ void makePathRelativeToFile(const char* filePath, const char* referencedFilePath
 {
 	getDirectoryFromPath(filePath, bufferOut, bufferSize);
 	// TODO: Need to make this safe!
-	strcat_s(bufferOut, bufferSize, "/");
-	strcat_s(bufferOut, bufferSize, referencedFilePath);
+	StrCatSafe(bufferOut, bufferSize, "/");
+	StrCatSafe(bufferOut, bufferSize, referencedFilePath);
 }
 
 const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* filePath)

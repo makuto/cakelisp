@@ -128,7 +128,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 			int i = 0;
 			for (const char** arg = arguments.arguments; *arg != nullptr; ++arg)
 			{
-				nonConstArguments[i] = strdup(*arg);
+				nonConstArguments[i] = StrDuplicate(*arg);
 				++i;
 			}
 

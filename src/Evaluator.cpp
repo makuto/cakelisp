@@ -13,7 +13,6 @@
 #include "Utilities.hpp"
 #include "Writer.hpp"
 
-// TODO: safe version of strcat
 #include <stdio.h>
 #include <string.h>
 

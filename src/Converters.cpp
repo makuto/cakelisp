@@ -3,7 +3,6 @@
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
-// TODO: safe version of strcat
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>

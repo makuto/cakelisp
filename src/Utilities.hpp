@@ -4,6 +4,8 @@
 #include <cstdio>     //  sprintf
 #include <string>
 
+#include <strings.h>
+
 #define MAX_NAME_LENGTH 64
 #define MAX_PATH_LENGTH 128
 
@@ -14,8 +16,8 @@
 void printIndentToDepth(int depth);
 
 // Print to stderr. Could be for reporting errors too; it's up to you to add "error:'
-#define Logf(format, ...) fprintf(stderr, format, __VA_ARGS__);
-#define Log(format) fprintf(stderr, format);
+#define Logf(format, ...) fprintf(stderr, format, __VA_ARGS__)
+#define Log(format) fprintf(stderr, format)
 
 // TODO: de-macroize
 #define SafeSnprinf(buffer, size, format, ...)                         \
@@ -26,11 +28,23 @@ void printIndentToDepth(int depth);
 
 #define PrintfBuffer(buffer, format, ...) SafeSnprinf(buffer, sizeof(buffer), format, __VA_ARGS__)
 
-// TODO Replace with strcat()
+// TODO Replace with strcat()?
 #define PrintBuffer(buffer, output) SafeSnprinf(buffer, sizeof(buffer), "%s", output)
 
 bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize);
 bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize);
+
+#ifdef WINDOWS
+#define StrCatSafe(bufferOut, bufferSize, strToAppend) strcat_s(bufferOut, bufferSize, strToAppend)
+#define StrDuplicate(str) _strdup(str)
+#define StrCompareIgnoreCase(strA, strB) strcasecmp(strA, strB)
+#else
+// TODO: Safe version
+#define StrCatSafe(bufferOut, bufferSize, strToAppend) \
+	strncat(bufferOut, strToAppend, bufferSize - 1)
+#define StrDuplicate(str) strdup(str)
+#define StrCompareIgnoreCase(strA, strB) strcasecmp(strA, strB)
+#endif
 
 // TODO De-macroize these? It could be useful to keep as macros if I add __LINE__ etc. (to answer
 // questions like "where is this error coming from?")

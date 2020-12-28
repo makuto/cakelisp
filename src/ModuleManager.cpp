@@ -331,7 +331,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	char safePathBuffer[MAX_PATH_LENGTH] = {0};
 	makeSafeFilename(safePathBuffer, sizeof(safePathBuffer), resolvedPath);
 
-	const char* normalizedFilename = _strdup(safePathBuffer);
+	const char* normalizedFilename = StrDuplicate(safePathBuffer);
 	// Enabling this makes all file:line messages really long. For now, I'll keep it as relative to
 	// current working directory of this executable.
 	// const char* normalizedFilename = makeAbsolutePath_Allocated(".", filename);
@@ -798,7 +798,7 @@ static bool commandEqualsCachedCommand(ModuleManager& manager, const char* artif
 {
 	uint32_t newCommandCrc = 0;
 	if (logging.commandCrcs)
-		Logf("\"");
+		Log("\"");
 	for (const char** currentArg = commandArguments; *currentArg; ++currentArg)
 	{
 		crc32(*currentArg, strlen(*currentArg), &newCommandCrc);
@@ -806,7 +806,7 @@ static bool commandEqualsCachedCommand(ModuleManager& manager, const char* artif
 			Logf("%s ", *currentArg);
 	}
 	if (logging.commandCrcs)
-		Logf("\"\n");
+		Log("\"\n");
 
 	if (crcOut)
 		*crcOut = newCommandCrc;
@@ -976,7 +976,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		// Annoying exception for MSVC not having spaces between some arguments
 		std::string* objectOutput = &object->filename;
 		std::string objectOutputOverride;
-		if (_stricmp(buildCommand.fileToExecute.c_str(), "CL.exe") == 0)
+		if (StrCompareIgnoreCase(buildCommand.fileToExecute.c_str(), "CL.exe") == 0)
 		{
 			char msvcObjectOutput[MAX_PATH_LENGTH] = {0};
 			makeObjectOutputArgument(msvcObjectOutput, sizeof(msvcObjectOutput),
@@ -1163,14 +1163,14 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		// Annoying exception for MSVC not having spaces between some arguments
 		std::string* executableOutput = &outputExecutableName;
 		std::string executableOutputOverride;
-		if (_stricmp(linkCommand.fileToExecute.c_str(), "cl.exe") == 0)
+		if (StrCompareIgnoreCase(linkCommand.fileToExecute.c_str(), "cl.exe") == 0)
 		{
 			char msvcExecutableOutput[MAX_PATH_LENGTH] = {0};
 			PrintfBuffer(msvcExecutableOutput, "/Fe\"%s\"", outputExecutableName.c_str());
 			executableOutputOverride = msvcExecutableOutput;
 			executableOutput = &executableOutputOverride;
 		}
-		else if (_stricmp(linkCommand.fileToExecute.c_str(), "link.exe") == 0)
+		else if (StrCompareIgnoreCase(linkCommand.fileToExecute.c_str(), "link.exe") == 0)
 		{
 			char msvcExecutableOutput[MAX_PATH_LENGTH] = {0};
 			PrintfBuffer(msvcExecutableOutput, "/out:\"%s\"", outputExecutableName.c_str());

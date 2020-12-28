@@ -37,13 +37,13 @@ void makeObjectOutputArgument(char* buffer, int bufferSize, const char* objectNa
 void makeDynamicLibraryOutputArgument(char* buffer, int bufferSize, const char* libraryName,
                                       const char* buildExecutable)
 {
-	if (_stricmp(buildExecutable, "cl.exe") == 0)
+	if (StrCompareIgnoreCase(buildExecutable, "cl.exe") == 0)
 	{
 		Log("error: attempting to build dynamic library using cl.exe. You must use link.exe "
 		    "instead\n");
 		SafeSnprinf(buffer, bufferSize, "%s", libraryName);
 	}
-	else if (_stricmp(buildExecutable, "link.exe") == 0)
+	else if (StrCompareIgnoreCase(buildExecutable, "link.exe") == 0)
 	{
 		SafeSnprinf(buffer, bufferSize, "/OUT:\"%s\"", libraryName);
 	}
