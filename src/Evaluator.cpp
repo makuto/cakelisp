@@ -1,5 +1,6 @@
 #include "Evaluator.hpp"
 
+#include "Build.hpp"
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
 #include "FileUtilities.hpp"
@@ -836,13 +837,14 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		             buildObject.artifactsName.c_str());
 
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(buildObjectName, "%s/%s.o", cakelispWorkingDir,
-		             buildObject.artifactsName.c_str());
+		PrintfBuffer(buildObjectName, "%s/%s.%s", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str(), compilerObjectExtension);
 		buildObject.buildObjectName = buildObjectName;
 
 		char dynamicLibraryOut[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(dynamicLibraryOut, "%s/lib%s.so", cakelispWorkingDir,
-		             buildObject.artifactsName.c_str());
+		PrintfBuffer(dynamicLibraryOut, "%s/%s%s.%s", cakelispWorkingDir,
+		             linkerDynamicLibraryPrefix, buildObject.artifactsName.c_str(),
+		             linkerDynamicLibraryExtension);
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
 		if (canUseCachedFile(environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
@@ -857,17 +859,18 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		char headerInclude[MAX_PATH_LENGTH] = {0};
 		if (environment.cakelispSrcDir.empty())
-		{
-			PrintBuffer(headerInclude, "-Isrc/");
-		}
+			makeIncludeArgument(headerInclude, sizeof(headerInclude), "src/");
 		else
-		{
-			PrintfBuffer(headerInclude, "-I%s", environment.cakelispSrcDir.c_str());
-		}
+			makeIncludeArgument(headerInclude, sizeof(headerInclude),
+			                    environment.cakelispSrcDir.c_str());
+
+		char buildObjectArgument[MAX_PATH_LENGTH] = {0};
+		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument),
+		                         buildObjectName);
 
 		ProcessCommandInput compileTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {sourceOutputName}},
-		    {ProcessCommandArgumentType_ObjectOutput, {buildObjectName}},
+		    {ProcessCommandArgumentType_ObjectOutput, {buildObjectArgument}},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
 		const char** buildArguments = MakeProcessArgumentsFromCommand(
 		    environment.compileTimeBuildCommand, compileTimeInputs, ArraySize(compileTimeInputs));
@@ -933,9 +936,14 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (logging.buildProcess)
 			Logf("Compiled %s successfully\n", buildObject.definition->name.c_str());
 
+		char dynamicLibraryOutArgument[MAX_PATH_LENGTH] = {0};
+		makeDynamicLibraryOutputArgument(
+		    dynamicLibraryOutArgument, sizeof(dynamicLibraryOutArgument),
+		    buildObject.dynamicLibraryPath.c_str(), environment.compileTimeLinkCommand.fileToExecute.c_str());
+
 		ProcessCommandInput linkTimeInputs[] = {
 		    {ProcessCommandArgumentType_DynamicLibraryOutput,
-		     {buildObject.dynamicLibraryPath.c_str()}},
+		     {dynamicLibraryOutArgument}},
 		    {ProcessCommandArgumentType_ObjectInput, {buildObject.buildObjectName.c_str()}}};
 		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
 		    environment.compileTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
@@ -1494,7 +1502,7 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 				if (expectedSignature.empty())
 				{
 					if (!tokenizeLinePrintError(g_environmentCompileTimeVariableDestroySignature,
-					                            __FILE__, __LINE__, expectedSignature))
+					                            "Evaluator.cpp", __LINE__, expectedSignature))
 					{
 						Log("error: failed to tokenize "
 						    "g_environmentCompileTimeVariableDestroySignature! Internal code "

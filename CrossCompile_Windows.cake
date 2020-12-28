@@ -17,6 +17,7 @@
  "DynamicLoader.cpp"
  "ModuleManager.cpp"
  "Logging.cpp"
+ "Build.cpp"
  "Main.cpp")
 
 (add-build-options "-DWINDOWS")

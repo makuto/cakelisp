@@ -329,7 +329,7 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 				static std::vector<Token> expectedSignature;
 				if (expectedSignature.empty())
 				{
-					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, __FILE__, __LINE__,
+					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, "Generators.cpp", __LINE__,
 					                            expectedSignature))
 						return false;
 				}
@@ -355,7 +355,7 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 				static std::vector<Token> expectedSignature;
 				if (expectedSignature.empty())
 				{
-					if (!tokenizeLinePrintError(g_environmentPreLinkHookSignature, __FILE__,
+					if (!tokenizeLinePrintError(g_environmentPreLinkHookSignature, "Generators.cpp",
 					                            __LINE__, expectedSignature))
 						return false;
 				}
@@ -382,7 +382,7 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 				if (expectedSignature.empty())
 				{
 					if (!tokenizeLinePrintError(g_environmentPostReferencesResolvedHookSignature,
-					                            __FILE__, __LINE__, expectedSignature))
+					                            "Generators.cpp", __LINE__, expectedSignature))
 						return false;
 				}
 
@@ -1776,6 +1776,12 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	// Macros will be found without headers thanks to dynamic linking
 	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defmacro-local") == 0;
 
+// TODO Only do this when using MSVC
+#ifdef WINDOWS
+	addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+	                &tokens[startTokenIndex]);
+#endif
+
 	// Macros must return success or failure
 	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,
 	                &tokens[startTokenIndex]);
@@ -1868,6 +1874,12 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	// This only really needs to be an environment distinction, not a code output distinction
 	// Generators will be found without headers thanks to dynamic linking
 	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defgenerator-local") == 0;
+
+	// TODO Only do this when using MSVC
+#ifdef WINDOWS
+	addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+	                &tokens[startTokenIndex]);
+#endif
 
 	// Generators must return success or failure
 	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,

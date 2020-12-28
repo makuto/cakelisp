@@ -4,8 +4,9 @@
 #include <string>
 
 #include "EvaluatorEnums.hpp"
-#include "TokenEnums.hpp"
+#include "Exporting.hpp"
 #include "GeneratorHelpersEnums.hpp"
+#include "TokenEnums.hpp"
 
 struct Token;
 struct EvaluatorContext;
@@ -15,13 +16,14 @@ struct StringOutput;
 struct ObjectDefinition;
 
 void StripInvocation(int& startTokenIndex, int& endTokenIndex);
-int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenIndex);
+CAKELISP_API int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenIndex);
 
 bool ExpectEvaluatorScope(const char* generatorName, const Token& token,
                           const EvaluatorContext& context, EvaluatorScope expectedScope);
 bool IsForbiddenEvaluatorScope(const char* generatorName, const Token& token,
                                const EvaluatorContext& context, EvaluatorScope forbiddenScope);
-bool ExpectTokenType(const char* generatorName, const Token& token, TokenType expectedType);
+CAKELISP_API bool ExpectTokenType(const char* generatorName, const Token& token,
+                                  TokenType expectedType);
 // Errors and returns false if out of invocation (or at closing paren)
 bool ExpectInInvocation(const char* message, const std::vector<Token>& tokens, int indexToCheck,
                         int endInvocationIndex);
@@ -37,14 +39,15 @@ bool isSpecialSymbol(const Token& token);
 // Returns -1 if argument is not within range
 int getArgument(const std::vector<Token>& tokens, int startTokenIndex, int desiredArgumentIndex,
                 int endTokenIndex);
-int getExpectedArgument(const char* message, const std::vector<Token>& tokens, int startTokenIndex,
-                        int desiredArgumentIndex, int endTokenIndex);
+CAKELISP_API int getExpectedArgument(const char* message, const std::vector<Token>& tokens,
+                                     int startTokenIndex, int desiredArgumentIndex,
+                                     int endTokenIndex);
 // Expects startTokenIndex to be the invocation. The name of the invocation is included in the count
 // Note: Body arguments will not work properly with this
 int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 // Like getNumArguments, includes invocation
-bool ExpectNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex,
-                        int numExpectedArguments);
+CAKELISP_API bool ExpectNumArguments(const std::vector<Token>& tokens, int startTokenIndex,
+                                     int endTokenIndex, int numExpectedArguments);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 // There are no more arguments once this returns endArrayTokenIndex
 int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
@@ -73,7 +76,7 @@ void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
 void MakeContextUniqueSymbolName(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                                  const char* prefix, Token* tokenToChange);
 
-void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
+CAKELISP_API void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
 
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
 

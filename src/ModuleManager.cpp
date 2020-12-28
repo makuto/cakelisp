@@ -3,6 +3,7 @@
 #include <string.h>
 #include <cstring>
 
+#include "Build.hpp"
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
 #include "Evaluator.hpp"
@@ -16,14 +17,6 @@
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 #include "Writer.hpp"
-
-#ifdef WINDOWS
-const char* compilerObjectExtension = "obj";
-const char* defaultExecutableName = "output.exe";
-#else
-const char* compilerObjectExtension = "o";
-const char* defaultExecutableName = "a.out";
-#endif
 
 // The ' symbols tell the signature validator that the actual contents of those symbols can be
 // user-defined (just like C letting you specify arguments without names)
@@ -86,20 +79,28 @@ void moduleManagerInitialize(ModuleManager& manager)
 			{ProcessCommandArgumentType_String, "/nologo"},
 			// Not 100% sure what the right default for this is
 			{ProcessCommandArgumentType_String, "/EHsc"},
-		    {ProcessCommandArgumentType_String, "/c"},
+			// Need this to properly add declspec for importing symbols
+			{ProcessCommandArgumentType_String, "/DWINDOWS"},
+			// TODO Fix
+			{ProcessCommandArgumentType_String, "/DEBUG"},
+			{ProcessCommandArgumentType_String, "/Zi"},
+			{ProcessCommandArgumentType_String, "/Fp\"cakelisp_cache\\comptime_my_print.pdb\""},
+			{ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
 			// TODO: Dynamic linking support
-		    // {ProcessCommandArgumentType_String, "-fPIC"}};
+		    // };
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.compileTimeLinkCommand.arguments = {
-			// TODO: Dynamic linking support
-			// {ProcessCommandArgumentType_String, "-shared"},
-		    // {ProcessCommandArgumentType_String, "-o"},
+			{ProcessCommandArgumentType_String, "/nologo"},
+			{ProcessCommandArgumentType_String, "/DLL"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
+			// On Windows, .exes create .lib files for exports
+		    {ProcessCommandArgumentType_String, "/LIBPATH:\"bin\""},
+		    {ProcessCommandArgumentType_String, "cakelisp.lib"}};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
 		manager.environment.buildTimeBuildCommand.arguments = {
@@ -175,6 +176,25 @@ void moduleManagerDestroy(ModuleManager& manager)
 	}
 	manager.modules.clear();
 	closeAllDynamicLibraries();
+}
+
+void makeSafeFilename(char* buffer, int bufferSize, const char* filename)
+{
+	char* bufferWrite = buffer;
+	for (const char* currentChar = filename; *currentChar; ++currentChar)
+	{
+		if (*currentChar == '\\')
+			*bufferWrite = '/';
+		else
+			*bufferWrite = *currentChar;
+
+		++bufferWrite;
+		if (bufferWrite - buffer >= bufferSize)
+		{
+			Log("error: could not make safe filename: buffer too small\n");
+			break;
+		}
+	}
 }
 
 bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>** tokensOut)
@@ -297,7 +317,10 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 
 	char resolvedPath[MAX_PATH_LENGTH] = {0};
 	makeAbsoluteOrRelativeToWorkingDir(filename, resolvedPath, ArraySize(resolvedPath));
-	const char* normalizedFilename = _strdup(resolvedPath);
+	char safePathBuffer[MAX_PATH_LENGTH] = {0};
+	makeSafeFilename(safePathBuffer, sizeof(safePathBuffer), resolvedPath);
+
+	const char* normalizedFilename = _strdup(safePathBuffer);
 	// Enabling this makes all file:line messages really long. For now, I'll keep it as relative to
 	// current working directory of this executable.
 	// const char* normalizedFilename = makeAbsolutePath_Allocated(".", filename);
@@ -667,16 +690,6 @@ void builtObjectsFree(std::vector<BuiltObject*>& objects)
 	objects.clear();
 }
 
-void makeIncludeArgument(char* buffer, int bufferSize, const char* searchDir)
-{
-// TODO: Make this a setting rather than a define
-#ifdef WINDOWS
-	SafeSnprinf(buffer, bufferSize, "/I \"%s\"", searchDir);
-#else
-	SafeSnprinf(buffer, bufferSize, "-I%s", searchDir);
-#endif
-}
-
 void copyModuleBuildOptionsToBuiltObject(Module* module, ProcessCommand* buildCommandOverride,
                                          BuiltObject* object)
 {
@@ -702,6 +715,32 @@ void getExecutableOutputName(ModuleManager& manager, std::string& finalOutputNam
 		finalOutputNameOut = defaultExecutableName;
 }
 
+// TODO: Safer version
+bool changeExtension(char* buffer, const char* newExtension)
+{
+	int bufferLength = strlen(buffer);
+	char* expectExtensionStart = nullptr;
+	for (char* currentChar = buffer + (bufferLength - 1); *currentChar && currentChar > buffer;
+	     --currentChar)
+	{
+		if (*currentChar == '.')
+		{
+			expectExtensionStart = currentChar;
+			break;
+		}
+	}
+	if (!expectExtensionStart)
+		return false;
+
+	char* extensionWrite = expectExtensionStart + 1;
+	for (const char* extensionChar = newExtension; *extensionChar; ++extensionChar)
+	{
+		*extensionWrite = *extensionChar;
+		++extensionWrite;
+	}
+	return true;
+}
+
 // Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
 // TODO: There's no easy way to know whether this exe is the current build configuration's
 // output exe, so copy it every time
@@ -716,6 +755,27 @@ bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cach
 		Log("error: failed to copy executable from cache\n");
 		return false;
 	}
+
+// TODO: Consider a better place for this
+#ifdef WINDOWS
+	char executableLib[MAX_PATH_LENGTH] = {0};
+	SafeSnprinf(executableLib, sizeof(executableLib), "%s", cachedOutputExecutable.c_str());
+
+	bool modifiedExtension = changeExtension(executableLib, "lib");
+
+	if (modifiedExtension && fileExists(executableLib))
+	{
+		char finalOutputLib[MAX_PATH_LENGTH] = {0};
+		SafeSnprinf(finalOutputLib, sizeof(finalOutputLib), "%s", finalOutputName.c_str());
+		modifiedExtension = changeExtension(finalOutputLib, "lib");
+
+		if (modifiedExtension && !copyBinaryFileTo(executableLib, finalOutputLib))
+		{
+			Log("error: failed to copy executable lib from cache\n");
+			return false;
+		}
+	}
+#endif
 
 	addExecutablePermission(finalOutputName.c_str());
 	return true;
@@ -908,7 +968,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (_stricmp(buildCommand.fileToExecute.c_str(), "CL.exe") == 0)
 		{
 			char msvcObjectOutput[MAX_PATH_LENGTH] = {0};
-			PrintfBuffer(msvcObjectOutput, "/Fo\"%s\"", object->filename.c_str());
+			makeObjectOutputArgument(msvcObjectOutput, sizeof(msvcObjectOutput),
+			                         object->filename.c_str());
 			objectOutputOverride = msvcObjectOutput;
 			objectOutput = &objectOutputOverride;
 		}

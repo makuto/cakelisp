@@ -38,8 +38,10 @@ CL.exe src/Tokenizer.cpp ^
  src/DynamicLoader.cpp ^
  src/ModuleManager.cpp ^
  src/Logging.cpp ^
+ src/Build.cpp ^
  src/Main.cpp ^
- /EHsc /MP /DWINDOWS /Fe"bin\cakelisp_bootstrap" /Zi /Fd"bin\cakelisp_bootstrap.pdb" /DEBUG:FASTLINK
+ /EHsc /MP /DWINDOWS /DCAKELISP_EXPORTING ^
+ /Fe"bin\cakelisp_bootstrap" /Zi /Fd"bin\cakelisp_bootstrap.pdb" /DEBUG:FASTLINK
  echo %ERRORLEVEL%
 
 @if %ERRORLEVEL% == 0 (
@@ -53,11 +55,7 @@ CL.exe src/Tokenizer.cpp ^
 )
 
 :bootstrapBuild
-"bin\cakelisp_bootstrap.exe" --verbose-processes --verbose-build-reasons --verbose-phases Bootstrap_MSVC.cake
-  rem Left off: Remove space between /Fo and output, -Isrc isn't going to work either
-  rem Figure out why CL isn't being found by CreateProcess
-  rem Can I list all the variables/paths being set in Cakelisp, to see if vcvars is applying, or if CreateProcess isn't passing them?
-  rem CL /c src/Tokenizer.cpp /Fo"cakelisp_cache/Bootstrap_Windows/Tokenizer.cpp.o" -Isrc /DWINDOWS /EHsc
+"bin\cakelisp_bootstrap.exe" Bootstrap_MSVC.cake
 @if %ERRORLEVEL% == 0 (
   echo Success! Use bin\cakelisp.exe to build your programs
   goto success

@@ -16,6 +16,7 @@ RunProcess.cpp
 OutputPreambles.cpp
 DynamicLoader.cpp
 ModuleManager.cpp
+Build.cpp
 Logging.cpp
 ;
 

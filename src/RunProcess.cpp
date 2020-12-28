@@ -38,7 +38,7 @@ struct Subprocess
 	int pipeReadFileDescriptor;
 #elif WINDOWS
 	PROCESS_INFORMATION* processInfo;
-	HANDLE hChildStd_IN_Wr;
+	// HANDLE hChildStd_IN_Wr; // Not used
 	HANDLE hChildStd_OUT_Rd;
 #endif
 	std::string command;
@@ -61,12 +61,6 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 {
 	Logf("%s", processOutputBuffer);
 }
-
-// TODO: Make separate pipe for std err?
-// void subprocessReceiveStdErr(const char* processOutputBuffer)
-// {
-// 	Logf("%s", processOutputBuffer);
-// }
 
 // Does not work
 #ifdef WINDOWS
@@ -434,11 +428,11 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	// If they are not explicitly closed, there is no way to recognize that the child process ended
 	CloseHandle(hChildStd_OUT_Wr);
 	CloseHandle(hChildStd_IN_Rd);
+	CloseHandle(hChildStd_IN_Wr);
 
 	Subprocess newProcess = {0};
 	newProcess.statusOut = statusOut;
 	newProcess.processInfo = processInfo;
-	newProcess.hChildStd_IN_Wr = hChildStd_IN_Wr;
 	newProcess.hChildStd_OUT_Rd = hChildStd_OUT_Rd;
 	newProcess.command = commandLineString;
 	s_subprocesses.push_back(std::move(newProcess));
@@ -450,16 +444,48 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	return 1;
 }
 
+#ifdef WINDOWS
+void readProcessPipe(Subprocess& process, SubprocessOnOutputFunc onOutput)
+{
+	HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	char buffer[4096] = {0};
+	bool encounteredError = false;
+	while (true)
+	{
+		DWORD bytesRead = 0;
+		DWORD bytesWritten = 0;
+		bool success = ReadFile(process.hChildStd_OUT_Rd, buffer, sizeof(buffer), &bytesRead, NULL);
+		if (!success || bytesRead == 0)
+		{
+			encounteredError = !success;
+			break;
+		}
+
+		success = WriteFile(hParentStdOut, buffer, bytesRead, &bytesWritten, NULL);
+		if (!success)
+		{
+			encounteredError = true;
+			break;
+		}
+
+		if (bytesRead <= sizeof(buffer))
+			onOutput(buffer);
+	}
+
+	// This seems to give a lot of false-positives
+	// if (encounteredError)
+	// 	Log("warning: encountered read or write error while receiving sub-process "
+	// 	    "output\n");
+}
+#endif
+
 // This function prints all the output for each process in one contiguous block, so that outputs
 // between two processes aren't mangled together terribly
 void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 {
 	if (s_subprocesses.empty())
 		return;
-
-#ifdef WINDOWS
-	HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-#endif
 
 	for (Subprocess& process : s_subprocesses)
 	{
@@ -484,39 +510,19 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		if (*process.statusOut != 0)
 			Logf("%s\n", process.command.c_str());
 #elif WINDOWS
-		// Wait until child process exits.
-		WaitForSingleObject(process.processInfo->hProcess, INFINITE);
 
-		// Read all output
-		{
-			DWORD bytesRead, bytesWritten;
-			char buffer[4096] = {0};
-			bool encounteredError = false;
-			while (true)
-			{
-				bool success =
-				    ReadFile(process.hChildStd_OUT_Rd, buffer, sizeof(buffer), &bytesRead, NULL);
-				if (!success || bytesRead == 0)
-				{
-					encounteredError = !success;
-					break;
-				}
+		// We cannot wait indefinitely because the process eventually waits for us to read from the
+		// output pipe (e.g. its buffer gets full). pollProcessTimeMilliseconds may need to be
+		// tweaked for better performance; if the buffer is full, the subprocess will wait for as
+		// long as pollProcessTimeMilliseconds - time taken to fill buffer. Very low wait times will
+		// mean Cakelisp unnecessarily taking up cycles, so it's a tradeoff.
+		const int pollProcessTimeMilliseconds = 50;
+		while (WAIT_TIMEOUT ==
+		       WaitForSingleObject(process.processInfo->hProcess, pollProcessTimeMilliseconds))
+			readProcessPipe(process, onOutput);
 
-				success = WriteFile(hParentStdOut, buffer, bytesRead, &bytesWritten, NULL);
-				if (!success)
-				{
-					encounteredError = true;
-					break;
-				}
-
-				onOutput(buffer);
-			}
-
-			// This seems to give a lot of false-positives
-			// if (encounteredError)
-			// 	Log("warning: encountered read or write error while receiving sub-process "
-			// 	    "output\n");
-		}
+		// If the wait was ended but wasn't a timeout, we still need to read out
+		readProcessPipe(process, onOutput);
 
 		DWORD exitCode = 0;
 		if (!GetExitCodeProcess(process.processInfo->hProcess, &exitCode))
@@ -531,10 +537,9 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 
 		*process.statusOut = exitCode;
 
-		// Close process, thread, and stdin/out handles.
+		// Close process, thread, and stdout handles.
 		CloseHandle(process.processInfo->hProcess);
 		CloseHandle(process.processInfo->hThread);
-		CloseHandle(process.hChildStd_IN_Wr);
 		CloseHandle(process.hChildStd_OUT_Rd);
 #endif
 	}

@@ -17,9 +17,12 @@
  "DynamicLoader.cpp"
  "ModuleManager.cpp"
  "Logging.cpp"
+ "Build.cpp"
  "Main.cpp")
 
-(add-build-options "/DWINDOWS" "/EHsc")
+(add-build-options "/DWINDOWS" "/DCAKELISP_EXPORTING" "/EHsc"
+                   ;;; DEBUG ONLY!
+                   "/Zi" "/FS" "/Fd:bin\cakelisp.pdb" "/DEBUG:FASTLINK")
 
 (set-cakelisp-option build-time-compiler "cl.exe")
 (set-cakelisp-option build-time-compile-arguments

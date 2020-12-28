@@ -420,6 +420,7 @@ If ~global~ is specified instead, all modules and build dependencies would inclu
  "DynamicLoader.cpp"
  "ModuleManager.cpp"
  "Logging.cpp"
+ "Build.cpp"
  "Main.cpp")
 #+END_SRC
 

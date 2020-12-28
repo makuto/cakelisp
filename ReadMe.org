@@ -134,9 +134,9 @@ You can refer to an existing project in ~cakelisp/VisualStudio~. The steps to cr
 - Expand ~Configuration Properties -> C/C++ -> Preprocessor~
 - Double click or ~<Edit...>~ the ~Preprocessor Definitions~ field and add the following to the beginning:
   #+BEGIN_SRC sh
-  _CRT_SECURE_NO_WARNINGS;WINDOWS;
+  CAKELISP_EXPORTING;_CRT_SECURE_NO_WARNINGS;WINDOWS;
   #+END_SRC
-  The first definition is going to be removed eventually; it makes MSVC more lenient with some errors Cakelisp has. The second definition ensures you build with Cakelisp's Windows-specific code enabled
+  ~CAKELISP_EXPORTING~ indicates Cakelisp should export its symbols to DLLs. The ~CRC~ definition is going to be removed eventually; it makes MSVC more lenient with some errors Cakelisp has. The ~WINDOWS~ definition ensures you build with Cakelisp's Windows-specific code enabled
 - Hit ~F5~ or go to ~Debug -> Start Debugging~. Visual Studio will build Cakelisp, and if it succeeds, launch Cakelisp. If you have no ~Command Arguments~ set, you should see the Cakelisp help output in a command window.
 
 This project is for building Cakelisp itself; you don't need to make any new projects for your projects written in Cakelisp (in ~.cake~ files). Change the ~Debugging -> Command Arguments~ setting to build different Cakelisp files, or change the ~Working Directory~ to build a different Cakelisp project (e.g. one in a separate repository).

@@ -28,6 +28,7 @@ else
 		src/DynamicLoader.cpp \
 		src/ModuleManager.cpp \
 		src/Logging.cpp \
+		src/Build.cpp \
 		src/Main.cpp \
 		-DUNIX || exit $?
 	# Need -ldl for dynamic loading, --export-dynamic to let compile-time functions resolve to

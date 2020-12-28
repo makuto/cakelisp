@@ -5,6 +5,9 @@
 #include <string>
 #include <unordered_map>
 
+#include "Utilities.hpp"
+#include "FileUtilities.hpp"
+
 #ifdef UNIX
 #include <dlfcn.h>
 #elif WINDOWS
@@ -21,6 +24,27 @@ struct DynamicLibrary
 
 typedef std::unordered_map<std::string, DynamicLibrary> DynamicLibraryMap;
 static DynamicLibraryMap dynamicLibraries;
+
+#ifdef WINDOWS
+void makeBacklashFilename(char* buffer, int bufferSize, const char* filename)
+{
+	char* bufferWrite = buffer;
+	for (const char* currentChar = filename; *currentChar; ++currentChar)
+	{
+		if (*currentChar == '/')
+			*bufferWrite = '\\';
+		else
+			*bufferWrite = *currentChar;
+
+		++bufferWrite;
+		if (bufferWrite - buffer >= bufferSize)
+		{
+			Log("error: could not make safe filename: buffer too small\n");
+			break;
+		}
+	}
+}
+#endif
 
 DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 {
@@ -44,8 +68,43 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 	}
 
 #elif WINDOWS
-	// TODO: Any way to get errors if this fails?
-	libHandle = LoadLibrary(libraryPath);
+	// TODO Clean this up! Only the cakelispBin is necessary I think (need to double check that)
+	// TODO Clear added dirs after? (RemoveDllDirectory())
+	const char* absoluteLibPath =
+	    makeAbsolutePath_Allocated(/*fromDirectory=*/nullptr, libraryPath);
+	char convertedPath[MAX_PATH_LENGTH] = {0};
+	// TODO Remove, redundant with makeAbsolutePath_Allocated()
+	makeBacklashFilename(convertedPath, sizeof(convertedPath), absoluteLibPath);
+	char dllDirectory[MAX_PATH_LENGTH] = {0};
+	getDirectoryFromPath(convertedPath, dllDirectory, sizeof(dllDirectory));
+	{
+		int wchars_num = MultiByteToWideChar(CP_UTF8, 0, dllDirectory, -1, NULL, 0);
+		wchar_t* wstrDllDirectory = new wchar_t[wchars_num];
+		MultiByteToWideChar(CP_UTF8, 0, dllDirectory, -1, wstrDllDirectory, wchars_num);
+		AddDllDirectory(wstrDllDirectory);
+		delete[] wstrDllDirectory;
+	}
+	// When loading cakelisp.lib, it will actually need to find cakelisp.exe for the symbols
+	{
+		const char* cakelispBinDirectory =
+		    makeAbsolutePath_Allocated(/*fromDirectory=*/nullptr, "bin");
+		int wchars_num = MultiByteToWideChar(CP_UTF8, 0, cakelispBinDirectory, -1, NULL, 0);
+		wchar_t* wstrDllDirectory = new wchar_t[wchars_num];
+		MultiByteToWideChar(CP_UTF8, 0, cakelispBinDirectory, -1, wstrDllDirectory, wchars_num);
+		AddDllDirectory(wstrDllDirectory);
+		free((void*)cakelispBinDirectory);
+		delete[] wstrDllDirectory;
+	}
+	libHandle = LoadLibraryEx(convertedPath, nullptr,
+	                          LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+	if (!libHandle)
+	{
+		fprintf(stderr, "DynamicLoader Error: Failed to load %s with code %d\n", convertedPath,
+		        GetLastError());
+		free((void*)absoluteLibPath);
+		return nullptr;
+	}
+	free((void*)absoluteLibPath);
 #endif
 
 	dynamicLibraries[libraryPath] = {libHandle};
@@ -80,9 +139,12 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 
 	return symbol;
 #elif WINDOWS
-	// TODO: Any way to get errors if this fails?
-	// Sergey: GetLastError
 	void* procedure = (void*)GetProcAddress((HINSTANCE)library, symbolName);
+	if (!procedure)
+	{
+		fprintf(stderr, "DynamicLoader Error:\n%d\n", GetLastError());
+		return nullptr;
+	}
 	return procedure;
 #else
 	return nullptr;
