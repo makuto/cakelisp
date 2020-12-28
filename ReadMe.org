@@ -121,6 +121,8 @@ You can refer to an existing project in ~cakelisp/VisualStudio~. The steps to cr
 - Set the name, location, and solution as desired, then click OK
 - ~Project -> Add Existing Item~
 - Browse to ~cakelisp/src~, then select all the files (via ~Ctrl-A~, etc.) and click Add. This makes Cakelisp itself built by Visual Studio (i.e., not bootstrap built)
+- ~Build -> Configuration Manager~
+- Select ~x64~ for ~Active solution platform~. Cakelisp works in ~Win32~, but you should probably be using ~x64~ anyways, because it's the dominant architecture, and the hard-coded compile/link commands assume ~x64~
 - ~Project -> <Project Name> Properties...~
 - In the ~Debugging~ section, set ~Working Directory~ to wherever your project's working directory is, e.g. where your ~.cake~ files are
 - Set ~Command Arguments~ to the ~.cake~ files you want to build. You can leave this empty to see the Cakelisp help page

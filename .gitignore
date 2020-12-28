@@ -49,6 +49,7 @@ a.out
 cakelisp_cache/
 
 VisualStudio/Cakelisp/Debug
+VisualStudio/Cakelisp/x64
 VisualStudio/Cakelisp/.vs
 output.exe
 *.pdb

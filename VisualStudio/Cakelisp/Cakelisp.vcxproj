@@ -76,7 +76,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WINDOWS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CAKELISP_EXPORTING;_CRT_SECURE_NO_WARNINGS;WINDOWS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -124,11 +124,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\Build.hpp" />
     <ClInclude Include="..\..\src\ConverterEnums.hpp" />
     <ClInclude Include="..\..\src\Converters.hpp" />
     <ClInclude Include="..\..\src\DynamicLoader.hpp" />
     <ClInclude Include="..\..\src\Evaluator.hpp" />
     <ClInclude Include="..\..\src\EvaluatorEnums.hpp" />
+    <ClInclude Include="..\..\src\Exporting.hpp" />
     <ClInclude Include="..\..\src\FileUtilities.hpp" />
     <ClInclude Include="..\..\src\GeneratorHelpers.hpp" />
     <ClInclude Include="..\..\src\GeneratorHelpersEnums.hpp" />
@@ -146,6 +148,7 @@
     <ClInclude Include="..\..\src\WriterEnums.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\Build.cpp" />
     <ClCompile Include="..\..\src\Converters.cpp" />
     <ClCompile Include="..\..\src\DynamicLoader.cpp" />
     <ClCompile Include="..\..\src\Evaluator.cpp" />
