@@ -163,6 +163,16 @@ int main(int numArguments, char* arguments[])
 
 	if (waitForDebugger)
 	{
+#ifdef UNIX
+		// While there is *a* way, I didn't like what I was reading, so I'm not implementing it.
+		// Wait for debugger is mainly useful on Windows because Visual Studio is the best debugger,
+		// but setting up a project to debug from VS is a huge PITA. It's much easier just to attach
+		// to a running process, but you need time to do this manual step
+		Log("error: --wait-for-debugger is not supported on *nix. Please launch from within the "
+		    "debugger instead, e.g.:\ngdb --args ./bin/cakelisp test/Hello.cake\n");
+		return 1;
+#endif
+
 		Log("Waiting for debugger...");
 #ifdef WINDOWS
 		while (!IsDebuggerPresent())
