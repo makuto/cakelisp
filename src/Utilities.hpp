@@ -39,7 +39,14 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 #ifdef WINDOWS
 #define StrCatSafe(bufferOut, bufferSize, strToAppend) strcat_s(bufferOut, bufferSize, strToAppend)
 #define StrDuplicate(str) _strdup(str)
+
+#ifdef MINGW
+#include <string.h>
+#define StrCompareIgnoreCase(strA, strB) stricmp(strA, strB)
+#else
 #define StrCompareIgnoreCase(strA, strB) _stricmp(strA, strB)
+#endif
+
 #else
 // TODO: Safe version
 #define StrCatSafe(bufferOut, bufferSize, strToAppend) \

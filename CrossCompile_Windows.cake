@@ -20,7 +20,7 @@
  "Build.cpp"
  "Main.cpp")
 
-(add-build-options "-DWINDOWS")
+(add-build-options "-DWINDOWS" "-DMINGW" "-DCAKELISP_EXPORTING")
 
 ;; (defun-comptime cakelisp-link-hook (manager (& ModuleManager)
 ;;                                     linkCommand (& ProcessCommand)
