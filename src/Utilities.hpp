@@ -9,7 +9,7 @@
 #endif
 
 #define MAX_NAME_LENGTH 64
-#define MAX_PATH_LENGTH 128
+#define MAX_PATH_LENGTH 256
 
 #define ArraySize(array) sizeof((array)) / sizeof((array)[0])
 

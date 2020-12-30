@@ -478,3 +478,22 @@ void addExecutablePermission(const char* filename)
 	}
 #endif
 }
+
+void makeBackslashFilename(char* buffer, int bufferSize, const char* filename)
+{
+	char* bufferWrite = buffer;
+	for (const char* currentChar = filename; *currentChar; ++currentChar)
+	{
+		if (*currentChar == '/')
+			*bufferWrite = '\\';
+		else
+			*bufferWrite = *currentChar;
+
+		++bufferWrite;
+		if (bufferWrite - buffer >= bufferSize)
+		{
+			Log("error: could not make safe filename: buffer too small\n");
+			break;
+		}
+	}
+}

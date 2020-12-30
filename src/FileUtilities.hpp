@@ -39,3 +39,6 @@ bool copyFileTo(const char* srcFilename, const char* destFilename);
 bool moveFile(const char* srcFilename, const char* destFilename);
 
 void addExecutablePermission(const char* filename);
+
+// Some Windows APIs require backslashes
+void makeBackslashFilename(char* buffer, int bufferSize, const char* filename);

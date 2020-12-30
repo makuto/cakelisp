@@ -260,10 +260,11 @@ bool SetModuleOption(EvaluatorEnvironment& environment, const EvaluatorContext& 
 	     SetProcessCommandFileToExec},
 	    {"build-time-compile-arguments", &context.module->buildTimeBuildCommand,
 	     SetProcessCommandArguments},
-		// Doesn't really make sense
-	    // {"build-time-linker", &context.module->buildTimeLinkCommand, SetProcessCommandFileToExec},
+	    // Doesn't really make sense
+	    // {"build-time-linker", &context.module->buildTimeLinkCommand,
+	    // SetProcessCommandFileToExec},
 	    // {"build-time-link-arguments", &context.module->buildTimeLinkCommand,
-	     // SetProcessCommandArguments},
+	    // SetProcessCommandArguments},
 	};
 
 	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
@@ -329,8 +330,8 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 				static std::vector<Token> expectedSignature;
 				if (expectedSignature.empty())
 				{
-					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, "Generators.cpp", __LINE__,
-					                            expectedSignature))
+					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, "Generators.cpp",
+					                            __LINE__, expectedSignature))
 						return false;
 				}
 
@@ -506,7 +507,7 @@ bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
 		std::vector<std::string>* searchDirs;
 	};
 	const SearchDirectoryDestination possibleDestinations[] = {
-		// TODO: Add compile-time
+	    // TODO: Add compile-time
 	    {"global", &environment.cSearchDirectories},
 	    {"module", &context.module->cSearchDirectories}};
 	const SearchDirectoryDestination* destination = nullptr;
@@ -817,7 +818,8 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 
 				// Evaluate the import!
 				Module* module = nullptr;
-				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, resolvedPathBuffer, &module))
+				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, resolvedPathBuffer,
+				                                  &module))
 				{
 					ErrorAtToken(currentToken, "failed to import Cakelisp module");
 					return false;
@@ -899,7 +901,6 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
-
 	int firstNameIndex = getExpectedArgument("expected dependency name", tokens, startTokenIndex, 1,
 	                                         endInvocationIndex);
 	if (firstNameIndex == -1)
@@ -933,6 +934,44 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 		context.module->dependencies.push_back(newDependency);
 	}
 
+	return true;
+}
+
+bool CPreprocessorDefineGenerator(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, GeneratorOutput& output)
+{
+	if (IsForbiddenEvaluatorScope("c-preprocessor-define", tokens[startTokenIndex], context,
+	                              EvaluatorScope_ExpressionsOnly))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int defineNameIndex =
+	    getExpectedArgument("define-name", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (-1 == defineNameIndex)
+		return false;
+	if (!ExpectTokenType("define-name", tokens[defineNameIndex], TokenType_Symbol))
+		return false;
+	const Token* defineName = &tokens[defineNameIndex];
+	int valueIndex = getArgument(tokens, startTokenIndex, 2, endInvocationIndex);
+	const Token* value = valueIndex != -1 ? &tokens[valueIndex] : nullptr;
+
+	bool isGlobal =
+	    tokens[startTokenIndex + 1].contents.compare("c-preprocessor-define-global") == 0;
+
+	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
+
+	if (value)
+	{
+		addStringOutput(outputDest, "#define", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(outputDest, defineName->contents, StringOutMod_SpaceAfter, defineName);
+		addStringOutput(outputDest, value->contents, StringOutMod_NewlineAfter, value);
+	}
+	else
+	{
+		addStringOutput(outputDest, "#define", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(outputDest, defineName->contents, StringOutMod_NewlineAfter, defineName);
+	}
 	return true;
 }
 
@@ -1260,11 +1299,13 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	}
 
 	if (isGlobal)
-		addStringOutput(variableOutput->header, "extern", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(variableOutput->header, "extern", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 	// else because no variable may be declared extern while also being static
 	// Automatically make module-declared variables static, reserving "static-var" for functions
 	else if (isStatic || context.scope == EvaluatorScope_Module)
-		addStringOutput(variableOutput->source, "static", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		addStringOutput(variableOutput->source, "static", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 
 	// Type
 	PushBackAll(variableOutput->source, typeOutput);
@@ -1272,8 +1313,8 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 		PushBackAll(variableOutput->header, typeOutput);
 
 	// Name
-	addStringOutput(variableOutput->source, tokens[varNameIndex].contents, StringOutMod_ConvertVariableName,
-	                &tokens[varNameIndex]);
+	addStringOutput(variableOutput->source, tokens[varNameIndex].contents,
+	                StringOutMod_ConvertVariableName, &tokens[varNameIndex]);
 	if (isGlobal)
 		addStringOutput(variableOutput->header, tokens[varNameIndex].contents,
 		                StringOutMod_ConvertVariableName, &tokens[varNameIndex]);
@@ -1299,9 +1340,11 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 			return false;
 	}
 
-	addLangTokenOutput(variableOutput->source, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
+	addLangTokenOutput(variableOutput->source, StringOutMod_EndStatement,
+	                   &tokens[endInvocationIndex]);
 	if (isGlobal)
-		addLangTokenOutput(variableOutput->header, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
+		addLangTokenOutput(variableOutput->header, StringOutMod_EndStatement,
+		                   &tokens[endInvocationIndex]);
 
 	return true;
 }
@@ -1569,7 +1612,8 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 				addLangTokenOutput(output.source, StringOutMod_ListSeparator, argument.name);
 			}
 
-			addStringOutput(output.source, "tokens, startTokenIndex,", StringOutMod_SpaceAfter, argument.name);
+			addStringOutput(output.source, "tokens, startTokenIndex,", StringOutMod_SpaceAfter,
+			                argument.name);
 
 			addStringOutput(output.source, std::to_string(runtimeArgumentIndex), StringOutMod_None,
 			                argument.name);
@@ -2257,14 +2301,15 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, GeneratorOutput& output)
 {
-	int destrEndInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 	int nameIndex =
-	    getExpectedArgument("name-index", tokens, startTokenIndex, 1, destrEndInvocationIndex);
-	if (-1 == nameIndex)
+	    getExpectedArgument("name-index", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (-1 == nameIndex ||
+	    !ExpectTokenType("def-type-alias alias", tokens[nameIndex], TokenType_Symbol))
 		return false;
 
 	int typeIndex =
-	    getExpectedArgument("type-index", tokens, startTokenIndex, 2, destrEndInvocationIndex);
+	    getExpectedArgument("type-index", tokens, startTokenIndex, 2, endInvocationIndex);
 	if (-1 == typeIndex)
 		return false;
 
@@ -2285,12 +2330,7 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 
 	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &invocationToken);
 	PushBackAll(outputDest, typeOutput);
-	EvaluatorContext expressionContext = context;
-	expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-	int numErrors =
-	    EvaluateGenerate_Recursive(environment, expressionContext, tokens, nameIndex, output);
-	if (numErrors)
-		return false;
+	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_None, &tokens[nameIndex]);
 	PushBackAll(outputDest, typeAfterNameOutput);
 	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &invocationToken);
 	return true;
@@ -2307,7 +2347,6 @@ bool IgnoreGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
                                            const char* stringToTokenize, GeneratorOutput& output)
 {
-	// TODO Need to gensym error, or replace with a function call
 	char tokenizeLineBuffer[2048] = {0};
 	PrintfBuffer(tokenizeLineBuffer,
 	             "if (!tokenizeLinePrintError(\"%s\", \"%s\", %d, %s)) {return false;}",
@@ -2442,6 +2481,124 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	return true;
 }
 
+//
+// Compile-time conditional compilation (similar to C preprocessor #if)
+//
+bool ComptimeErrorGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                            const std::vector<Token>& tokens, int startTokenIndex,
+                            GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int messageIndex = getExpectedArgument("comptime-error expected message", tokens,
+	                                       startTokenIndex, 1, endInvocationIndex);
+	if (messageIndex == -1 ||
+	    !ExpectTokenType("comptime-error message", tokens[messageIndex], TokenType_String))
+		return false;
+
+	ErrorAtTokenf(tokens[startTokenIndex], "%s", tokens[messageIndex].contents.c_str());
+	return false;
+}
+
+bool ComptimeCondGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                           const std::vector<Token>& tokens, int startTokenIndex,
+                           GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+
+	bool isFirstBlock = true;
+
+	for (int currentConditionBlockIndex = startTokenIndex + 2;
+	     currentConditionBlockIndex < endInvocationIndex;
+	     currentConditionBlockIndex =
+	         getNextArgument(tokens, currentConditionBlockIndex, endInvocationIndex))
+	{
+		if (!ExpectTokenType("cond", tokens[currentConditionBlockIndex], TokenType_OpenParen))
+			return false;
+
+		int endConditionBlockIndex = FindCloseParenTokenIndex(tokens, currentConditionBlockIndex);
+		int conditionIndex = getExpectedArgument(
+		    "expected condition", tokens, currentConditionBlockIndex, 0, endConditionBlockIndex);
+		if (conditionIndex == -1)
+			return false;
+
+		bool isExplicitTrue = tokens[conditionIndex].contents.compare("true") == 0;
+
+		// Special case: The "default" case of cond is conventionally marked with true as the
+		// conditional. We'll support that, and not even write the if. If the cond is just (cond
+		// (true blah)), make sure to still write the if (true)
+		if (!isFirstBlock && isExplicitTrue)
+		{
+			if (endConditionBlockIndex + 1 != endInvocationIndex)
+			{
+				ErrorAtToken(tokens[conditionIndex],
+				             "default case should be the last case in cond; otherwise, lower cases "
+				             "will never be evaluated");
+				return false;
+			}
+		}
+
+		bool conditionResult = isExplicitTrue;
+		// Only evaluate the condition if it isn't already "true"
+		if (!isExplicitTrue)
+		{
+			if (!CompileTimeEvaluateCondition(environment, context, tokens, conditionIndex,
+			                                  conditionResult))
+			{
+				// Evaluation itself failed
+				return false;
+			}
+		}
+
+		if (conditionResult)
+		{
+			int blockIndex =
+			    getArgument(tokens, currentConditionBlockIndex, 1, endConditionBlockIndex);
+			if (blockIndex != -1)
+			{
+				EvaluatorContext trueBlockBodyContext = context;
+				int numErrors = EvaluateGenerateAll_Recursive(environment, trueBlockBodyContext,
+				                                              tokens, blockIndex, output);
+				if (numErrors)
+					return false;
+			}
+
+			// Found the first true condition
+			break;
+		}
+
+		isFirstBlock = false;
+	}
+
+	return true;
+}
+
+bool ComptimeDefineSymbolGenerator(EvaluatorEnvironment& environment,
+                                   const EvaluatorContext& context,
+                                   const std::vector<Token>& tokens, int startTokenIndex,
+                                   GeneratorOutput& output)
+{
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int symbolIndex = getExpectedArgument("comptime-define-symbol expected symbol", tokens,
+	                                      startTokenIndex, 1, endInvocationIndex);
+	if (symbolIndex == -1 ||
+	    !ExpectTokenType("comptime-define-symbol message", tokens[symbolIndex], TokenType_Symbol))
+		return false;
+
+	if (!isSpecialSymbol(tokens[symbolIndex]))
+	{
+		ErrorAtToken(tokens[symbolIndex], "symbols are defined with prefixed ', e.g. 'Unix");
+		return false;
+	}
+
+	environment.compileTimeSymbols[tokens[symbolIndex].contents] = true;
+
+	return true;
+}
+
+//
+// CStatements
+//
+
 // This generator handles several C/C++ constructs by specializing on the invocation name
 // We can handle most of them, but some (if-else chains, switch, for) require extra attention
 bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
@@ -2490,8 +2647,15 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation breakStatement[] = {{KeywordNoSpace, "break", -1},
 	                                              {SmartEndStatement, nullptr, -1}};
 
-	// Arrays are handled by (new-array)
-	const CStatementOperation newStatement[] = {{Keyword, "new", -1}, {TypeNoArray, nullptr, 1}};
+	const CStatementOperation newStatement[] = {
+	    {Keyword, "new", -1}, {TypeNoArray, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
+	const CStatementOperation deleteStatement[] = {
+	    {Keyword, "delete", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
+	const CStatementOperation newArrayStatement[] = {
+	    {Keyword, "new", -1},     {TypeNoArray, nullptr, 2}, {KeywordNoSpace, "[", -1},
+	    {Expression, nullptr, 1}, {KeywordNoSpace, "]", -1}, {SmartEndStatement, nullptr, -1}};
+	const CStatementOperation deleteArrayStatement[] = {
+	    {Keyword, "delete[]", -1}, {Expression, nullptr, 1}, {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation initializerList[] = {
 	    {OpenList, nullptr, -1}, {ExpressionList, nullptr, 1}, {CloseList, nullptr, -1}};
@@ -2628,6 +2792,9 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"block", blockStatement, ArraySize(blockStatement)},
 	    {"?", ternaryOperatorStatement, ArraySize(ternaryOperatorStatement)},
 	    {"new", newStatement, ArraySize(newStatement)},
+	    {"delete", deleteStatement, ArraySize(deleteStatement)},
+	    {"new-array", newArrayStatement, ArraySize(newArrayStatement)},
+	    {"delete-array", deleteArrayStatement, ArraySize(deleteArrayStatement)},
 	    // Pointers
 	    {"deref", dereference, ArraySize(dereference)},
 	    {"addr", addressOf, ArraySize(addressOf)},
@@ -2772,6 +2939,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["if"] = IfGenerator;
 	environment.generators["cond"] = ConditionGenerator;
 
+	environment.generators["c-preprocessor-define"] = CPreprocessorDefineGenerator;
+	environment.generators["c-preprocessor-define-global"] = CPreprocessorDefineGenerator;
+
 	// Essentially a block comment, without messing up my highlighting and such
 	environment.generators["ignore"] = IgnoreGenerator;
 
@@ -2798,10 +2968,15 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["add-cakelisp-search-directory"] = AddCakelispSearchPathGenerator;
 	environment.generators["add-build-config-label"] = AddBuildConfigLabelGenerator;
 
+	// Compile-time conditionals, erroring, etc.
+	environment.generators["comptime-error"] = ComptimeErrorGenerator;
+	environment.generators["comptime-cond"] = ComptimeCondGenerator;
+	environment.generators["comptime-define-symbol"] = ComptimeDefineSymbolGenerator;
+
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
 	    "while", "for-in", "return", "continue", "break", "when", "unless", "array", "set", "scope",
-	    "block", "?", "new",
+	    "block", "?", "new", "delete", "new-array", "delete-array",
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator

@@ -250,6 +250,8 @@ typedef std::unordered_map<std::string, const char*> RequiredCompileTimeFunction
 typedef RequiredCompileTimeFunctionReasonsTable::iterator
     RequiredCompileTimeFunctionReasonsTableIterator;
 
+typedef std::unordered_map<std::string, bool> CompileTimeSymbolTable;
+
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
@@ -296,6 +298,9 @@ struct EvaluatorEnvironment
 
 	// User-specified variables usable by any compile-time macro/generator/function/hook
 	CompileTimeVariableTable compileTimeVariables;
+
+	// User-defined symbols usable before/after compile-time compilation is possible
+	CompileTimeSymbolTable compileTimeSymbols;
 
 	// Generate code so that objects defined in Cakelisp can be loaded at runtime
 	bool useCLinkage;
@@ -379,6 +384,7 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName);
 void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
+bool findCompileTimeSymbol(EvaluatorEnvironment& environment, const char* symbolName);
 ObjectDefinition* findObjectDefinition(EvaluatorEnvironment& environment, const char* name);
 
 // These must take type as string in order to be address agnostic, making caching possible
@@ -407,5 +413,6 @@ bool searchForFileInPathsWithError(const char* shortPath, const char* encountere
                                    const std::vector<std::string>& searchPaths,
                                    char* foundFilePathOut, int foundFilePathOutSize,
                                    const Token& blameToken);
+
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

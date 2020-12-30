@@ -1,6 +1,6 @@
-(import &comptime-only "Macros.cake")
+(import "DynamicLoader.cake"
+        &comptime-only "Macros.cake")
 (c-import "<unordered_map>" "<vector>")
-(c-import "DynamicLoader.hpp")
 
 ;;
 ;; Function management
@@ -126,10 +126,4 @@
                      ;; Need --export-dynamic so the loaded library can use our symbols
                      "-ldl" "-lpthread" "-Wl,-rpath,.,--export-dynamic")
 
-(add-build-options
- "-DUNIX"
- "-fPIC")
-
-;; Include cakelisp source for DynamicLoader.hpp
-(add-c-search-directory module "src")
-(add-cpp-build-dependency "DynamicLoader.cpp")
+(add-build-options "-fPIC")

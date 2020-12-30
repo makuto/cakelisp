@@ -5,8 +5,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "Utilities.hpp"
 #include "FileUtilities.hpp"
+#include "Utilities.hpp"
 
 #ifdef UNIX
 #include <dlfcn.h>
@@ -24,27 +24,6 @@ struct DynamicLibrary
 
 typedef std::unordered_map<std::string, DynamicLibrary> DynamicLibraryMap;
 static DynamicLibraryMap dynamicLibraries;
-
-#ifdef WINDOWS
-void makeBacklashFilename(char* buffer, int bufferSize, const char* filename)
-{
-	char* bufferWrite = buffer;
-	for (const char* currentChar = filename; *currentChar; ++currentChar)
-	{
-		if (*currentChar == '/')
-			*bufferWrite = '\\';
-		else
-			*bufferWrite = *currentChar;
-
-		++bufferWrite;
-		if (bufferWrite - buffer >= bufferSize)
-		{
-			Log("error: could not make safe filename: buffer too small\n");
-			break;
-		}
-	}
-}
-#endif
 
 DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 {
@@ -74,11 +53,11 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 	    makeAbsolutePath_Allocated(/*fromDirectory=*/nullptr, libraryPath);
 	char convertedPath[MAX_PATH_LENGTH] = {0};
 	// TODO Remove, redundant with makeAbsolutePath_Allocated()
-	makeBacklashFilename(convertedPath, sizeof(convertedPath), absoluteLibPath);
+	makeBackslashFilename(convertedPath, sizeof(convertedPath), absoluteLibPath);
 	char dllDirectory[MAX_PATH_LENGTH] = {0};
 	getDirectoryFromPath(convertedPath, dllDirectory, sizeof(dllDirectory));
 	{
-		int wchars_num = MultiByteToWideChar(CP_UTF8, 0, dllDirectory, -1, NULL, 0);
+		int wchars_num = MultiByteToWideChar(CP_UTF8, 0, dllDirectory, -1, nullptr, 0);
 		wchar_t* wstrDllDirectory = new wchar_t[wchars_num];
 		MultiByteToWideChar(CP_UTF8, 0, dllDirectory, -1, wstrDllDirectory, wchars_num);
 		AddDllDirectory(wstrDllDirectory);
@@ -88,7 +67,7 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 	{
 		const char* cakelispBinDirectory =
 		    makeAbsolutePath_Allocated(/*fromDirectory=*/nullptr, "bin");
-		int wchars_num = MultiByteToWideChar(CP_UTF8, 0, cakelispBinDirectory, -1, NULL, 0);
+		int wchars_num = MultiByteToWideChar(CP_UTF8, 0, cakelispBinDirectory, -1, nullptr, 0);
 		wchar_t* wstrDllDirectory = new wchar_t[wchars_num];
 		MultiByteToWideChar(CP_UTF8, 0, cakelispBinDirectory, -1, wstrDllDirectory, wchars_num);
 		AddDllDirectory(wstrDllDirectory);
@@ -157,8 +136,12 @@ void closeAllDynamicLibraries()
 	{
 #ifdef UNIX
 		dlclose(libraryPair.second.handle);
+#elif WINDOWS
+		FreeLibrary((HMODULE)libraryPair.second.handle);
 #endif
 	}
+
+	dynamicLibraries.clear();
 }
 
 void closeDynamicLibrary(DynamicLibHandle handleToClose)
@@ -183,5 +166,7 @@ void closeDynamicLibrary(DynamicLibHandle handleToClose)
 
 #ifdef UNIX
 	dlclose(libHandle);
+#elif WINDOWS
+	FreeLibrary((HMODULE)libHandle);
 #endif
 }

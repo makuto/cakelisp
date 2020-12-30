@@ -238,6 +238,8 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 				{
 					if (logging.tokenization)
 						Log("Skipping shebang\n");
+
+					++lineNumber;
 					continue;
 				}
 			}
@@ -252,7 +254,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 				return false;
 			}
 
-			lineNumber++;
+			++lineNumber;
 		}
 
 		// Make it const to avoid pointer invalidation due to resize

@@ -101,8 +101,8 @@ bool isSpecialSymbol(const Token& token)
 	}
 	else
 	{
-		Log("Warning: isSpecialSymbol() expects only Symbol types\n");
-		return true;
+		ErrorAtToken(token, "isSpecialSymbol() expects only Symbol types\n");
+		return false;
 	}
 }
 
@@ -759,8 +759,8 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 				return false;
 
 			// Arrays must append their brackets after the name (must be in separate buffer)
-			bool arraySizeIsFirstArgument = tokens[firstArgIndex].type == TokenType_Symbol &&
-			                                std::isdigit(tokens[firstArgIndex].contents[0]);
+			bool arraySizeIsFirstArgument =
+			    getNumArguments(tokens, startTokenIndex, endTokenIndex) >= 3;
 			int typeIndex = firstArgIndex;
 			if (arraySizeIsFirstArgument)
 			{
@@ -781,7 +781,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			// Type parsing happens after the [] have already been appended because the array's type
 			// may include another array dimension, which must be specified after the current array
 			return tokenizedCTypeToString_Recursive(tokens, typeIndex,
-			                                        /*allowArray=*/true, typeOutput,
+			                                        allowArray, typeOutput,
 			                                        afterNameOutput);
 		}
 		// else if (typeInvocation.contents.compare("::") == 0)
@@ -1050,5 +1050,29 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 		}
 	}
 
+	return true;
+}
+
+bool CompileTimeEvaluateCondition(EvaluatorEnvironment& environment,
+                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
+                                  int startTokenIndex, bool& conditionResult)
+{
+	conditionResult = false;
+
+	// Only single symbols supported so far
+	// TODO: Support basic boolean logic
+	if (!ExpectTokenType("compile-time conditional", tokens[startTokenIndex], TokenType_Symbol))
+		return false;
+
+	// Only simple comptime-defined symbols supported so far
+	if (!isSpecialSymbol(tokens[startTokenIndex]))
+	{
+		ErrorAtToken(tokens[startTokenIndex],
+		             "only comptime-defined symbols (specified with ', e.g. 'Unix) may be used in "
+		             "comptime conditionals at this time");
+		return false;
+	}
+
+	conditionResult = findCompileTimeSymbol(environment, tokens[startTokenIndex].contents.c_str());
 	return true;
 }

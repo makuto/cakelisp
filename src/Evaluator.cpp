@@ -56,6 +56,11 @@ void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* fun
 	return nullptr;
 }
 
+bool findCompileTimeSymbol(EvaluatorEnvironment& environment, const char* symbolName)
+{
+	return environment.compileTimeSymbols.find(symbolName) != environment.compileTimeSymbols.end();
+}
+
 static bool isCompileTimeCodeLoaded(EvaluatorEnvironment& environment,
                                     const ObjectDefinition& definition)
 {
