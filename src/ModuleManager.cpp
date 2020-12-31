@@ -1034,6 +1034,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				if (logging.buildProcess)
 					Logf("Skipping compiling %s (using cached object)\n",
 					     object->sourceFilename.c_str());
+				free(buildArguments);
 				continue;
 			}
 			else
