@@ -8,7 +8,7 @@
   (c-import "<dlfcn.h>"))
  ('Windows
   ;; TODO: This is pretty annoying, because I'll need to add &with-decls etc.
-  ;; (c-preprocessor-define WIN32_LEAN_AND_MEAN)
+  (c-preprocessor-define WIN32_LEAN_AND_MEAN)
   (c-import "<windows.h>"))
  (true
   ;; If you're hitting this, you may need to port this over to whatever new platform you are on
