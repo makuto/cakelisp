@@ -14,3 +14,7 @@ set cwd ~/Development/code/repositories/cakelisp/
 (adjust that path to where you installed cakelisp, of course).
 
 By setting a breakpoint in already generated C++ code, you will then hit the breakpoint once the code is regenerated and loaded at transpiler runtime (a.k.a. compile-time code execution).
+* Microsoft Visual Studio Debugger
+Pass ~--wait-for-debugger~ to Cakelisp. This argument gives you time to ~Debug -> Attach to Process~. This is  useful if you don't want to have to make a Visual Studio project just to debug Cakelisp.
+
+If you want to debug a compile-time function, run Cakelisp once to generate the file, then open it in Visual Studio and set a breakpoint. You should hit the breakpoint even though it's in a dynamically-loaded library.
