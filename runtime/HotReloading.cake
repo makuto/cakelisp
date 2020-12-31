@@ -65,30 +65,22 @@
 
 (defun do-hot-reload (&return bool)
   (when current-lib
-    (closeDynamicLibrary current-lib))
+    (dynamic-library-close current-lib))
 
   ;; Load the library. This requires extra effort for two reasons:
   ;;  1) We can't update the library if it's currently loaded, so we must run on a copy
   ;;  2) Linux has caching mechanisms which force us to create uniquely-named copies
   (comptime-cond
    ('Unix
-    ;; Make active library executable. May not be necessary!
-    ;; (unless (= 0 (chmod hot-reload-active-lib-path
-                        ;; (bit-or S_IRUSR S_IWUSR S_IXUSR S_IRGRP S_IXGRP S_IROTH S_IXOTH)))
-	  ;; (perror "Making active library executable error: ")
-    ;; (return false))))
-
     ;; We need to use a new temporary file each time we do a reload, otherwise mmap/cache issues segfault
     ;; See https://bugzilla.redhat.com/show_bug.cgi?id=1327623
-
-    ;; TODO: Check for exists before delete (or, check version number)
+    ;; TODO: This may not be necessary now that RTLD_LOCAL is used
     (scope ;; Clean up the old version, so they don't stack up and eat all the disk space
      (var prev-library-name ([] 256 char) (array 0))
      (snprintf prev-library-name (sizeof prev-library-name) "libHotReloadingTemp_%d.so"
                hot-reload-lib-version-number)
-     ;; TODO Enable
-     ;;(remove prev-library-name)
-     )
+     (when (!= -1 (access prev-library-name F_OK))
+       (remove prev-library-name)))
 
     ;; Must be a unique filename, else the caching will bite us
     (incr hot-reload-lib-version-number)
@@ -97,19 +89,21 @@
               hot-reload-lib-version-number)
     (unless (copy-binary-file-to hot-reload-lib-path temp-library-name)
       (return false))
-    (set current-lib (loadDynamicLibrary temp-library-name)))
+    ;; False = don't use global scope
+    (set current-lib (dynamic-library-load temp-library-name false)))
 
    (true ;; Other platforms don't need the fancy versioning
     (unless (copy-binary-file-to hot-reload-lib-path hot-reload-active-lib-path)
       (return false)))
-   (set current-lib (loadDynamicLibrary hot-reload-active-lib-path)))
+   ;; False = don't use global scope
+   (set current-lib (dynamic-library-load hot-reload-active-lib-path false)))
 
   (unless current-lib
     (return false))
 
   ;; Intialize variables
   (var global-initializer (* void)
-       (getSymbolFromDynamicLibrary current-lib "hotReloadInitializeState"))
+       (dynamic-library-get-symbol current-lib "hotReloadInitializeState"))
   (if global-initializer
       (block
           (def-function-signature global-initializer-signature ())
@@ -119,8 +113,8 @@
 
   (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions
           (var loaded-symbol (* void)
-               (getSymbolFromDynamicLibrary current-lib
-                                            (on-call (path function-referent-it . first) c_str)))
+               (dynamic-library-get-symbol current-lib
+                                           (on-call (path function-referent-it . first) c_str)))
           (unless loaded-symbol
             (return false))
           ;; TODO: What will happen once modules are unloaded? We can't store pointers to their static memory
@@ -136,7 +130,7 @@
 (def-type-alias StateVariableMapIterator (in StateVariableMap iterator))
 
 (var registered-state-variables StateVariableMap)
-(var verbose-variables bool true)
+(var verbose-variables bool false)
 
 (defun hot-reload-find-variable (name (* (const char)) variable-address-out (* (* void)) &return bool)
   (var find-it StateVariableMapIterator (on-call registered-state-variables find name))
@@ -158,15 +152,17 @@
 ;; Building
 ;;
 
-;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
-;; arguments to the link command only
-(set-cakelisp-option build-time-linker "/usr/bin/g++")
-;; This needs to link -ldl and such (depending on platform...)
-(set-cakelisp-option build-time-link-arguments
-                     ;; "-shared" ;; This causes c++ initializers to fail and no linker errors. Need to only enable on lib?
-                     "-o" 'executable-output 'object-input
-                     ;; TODO: OS dependent
-                     ;; Need --export-dynamic so the loaded library can use our symbols
-                     "-ldl" "-lpthread" "-Wl,-rpath,.,--export-dynamic")
+(comptime-cond
+ ('Unix
+  ;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
+  ;; arguments to the link command only
+  (set-cakelisp-option build-time-linker "/usr/bin/g++")
+  ;; This needs to link -ldl and such (depending on platform...)
+  (set-cakelisp-option build-time-link-arguments
+                       ;; "-shared" ;; This causes c++ initializers to fail and no linker errors. Need to only enable on lib?
+                       "-o" 'executable-output 'object-input
+                       ;; TODO: OS dependent
+                       ;; Need --export-dynamic so the loaded library can use our symbols
+                       "-ldl" "-lpthread" "-Wl,-rpath,.,--export-dynamic")
 
-(add-build-options "-fPIC")
+  (add-build-options "-fPIC")))
