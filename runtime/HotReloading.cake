@@ -4,7 +4,7 @@
 
 (comptime-cond
  ('Unix
-  (c-import "<sys/stat.h>")))
+  (c-import "<sys/stat.h>" "<unistd.h>")))
 
 ;;
 ;; Function management
@@ -71,7 +71,7 @@
   ;;  1) We can't update the library if it's currently loaded, so we must run on a copy
   ;;  2) Linux has caching mechanisms which force us to create uniquely-named copies
   (comptime-cond
-   ('Unix
+   ('Fancy-Versioning
     ;; We need to use a new temporary file each time we do a reload, otherwise mmap/cache issues segfault
     ;; See https://bugzilla.redhat.com/show_bug.cgi?id=1327623
     ;; TODO: This may not be necessary now that RTLD_LOCAL is used
@@ -94,9 +94,9 @@
 
    (true ;; Other platforms don't need the fancy versioning
     (unless (copy-binary-file-to hot-reload-lib-path hot-reload-active-lib-path)
-      (return false)))
-   ;; False = don't use global scope
-   (set current-lib (dynamic-library-load hot-reload-active-lib-path false)))
+      (return false))
+    ;; False = don't use global scope
+    (set current-lib (dynamic-library-load hot-reload-active-lib-path false))))
 
   (unless current-lib
     (return false))
