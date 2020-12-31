@@ -25,8 +25,8 @@
 (def-type-alias DynamicLibraryMap (<> std::unordered_map std::string DynamicLibrary))
 (var dynamicLibraries DynamicLibraryMap)
 
-(defun-local makeBackslashFilename (buffer (* char) bufferSize
-                                          int filename (* (const char)))
+(defun-local make-backslash-filename (buffer (* char) bufferSize
+                                             int filename (* (const char)))
   (var bufferWrite (* char) buffer)
   (var currentChar (* (const char)) filename)
   (while (deref currentChar)
@@ -40,7 +40,11 @@
       (fprintf stderr "error: could not make safe filename: buffer too small\n")
       (break))))
 
-(defun loadDynamicLibrary (libraryPath (* (const char))  &return DynamicLibHandle)
+;; allow-global-linking = Allow subsequently loaded libraries to resolve from this library You do
+;;  NOT want this if you intend to reload the library, because it may resolve to the old version
+(defun dynamic-library-load (libraryPath (* (const char))
+                             allow-global-linking bool
+                             &return DynamicLibHandle)
   (var libHandle (* void) null)
 
   (comptime-cond
@@ -52,7 +56,9 @@
     ;; RTLD_GLOBAL: Allow subsequently loaded libraries to resolve from this library (mainly for
     ;; compile-time function execution)
     ;; Note that this requires linking with -Wl,-rpath,. in order to turn up relative path .so files
-    (set libHandle (dlopen libraryPath (bit-or RTLD_LAZY RTLD_GLOBAL)))
+    (if allow-global-linking
+        (set libHandle (dlopen libraryPath (bit-or RTLD_LAZY RTLD_GLOBAL)))
+        (set libHandle (dlopen libraryPath (bit-or RTLD_LAZY RTLD_LOCAL))))
 
     (var error (* (const char)) (dlerror))
     (when (or (not libHandle) error)
@@ -65,7 +71,7 @@
          (makeAbsolutePath_Allocated null libraryPath))
     (var convertedPath ([] MAX_PATH_LENGTH char) (array 0))
     ;; TODO Remove, redundant with makeAbsolutePath_Allocated()
-    (makeBackslashFilename convertedPath (sizeof convertedPath) absoluteLibPath)
+    (make-backslash-filename convertedPath (sizeof convertedPath) absoluteLibPath)
     (var dllDirectory ([] MAX_PATH_LENGTH char) (array 0))
     (getDirectoryFromPath convertedPath dllDirectory (sizeof dllDirectory))
     (scope ;; DLL directory
@@ -100,9 +106,9 @@
   (set (at libraryPath dynamicLibraries) (array libHandle))
   (return libHandle))
 
-(defun getSymbolFromDynamicLibrary (library DynamicLibHandle
-                                    symbolName (* (const char))
-                                    &return (* void))
+(defun dynamic-library-get-symbol (library DynamicLibHandle
+                                   symbolName (* (const char))
+                                   &return (* void))
   (unless library
     (fprintf stderr "DynamicLoader Error: Received empty library handle\n")
     (return null))
@@ -134,7 +140,7 @@
    (true
     (return null))))
 
-(defun closeAllDynamicLibraries ()
+(defun dynamic-library-close-all ()
   (for-in libraryPair (& (<> std::pair (const std::string) DynamicLibrary)) dynamicLibraries
           (comptime-cond
            ('Unix
@@ -143,7 +149,7 @@
             (FreeLibrary (type-cast (field libraryPair second handle) HMODULE)))))
   (on-call dynamicLibraries clear))
 
-(defun closeDynamicLibrary (handleToClose DynamicLibHandle)
+(defun dynamic-library-close (handleToClose DynamicLibHandle)
   (var libHandle DynamicLibHandle null)
   (var libraryIt (in DynamicLibraryMap iterator) (on-call dynamicLibraries begin))
   (while (!= libraryIt (on-call dynamicLibraries end))
