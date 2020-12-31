@@ -18,10 +18,15 @@
 (var registered-functions FunctionReferenceMap)
 
 (var current-lib DynamicLibHandle null)
-
-(var hot-reload-lib-path (* (const char)) "libGeneratedCakelisp.so")
-;; Need to copy it so the programmer can modify the other file while we're running this one
-(var hot-reload-active-lib-path (* (const char)) "libGeneratedCakelisp_Active.so")
+(comptime-cond
+ ('Unix
+  (var hot-reload-lib-path (* (const char)) "libGeneratedCakelisp.so")
+  ;; Not used on Unix due to more advanced versioning required to avoid caching issues
+  (var hot-reload-active-lib-path (* (const char)) "libGeneratedCakelisp_Active.so"))
+ ('Windows
+  (var hot-reload-lib-path (* (const char)) "libGeneratedCakelisp.dll")
+  ;; Need to copy it so the programmer can modify the other file while we're running this one
+  (var hot-reload-active-lib-path (* (const char)) "libGeneratedCakelisp_Active.dll")))
 
 ;; This is incremented each time a reload occurs, to avoid caching problems on Linux
 (var hot-reload-lib-version-number int 0)
@@ -71,10 +76,9 @@
   ;;  1) We can't update the library if it's currently loaded, so we must run on a copy
   ;;  2) Linux has caching mechanisms which force us to create uniquely-named copies
   (comptime-cond
-   ('Fancy-Versioning
+   ('Unix
     ;; We need to use a new temporary file each time we do a reload, otherwise mmap/cache issues segfault
     ;; See https://bugzilla.redhat.com/show_bug.cgi?id=1327623
-    ;; TODO: This may not be necessary now that RTLD_LOCAL is used
     (scope ;; Clean up the old version, so they don't stack up and eat all the disk space
      (var prev-library-name ([] 256 char) (array 0))
      (snprintf prev-library-name (sizeof prev-library-name) "libHotReloadingTemp_%d.so"
@@ -89,13 +93,13 @@
               hot-reload-lib-version-number)
     (unless (copy-binary-file-to hot-reload-lib-path temp-library-name)
       (return false))
-    ;; False = don't use global scope
+    ;; False = don't use global scope, otherwise symbols may bind to the old version!
     (set current-lib (dynamic-library-load temp-library-name false)))
 
    (true ;; Other platforms don't need the fancy versioning
     (unless (copy-binary-file-to hot-reload-lib-path hot-reload-active-lib-path)
       (return false))
-    ;; False = don't use global scope
+    ;; False = don't use global scope, otherwise symbols may bind to the old version!
     (set current-lib (dynamic-library-load hot-reload-active-lib-path false))))
 
   (unless current-lib
@@ -107,8 +111,7 @@
   (if global-initializer
       (block
           (def-function-signature global-initializer-signature ())
-        (call (type-cast global-initializer global-initializer-signature))
-        (printf "Called hotReloadInitializeState\n"))
+        (call (type-cast global-initializer global-initializer-signature)))
       (printf "warning: global initializer 'hotReloadInitializeState' not found!"))
 
   (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions
@@ -121,6 +124,9 @@
           (for-in function-pointer (* (* void)) (path function-referent-it . second)
                   (set (deref function-pointer) loaded-symbol)))
   (return true))
+
+(defun hot-reload-clean-up ()
+  (dynamic-library-close-all))
 
 ;;
 ;; Data/state management
