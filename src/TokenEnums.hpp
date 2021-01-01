@@ -6,5 +6,12 @@ enum TokenType
 	TokenType_CloseParen,
 	// Note that Symbols include numerical constants
 	TokenType_Symbol,
-	TokenType_String
+	TokenType_String,
+
+	// Special type: This shouldn't ever be visible by anything but tokenizeLine, unless the input
+	// has a string continuation error (for multi-line strings)
+	// Merge: String is quoted on all lines, but backslash denotes merge with previous string
+	// Continue: String is quoted at start and end, and newlines are ignored. No space is inserted
+	TokenType_StringMerge,
+	TokenType_StringContinue,
 };

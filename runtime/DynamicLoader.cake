@@ -13,7 +13,8 @@
  (true
   ;; If you're hitting this, you may need to port this over to whatever new platform you are on
   (comptime-error
-   "This module requires platform-specific code. Please define your platform before importing this module, e.g.: (comptime-define-symbol 'Unix). Supported platforms: 'Unix, 'Windows")))
+   "This module requires platform-specific code. Please define your platform before importing" \
+   " this module, e.g.: (comptime-define-symbol 'Unix). Supported platforms: 'Unix, 'Windows")))
 
 (c-preprocessor-define MAX_PATH_LENGTH 256)
 

@@ -12,7 +12,9 @@ enum TokenizeState
 {
 	TokenizeState_Normal,
 	TokenizeState_Symbol,
-	TokenizeState_InString
+	TokenizeState_InString,
+	TokenizeState_StringMerge,
+	TokenizeState_StringContinue,
 };
 
 int g_totalLinesTokenized = 0;
@@ -27,6 +29,15 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 	const char* A_OK = nullptr;
 
 	TokenizeState tokenizeState = TokenizeState_Normal;
+
+	if (!tokensOut.empty())
+	{
+		if (tokensOut.back().type == TokenType_StringContinue)
+			tokenizeState = TokenizeState_StringContinue;
+		else if (tokensOut.back().type == TokenType_StringMerge)
+			tokenizeState = TokenizeState_StringMerge;
+	}
+
 	char previousChar = 0;
 
 	char contentsBuffer[1024] = {0};
@@ -54,14 +65,19 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 
 	for (const char* currentChar = inputLine; *currentChar != '\0'; ++currentChar)
 	{
-		int currentColumn = currentChar - inputLine;
+		// printf("'%c' %d\n", *currentChar, (int)tokenizeState);
 
+		int currentColumn = currentChar - inputLine;
+		bool isCommented = false;
 		switch (tokenizeState)
 		{
 			case TokenizeState_Normal:
 				// The whole rest of the line is ignored
 				if (*currentChar == commentCharacter)
-					return A_OK;
+				{
+					isCommented = true;
+					break;
+				}
 				else if (*currentChar == '(')
 				{
 					Token openParen = {TokenType_OpenParen, EmptyString,   source,
@@ -83,6 +99,13 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				{
 					// We could error here if the last symbol was a open paren, but we'll just
 					// ignore it for now and be extra permissive
+				}
+				else if (*currentChar == '\\' && !tokensOut.empty() &&
+				         (tokensOut.back().type == TokenType_String ||
+				          tokensOut.back().type == TokenType_StringMerge))
+				{
+					tokensOut.back().type = TokenType_StringMerge;
+					tokenizeState = TokenizeState_StringMerge;
 				}
 				else
 				{
@@ -126,30 +149,70 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				}
 				break;
 			}
+			case TokenizeState_StringContinue:
 			case TokenizeState_InString:
 				if (*currentChar == '"' && previousChar != '\\')
 				{
+					if (!tokensOut.empty())
+					{
+						Token& previousToken = tokensOut.back();
+						if (previousToken.type == TokenType_StringMerge ||
+						    previousToken.type == TokenType_StringContinue)
+						{
+							std::string appendString;
+							CopyContentsAndReset(appendString);
+							previousToken.contents.append(appendString);
+							previousToken.type = TokenType_String;
+							tokenizeState = TokenizeState_Normal;
+							break;
+						}
+					}
+
 					Token string = {TokenType_String, EmptyString, source,
 					                lineNumber,       columnStart, currentColumn + 1};
 					CopyContentsAndReset(string.contents);
 					tokensOut.push_back(string);
 
-					contentsBufferWrite = contentsBuffer;
 					tokenizeState = TokenizeState_Normal;
+				}
+				else if (*currentChar == '\n')
+				{
+					// Absorb newline for multi-line strings
 				}
 				else
 				{
 					WriteContents(*currentChar);
 				}
 				break;
+			case TokenizeState_StringMerge:
+				if (*currentChar == '"')
+				{
+					tokenizeState = TokenizeState_InString;
+				}
+				else if (*currentChar == ';')
+				{
+					isCommented = true;
+				}
+				else if (std::isspace(*currentChar))
+				{
+				}
+				else
+				{
+					// Everything else is an error. Nothing should come after the "\" except
+					// comments or the opening of the rest of the string
+					return "expected \" due to previous \\, which expects a string to merge on "
+					       "next line";
+				}
+				break;
 			default:
 				return "Unknown state! Aborting";
 		}
 
+		if (isCommented)
+			break;
+
 		previousChar = *currentChar;
 	}
-#undef WriteContents
-#undef CopyContentsAndReset
 
 	if (tokenizeState != TokenizeState_Normal)
 	{
@@ -157,12 +220,54 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 		{
 			case TokenizeState_Symbol:
 				return "Unterminated symbol (code error?)";
+			case TokenizeState_StringMerge:
+				break;
+			case TokenizeState_StringContinue:
+			{
+				Token& previousToken = tokensOut.back();
+				std::string appendString;
+				CopyContentsAndReset(appendString);
+				previousToken.contents.append(appendString);
+				previousToken.type = TokenType_StringContinue;
+				break;
+			}
+			break;
 			case TokenizeState_InString:
-				return "Unterminated string";
+			{
+				if (!tokensOut.empty())
+				{
+					Token& previousToken = tokensOut.back();
+					if (previousToken.type == TokenType_StringMerge ||
+					    previousToken.type == TokenType_StringContinue)
+					{
+						std::string appendString;
+						CopyContentsAndReset(appendString);
+						previousToken.contents.append(appendString);
+						previousToken.type = TokenType_StringContinue;
+						tokenizeState = TokenizeState_Normal;
+						break;
+					}
+				}
+
+				// Tokens empty *or* last token isn't a string continuation/resume
+				{
+					// The columnEnd field isn't going to make sense once we add more lines to the
+					// string, so just make it one wide for now
+					Token string = {
+					    TokenType_StringContinue, EmptyString, source, lineNumber, columnStart,
+					    columnStart + 1};
+					CopyContentsAndReset(string.contents);
+					tokensOut.push_back(string);
+				}
+			}
+			break;
 			default:
 				return "Unhandled unexpected state";
 		}
 	}
+
+#undef WriteContents
+#undef CopyContentsAndReset
 
 	return A_OK;
 }
@@ -184,7 +289,7 @@ const char* tokenTypeToString(TokenType type)
 	}
 }
 
-bool validateParentheses(const std::vector<Token>& tokens)
+bool validateTokens(const std::vector<Token>& tokens)
 {
 	int nestingDepth = 0;
 	const Token* lastTopLevelOpenParen = nullptr;
@@ -207,6 +312,13 @@ bool validateParentheses(const std::vector<Token>& tokens)
 				             "opening parenthesies");
 				return false;
 			}
+		}
+		else if (token.type == TokenType_StringContinue || token.type == TokenType_StringMerge)
+		{
+			ErrorAtToken(token,
+			             "multi-line string malformed. Is it missing a closing quote? Does it "
+			             "have a trailing \\, despite being the last string?");
+			return false;
 		}
 	}
 

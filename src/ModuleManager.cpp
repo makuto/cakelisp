@@ -271,7 +271,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 		return false;
 	}
 
-	if (!validateParentheses(*tokens))
+	if (!validateTokens(*tokens))
 	{
 		delete tokens;
 		return false;

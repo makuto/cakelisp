@@ -305,7 +305,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// point there
 
 		// Macro must generate valid parentheses pairs!
-		bool validateResult = validateParentheses(*macroOutputTokens);
+		bool validateResult = validateTokens(*macroOutputTokens);
 		if (!validateResult)
 		{
 			NoteAtToken(invocationStart,
@@ -452,7 +452,7 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 	else if (token.type == TokenType_CloseParen)
 	{
 		// This is totally normal. We've reached the end of the body or file. If that isn't the
-		// case, the code isn't being validated with validateParentheses(); code which hasn't
+		// case, the code isn't being validated with validateTokens(); code which hasn't
 		// been validated should NOT be run - this function trusts its inputs blindly!
 		// This will also be hit if eval itself has been broken: it is expected to skip tokens
 		// within invocations, including the final close paren
@@ -580,7 +580,7 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 		return false;
 	}
 
-	if (!validateParentheses(newDefinitionTokens))
+	if (!validateTokens(newDefinitionTokens))
 	{
 		Log("note: encountered error while validating the following replacement definition:\n");
 		prettyPrintTokens(newDefinitionTokens);
