@@ -119,7 +119,7 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 			{
 				bool isParenthesis = *currentChar == ')' || *currentChar == '(';
 				// Finished the symbol
-				if (std::isspace(*currentChar) || *currentChar == '\n' || isParenthesis)
+				if (*currentChar == '\n' || isParenthesis || std::isspace(*currentChar))
 				{
 					if (logging.tokenization)
 						Logf("%s\n", contentsBuffer);

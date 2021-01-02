@@ -36,6 +36,7 @@ src/dependencyTest
 runtime/HotReloadingTest
 hot_loader
 test/ExecuteMe
+test/MultiLineStrings
 
 *.cake.cpp
 *.cake.hpp
