@@ -42,7 +42,7 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 	const char* error = dlerror();
 	if (!libHandle || error)
 	{
-		fprintf(stderr, "DynamicLoader Error:\n%s\n", error);
+		Logf("DynamicLoader Error:\n%s\n", error);
 		return nullptr;
 	}
 
@@ -78,8 +78,8 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 	                          LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 	if (!libHandle)
 	{
-		fprintf(stderr, "DynamicLoader Error: Failed to load %s with code %d\n", convertedPath,
-		        GetLastError());
+		Logf("DynamicLoader Error: Failed to load %s with code %d\n", convertedPath,
+		     GetLastError());
 		free((void*)absoluteLibPath);
 		return nullptr;
 	}
@@ -94,7 +94,7 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 {
 	if (!library)
 	{
-		fprintf(stderr, "DynamicLoader Error: Received empty library handle\n");
+		Log("DynamicLoader Error: Received empty library handle\n");
 		return nullptr;
 	}
 
@@ -103,7 +103,7 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 	char* error = dlerror();
 	if (error != nullptr)
 	{
-		fprintf(stderr, "DynamicLoader Error:\n%s\n", error);
+		Logf("DynamicLoader Error:\n%s\n", error);
 		return nullptr;
 	}
 
@@ -112,7 +112,7 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 	error = dlerror();
 	if (error != nullptr)
 	{
-		fprintf(stderr, "DynamicLoader Error:\n%s\n", error);
+		Logf("DynamicLoader Error:\n%s\n", error);
 		return nullptr;
 	}
 
@@ -121,7 +121,7 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 	void* procedure = (void*)GetProcAddress((HINSTANCE)library, symbolName);
 	if (!procedure)
 	{
-		fprintf(stderr, "DynamicLoader Error:\n%d\n", GetLastError());
+		Logf("DynamicLoader Error:\n%d\n", GetLastError());
 		return nullptr;
 	}
 	return procedure;
@@ -160,7 +160,7 @@ void closeDynamicLibrary(DynamicLibHandle handleToClose)
 
 	if (!libHandle)
 	{
-		fprintf(stderr, "warning: closing library which wasn't in the list of loaded libraries\n");
+		Log("warning: closing library which wasn't in the list of loaded libraries\n");
 		libHandle = handleToClose;
 	}
 

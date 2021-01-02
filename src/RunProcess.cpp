@@ -62,20 +62,6 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 	Logf("%s", processOutputBuffer);
 }
 
-// Does not work
-#ifdef WINDOWS
-void LogLastError()
-{
-	LPTSTR lpMsgBuf = nullptr;
-    DWORD dw = GetLastError();
-
-	FormatMessage(
-	    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-	    NULL, dw, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), lpMsgBuf, 0, NULL);
-	printf("%s\n", lpMsgBuf);
-}
-#endif
-
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
 {
 	if (logging.processes)
@@ -180,75 +166,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 
 	return 0;
 #elif WINDOWS
-	// We need to do some extra legwork to find which compiler they actually want to use, based on
-	// the current environment variables set by vcvars*.bat
-	// See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
-	char fileToExecuteOverride[MAX_PATH_LENGTH] = {0};
-	if (_stricmp(arguments.fileToExecute, "cl.exe") == 0 ||
-	    _stricmp(arguments.fileToExecute, "link.exe") == 0)
-	{
-		LPTSTR vcInstallDir = nullptr;
-		LPTSTR vcHostArchitecture = nullptr;
-		LPTSTR vcTargetArchitecture = nullptr;
-		const int bufferSize = 4096;
-		struct
-		{
-			const char* variableName;
-			LPTSTR* outputString;
-		} msvcVariables[] = {{"VCToolsInstallDir", &vcInstallDir},
-		                     {"VSCMD_ARG_HOST_ARCH", &vcHostArchitecture},
-		                     {"VSCMD_ARG_TGT_ARCH", &vcTargetArchitecture}};
-		bool variablesFound = true;
-		for (int i = 0; i < ArraySize(msvcVariables); ++i)
-		{
-			*msvcVariables[i].outputString = (LPTSTR)malloc(bufferSize * sizeof(TCHAR));
-			if (!GetEnvironmentVariable(msvcVariables[i].variableName,
-			                            *msvcVariables[i].outputString, bufferSize))
-			{
-				Logf(
-				    "error: could not find environment variable '%s'.\n Please read the "
-				    "following "
-				    "URL:\nhttps://docs.microsoft.com/en-us/cpp/build/"
-				    "building-on-the-command-line?view=msvc-160\nYou must run Cakelisp in a "
-				    "command prompt which has already run vcvars* scripts.\nSee "
-				    "cakelisp/Build.bat for an example.\nYou can define variables when running "
-				    "Cakelisp from Visual Studio via Project -> Properties -> Configuration "
-				    "Properties -> Debugging -> Environment\n",
-				    msvcVariables[i].variableName);
-
-				Log("The following vars need to be defined in the environment to be read from "
-				    "Cakelisp directly:\n");
-				for (int n = 0; n < ArraySize(msvcVariables); ++n)
-					Logf("\t%s\n", msvcVariables[n].variableName);
-				Log("Note that MSVC relies on more variables which vcvars*.bat define, so you need "
-				    "to define those as well (if you do not use vcvars script).\n");
-
-				variablesFound = false;
-
-				break;
-			}
-		}
-
-		if (variablesFound)
-		{
-			// PrintfBuffer(fileToExecuteOverride, "%sHost%s/%s/%s", vcInstallDir, vcHostArchitecture,
-			PrintfBuffer(fileToExecuteOverride, "%sbin\\Host%s\\%s\\%s", vcInstallDir, vcHostArchitecture,
-			             vcTargetArchitecture, arguments.fileToExecute);
-
-			if (logging.processes)
-				Logf("\nOverriding command to:\n%s\n\n", fileToExecuteOverride);
-		}
-
-		for (int n = 0; n < ArraySize(msvcVariables); ++n)
-			if (*msvcVariables[n].outputString)
-				free(*msvcVariables[n].outputString);
-
-		if (!variablesFound)
-			return 1;
-	}
-
-	const char* fileToExecute =
-	    fileToExecuteOverride[0] ? fileToExecuteOverride : arguments.fileToExecute;
+	const char* fileToExecute = arguments.fileToExecute;
 
 	// Build a single string with all arguments
 	char* commandLineString = nullptr;
@@ -555,14 +473,15 @@ void PrintProcessArguments(const char** processArguments)
 }
 
 // The array will need to be deleted, but the array members will not
-const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
+const char** MakeProcessArgumentsFromCommand(const char* fileToExecute,
+                                             std::vector<ProcessCommandArgument>& arguments,
                                              const ProcessCommandInput* inputs, int numInputs)
 {
 	std::vector<const char*> argumentsAccumulate;
 
-	for (unsigned int i = 0; i < command.arguments.size(); ++i)
+	for (unsigned int i = 0; i < arguments.size(); ++i)
 	{
-		ProcessCommandArgument& argument = command.arguments[i];
+		ProcessCommandArgument& argument = arguments[i];
 
 		if (argument.type == ProcessCommandArgumentType_String)
 			argumentsAccumulate.push_back(argument.contents.c_str());
@@ -593,7 +512,7 @@ const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
 	// +1 again for the null terminator
 	const char** newArguments = (const char**)calloc(sizeof(const char*), numFinalArguments + 1);
 
-	newArguments[0] = command.fileToExecute.c_str();
+	newArguments[0] = fileToExecute;
 	for (int i = 1; i < numFinalArguments; ++i)
 		newArguments[i] = argumentsAccumulate[i - 1];
 	newArguments[numFinalArguments] = nullptr;

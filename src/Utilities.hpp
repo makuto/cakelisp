@@ -22,16 +22,16 @@ void printIndentToDepth(int depth);
 #define Log(format) fprintf(stderr, format)
 
 // TODO: de-macroize
-#define SafeSnprinf(buffer, size, format, ...)                         \
+#define SafeSnprintf(buffer, size, format, ...)                        \
 	{                                                                  \
 		int _numPrinted = snprintf(buffer, size, format, __VA_ARGS__); \
 		buffer[_numPrinted] = '\0';                                    \
 	}
 
-#define PrintfBuffer(buffer, format, ...) SafeSnprinf(buffer, sizeof(buffer), format, __VA_ARGS__)
+#define PrintfBuffer(buffer, format, ...) SafeSnprintf(buffer, sizeof(buffer), format, __VA_ARGS__)
 
 // TODO Replace with strcat()?
-#define PrintBuffer(buffer, output) SafeSnprinf(buffer, sizeof(buffer), "%s", output)
+#define PrintBuffer(buffer, output) SafeSnprintf(buffer, sizeof(buffer), "%s", output)
 
 bool writeCharToBuffer(char c, char** at, char* bufferStart, int bufferSize);
 bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int bufferSize);

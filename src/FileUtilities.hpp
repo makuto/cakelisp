@@ -42,3 +42,7 @@ void addExecutablePermission(const char* filename);
 
 // Some Windows APIs require backslashes
 void makeBackslashFilename(char* buffer, int bufferSize, const char* filename);
+
+// Does NOT validate whether your buffer can fit the new extension + null terminator
+// TODO: Safer version
+bool changeExtension(char* buffer, const char* newExtension);

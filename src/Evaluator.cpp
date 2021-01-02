@@ -1,5 +1,8 @@
 #include "Evaluator.hpp"
 
+#include <stdio.h>
+#include <string.h>
+
 #include "Build.hpp"
 #include "Converters.hpp"
 #include "DynamicLoader.hpp"
@@ -12,9 +15,6 @@
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 #include "Writer.hpp"
-
-#include <stdio.h>
-#include <string.h>
 
 //
 // Environment
@@ -869,15 +869,20 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			                    environment.cakelispSrcDir.c_str());
 
 		char buildObjectArgument[MAX_PATH_LENGTH] = {0};
-		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument),
-		                         buildObjectName);
+		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument), buildObjectName);
+
+		char compileTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
+		if (!resolveExecutablePath(environment.compileTimeBuildCommand.fileToExecute.c_str(),
+		                           compileTimeBuildExecutable, sizeof(compileTimeBuildExecutable)))
+			continue;
 
 		ProcessCommandInput compileTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {sourceOutputName}},
 		    {ProcessCommandArgumentType_ObjectOutput, {buildObjectArgument}},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
 		const char** buildArguments = MakeProcessArgumentsFromCommand(
-		    environment.compileTimeBuildCommand, compileTimeInputs, ArraySize(compileTimeInputs));
+		    compileTimeBuildExecutable, environment.compileTimeBuildCommand.arguments,
+		    compileTimeInputs, ArraySize(compileTimeInputs));
 		if (!buildArguments)
 		{
 			// TODO: Abort building if cannot invoke compiler
@@ -885,7 +890,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		}
 
 		RunProcessArguments compileArguments = {};
-		compileArguments.fileToExecute = environment.compileTimeBuildCommand.fileToExecute.c_str();
+		compileArguments.fileToExecute = compileTimeBuildExecutable;
 		compileArguments.arguments = buildArguments;
 		if (runProcess(compileArguments, &buildObject.status) != 0)
 		{
@@ -941,23 +946,29 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			Logf("Compiled %s successfully\n", buildObject.definition->name.c_str());
 
 		char dynamicLibraryOutArgument[MAX_PATH_LENGTH] = {0};
-		makeDynamicLibraryOutputArgument(
-		    dynamicLibraryOutArgument, sizeof(dynamicLibraryOutArgument),
-		    buildObject.dynamicLibraryPath.c_str(), environment.compileTimeLinkCommand.fileToExecute.c_str());
+		makeDynamicLibraryOutputArgument(dynamicLibraryOutArgument,
+		                                 sizeof(dynamicLibraryOutArgument),
+		                                 buildObject.dynamicLibraryPath.c_str(),
+		                                 environment.compileTimeLinkCommand.fileToExecute.c_str());
+
+		char compileTimeLinkExecutable[MAX_PATH_LENGTH] = {0};
+		if (!resolveExecutablePath(environment.compileTimeLinkCommand.fileToExecute.c_str(),
+		                           compileTimeLinkExecutable, sizeof(compileTimeLinkExecutable)))
+			continue;
 
 		ProcessCommandInput linkTimeInputs[] = {
-		    {ProcessCommandArgumentType_DynamicLibraryOutput,
-		     {dynamicLibraryOutArgument}},
+		    {ProcessCommandArgumentType_DynamicLibraryOutput, {dynamicLibraryOutArgument}},
 		    {ProcessCommandArgumentType_ObjectInput, {buildObject.buildObjectName.c_str()}}};
 		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
-		    environment.compileTimeLinkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+		    compileTimeLinkExecutable, environment.compileTimeLinkCommand.arguments, linkTimeInputs,
+		    ArraySize(linkTimeInputs));
 		if (!linkArgumentList)
 		{
 			// TODO: Abort building if cannot invoke compiler
 			continue;
 		}
 		RunProcessArguments linkArguments = {};
-		linkArguments.fileToExecute = environment.compileTimeLinkCommand.fileToExecute.c_str();
+		linkArguments.fileToExecute = compileTimeLinkExecutable;
 		linkArguments.arguments = linkArgumentList;
 		if (runProcess(linkArguments, &buildObject.status) != 0)
 		{
@@ -1641,7 +1652,8 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 	{
 		char relativePathBuffer[MAX_PATH_LENGTH] = {0};
 		getDirectoryFromPath(encounteredInFile, relativePathBuffer, sizeof(relativePathBuffer));
-		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", relativePathBuffer, shortPath);
+		SafeSnprintf(foundFilePathOut, foundFilePathOutSize, "%s/%s", relativePathBuffer,
+		             shortPath);
 
 		if (logging.fileSearch)
 			Logf("File exists? %s (", foundFilePathOut);
@@ -1658,7 +1670,7 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
 
 	for (const std::string& path : searchPaths)
 	{
-		SafeSnprinf(foundFilePathOut, foundFilePathOutSize, "%s/%s", path.c_str(), shortPath);
+		SafeSnprintf(foundFilePathOut, foundFilePathOutSize, "%s/%s", path.c_str(), shortPath);
 
 		if (logging.fileSearch)
 			Logf("File exists? %s (", foundFilePathOut);

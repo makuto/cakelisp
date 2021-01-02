@@ -163,7 +163,7 @@ void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize)
 #ifdef UNIX
 	char* pathCopy = StrDuplicate(path);
 	const char* dirName = dirname(pathCopy);
-	SafeSnprinf(bufferOut, bufferSize, "%s", dirName);
+	SafeSnprintf(bufferOut, bufferSize, "%s", dirName);
 	free(pathCopy);
 #elif WINDOWS
 	char drive[_MAX_DRIVE];
@@ -185,7 +185,7 @@ void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize)
 #ifdef UNIX
 	char* pathCopy = StrDuplicate(path);
 	const char* fileName = basename(pathCopy);
-	SafeSnprinf(bufferOut, bufferSize, "%s", fileName);
+	SafeSnprintf(bufferOut, bufferSize, "%s", fileName);
 	free(pathCopy);
 #elif WINDOWS
 	// char drive[_MAX_DRIVE];
@@ -204,7 +204,6 @@ void makePathRelativeToFile(const char* filePath, const char* referencedFilePath
                             int bufferSize)
 {
 	getDirectoryFromPath(filePath, bufferOut, bufferSize);
-	// TODO: Need to make this safe!
 	StrCatSafe(bufferOut, bufferSize, "/");
 	StrCatSafe(bufferOut, bufferSize, referencedFilePath);
 }
@@ -258,14 +257,14 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 	if (filePath[0] == '/' || (filePath[0] == '.' && filePath[1] == '\0') ||
 	    (filePath[0] == '.' && filePath[1] == '/' && filePath[2] == '\0'))
 	{
-		SafeSnprinf(bufferOut, bufferSize, "%s", filePath);
+		SafeSnprintf(bufferOut, bufferSize, "%s", filePath);
 		return;
 	}
 
 	const char* workingDirAbsolute = realpath(".", nullptr);
 	if (!workingDirAbsolute)
 	{
-		SafeSnprinf(bufferOut, bufferSize, "%s", filePath);
+		SafeSnprintf(bufferOut, bufferSize, "%s", filePath);
 		return;
 	}
 
@@ -273,7 +272,7 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 	if (!filePathAbsolute)
 	{
 		free((void*)workingDirAbsolute);
-		SafeSnprinf(bufferOut, bufferSize, "%s", filePath);
+		SafeSnprintf(bufferOut, bufferSize, "%s", filePath);
 		return;
 	}
 
@@ -285,13 +284,13 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 		// The resolved path is within working dir
 		int trimTrailingSlash = filePathAbsolute[workingDirPathLength] == '/' ? 1 : 0;
 		const char* startRelativePath = &filePathAbsolute[workingDirPathLength + trimTrailingSlash];
-		SafeSnprinf(bufferOut, bufferSize, "%s", startRelativePath);
+		SafeSnprintf(bufferOut, bufferSize, "%s", startRelativePath);
 	}
 	else
 	{
 		// Resolved path is above working dir
 		// Could still make this relative with ../ up to differing directory, if I find it's desired
-		SafeSnprinf(bufferOut, bufferSize, "%s", filePathAbsolute);
+		SafeSnprintf(bufferOut, bufferSize, "%s", filePathAbsolute);
 	}
 
 	free((void*)workingDirAbsolute);
@@ -315,7 +314,7 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 		const char* filePathAbsolute = makeAbsolutePath_Allocated(nullptr, filePath);
 		if (!filePathAbsolute)
 		{
-			SafeSnprinf(bufferOut, bufferSize, "%s", filePath);
+			SafeSnprintf(bufferOut, bufferSize, "%s", filePath);
 			return;
 		}
 
@@ -330,13 +329,13 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 			                            0;
 			const char* startRelativePath =
 			    &filePathAbsolute[workingDirPathLength + trimTrailingSlash];
-			SafeSnprinf(bufferOut, bufferSize, "%s", startRelativePath);
+			SafeSnprintf(bufferOut, bufferSize, "%s", startRelativePath);
 		}
 		else
 		{
 			// Resolved path is above working dir. Could still make this relative with ../ up to
 			// differing directory, if I find it's desired
-			SafeSnprinf(bufferOut, bufferSize, "%s", filePathAbsolute);
+			SafeSnprintf(bufferOut, bufferSize, "%s", filePathAbsolute);
 		}
 		free((void*)filePathAbsolute);
 	}
@@ -374,11 +373,11 @@ bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceF
 	// TODO: Trim .cake.cpp (etc.)
 	if (!addExtension)
 	{
-		SafeSnprinf(bufferOut, bufferSize, "%s/%s", outputDir, buildFilename);
+		SafeSnprintf(bufferOut, bufferSize, "%s/%s", outputDir, buildFilename);
 	}
 	else
 	{
-		SafeSnprinf(bufferOut, bufferSize, "%s/%s.%s", outputDir, buildFilename, addExtension);
+		SafeSnprintf(bufferOut, bufferSize, "%s/%s.%s", outputDir, buildFilename, addExtension);
 	}
 	return true;
 }
@@ -496,4 +495,31 @@ void makeBackslashFilename(char* buffer, int bufferSize, const char* filename)
 			break;
 		}
 	}
+}
+
+// TODO: Safer version
+bool changeExtension(char* buffer, const char* newExtension)
+{
+	int bufferLength = strlen(buffer);
+	char* expectExtensionStart = nullptr;
+	for (char* currentChar = buffer + (bufferLength - 1); *currentChar && currentChar > buffer;
+	     --currentChar)
+	{
+		if (*currentChar == '.')
+		{
+			expectExtensionStart = currentChar;
+			break;
+		}
+	}
+	if (!expectExtensionStart)
+		return false;
+
+	char* extensionWrite = expectExtensionStart + 1;
+	for (const char* extensionChar = newExtension; *extensionChar; ++extensionChar)
+	{
+		*extensionWrite = *extensionChar;
+		++extensionWrite;
+	}
+	*extensionWrite = '\0';
+	return true;
 }

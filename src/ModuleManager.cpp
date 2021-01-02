@@ -728,32 +728,6 @@ void getExecutableOutputName(ModuleManager& manager, std::string& finalOutputNam
 		finalOutputNameOut = defaultExecutableName;
 }
 
-// TODO: Safer version
-bool changeExtension(char* buffer, const char* newExtension)
-{
-	int bufferLength = strlen(buffer);
-	char* expectExtensionStart = nullptr;
-	for (char* currentChar = buffer + (bufferLength - 1); *currentChar && currentChar > buffer;
-	     --currentChar)
-	{
-		if (*currentChar == '.')
-		{
-			expectExtensionStart = currentChar;
-			break;
-		}
-	}
-	if (!expectExtensionStart)
-		return false;
-
-	char* extensionWrite = expectExtensionStart + 1;
-	for (const char* extensionChar = newExtension; *extensionChar; ++extensionChar)
-	{
-		*extensionWrite = *extensionChar;
-		++extensionWrite;
-	}
-	return true;
-}
-
 // Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
 // TODO: There's no easy way to know whether this exe is the current build configuration's
 // output exe, so copy it every time
@@ -772,14 +746,14 @@ bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cach
 // TODO: Consider a better place for this
 #ifdef WINDOWS
 	char executableLib[MAX_PATH_LENGTH] = {0};
-	SafeSnprinf(executableLib, sizeof(executableLib), "%s", cachedOutputExecutable.c_str());
+	SafeSnprintf(executableLib, sizeof(executableLib), "%s", cachedOutputExecutable.c_str());
 
 	bool modifiedExtension = changeExtension(executableLib, "lib");
 
 	if (modifiedExtension && fileExists(executableLib))
 	{
 		char finalOutputLib[MAX_PATH_LENGTH] = {0};
-		SafeSnprinf(finalOutputLib, sizeof(finalOutputLib), "%s", finalOutputName.c_str());
+		SafeSnprintf(finalOutputLib, sizeof(finalOutputLib), "%s", finalOutputName.c_str());
 		modifiedExtension = changeExtension(finalOutputLib, "lib");
 
 		if (modifiedExtension && !copyBinaryFileTo(executableLib, finalOutputLib))
@@ -987,13 +961,22 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			objectOutput = &objectOutputOverride;
 		}
 
+		char buildTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
+		if (!resolveExecutablePath(buildCommand.fileToExecute.c_str(), buildTimeBuildExecutable,
+		                           sizeof(buildTimeBuildExecutable)))
+		{
+			builtObjectsFree(builtObjects);
+			return false;
+		}
+
 		ProcessCommandInput buildTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
 		    {ProcessCommandArgumentType_ObjectOutput, {objectOutput->c_str()}},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
 		    {ProcessCommandArgumentType_AdditionalOptions, std::move(additionalOptions)}};
-		const char** buildArguments = MakeProcessArgumentsFromCommand(buildCommand, buildTimeInputs,
-		                                                              ArraySize(buildTimeInputs));
+		const char** buildArguments =
+		    MakeProcessArgumentsFromCommand(buildTimeBuildExecutable, buildCommand.arguments,
+		                                    buildTimeInputs, ArraySize(buildTimeInputs));
 		if (!buildArguments)
 		{
 			Log("error: failed to construct build arguments\n");
@@ -1044,7 +1027,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				{
 					Logf("--- Must rebuild %s (header files modified)\n",
 					     object->sourceFilename.c_str());
-					Logf("Artifact: %ul Most recent header: %ul\n", artifactModTime,
+					Logf("Artifact: %lu Most recent header: %lu\n", artifactModTime,
 					     mostRecentHeaderModTime);
 				}
 			}
@@ -1066,7 +1049,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 		// Go through with the build
 		RunProcessArguments compileArguments = {};
-		compileArguments.fileToExecute = buildCommand.fileToExecute.c_str();
+		compileArguments.fileToExecute = buildTimeBuildExecutable;
 		compileArguments.arguments = buildArguments;
 		// PrintProcessArguments(buildArguments);
 
@@ -1197,8 +1180,17 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			}
 		}
 
+		char buildTimeLinkExecutable[MAX_PATH_LENGTH] = {0};
+		if (!resolveExecutablePath(linkCommand.fileToExecute.c_str(), buildTimeLinkExecutable,
+		                           sizeof(buildTimeLinkExecutable)))
+		{
+			builtObjectsFree(builtObjects);
+			return false;
+		}
+
 		const char** linkArgumentList =
-		    MakeProcessArgumentsFromCommand(linkCommand, linkTimeInputs, ArraySize(linkTimeInputs));
+		    MakeProcessArgumentsFromCommand(buildTimeLinkExecutable, linkCommand.arguments,
+		                                    linkTimeInputs, ArraySize(linkTimeInputs));
 		if (!linkArgumentList)
 		{
 			builtObjectsFree(builtObjects);
@@ -1247,7 +1239,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			manager.newCommandCrcs[finalOutputName] = commandCrc;
 
 		RunProcessArguments linkArguments = {};
-		linkArguments.fileToExecute = linkCommand.fileToExecute.c_str();
+		linkArguments.fileToExecute = buildTimeLinkExecutable;
 		linkArguments.arguments = linkArgumentList;
 		int linkStatus = 0;
 		if (runProcess(linkArguments, &linkStatus) != 0)

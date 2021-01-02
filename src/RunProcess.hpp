@@ -42,7 +42,11 @@ struct ProcessCommandInput
 };
 
 void PrintProcessArguments(const char** processArguments);
-const char** MakeProcessArgumentsFromCommand(ProcessCommand& command,
+
+// The array will need to be deleted, but the array members will not
+// All strings need to exist and not be moved until after you call runProcess
+const char** MakeProcessArgumentsFromCommand(const char* fileToExecute,
+                                             std::vector<ProcessCommandArgument>& arguments,
                                              const ProcessCommandInput* inputs, int numInputs);
 
 extern const int maxProcessesRecommendedSpawned;
