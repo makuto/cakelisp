@@ -3,11 +3,12 @@
 ;; MIT, so this copy is justified (this comment is by Macoy Madson, so I can change the license)
 (c-import "<stdio.h>" "<string>" "<unordered_map>")
 
+(import "FileUtilities.cake")
+
 (comptime-cond
  ('Unix
   (c-import "<dlfcn.h>"))
  ('Windows
-  ;; TODO: This is pretty annoying, because I'll need to add &with-decls etc.
   (c-preprocessor-define WIN32_LEAN_AND_MEAN)
   (c-import "<windows.h>"))
  (true
@@ -16,30 +17,15 @@
    "This module requires platform-specific code. Please define your platform before importing" \
    " this module, e.g.: (comptime-define-symbol 'Unix). Supported platforms: 'Unix, 'Windows")))
 
-(c-preprocessor-define MAX_PATH_LENGTH 256)
-
 (def-type-alias-global DynamicLibHandle (* void))
+
+(c-preprocessor-define MAX_PATH_LENGTH 256)
 
 (defstruct DynamicLibrary
   handle DynamicLibHandle)
 
 (def-type-alias DynamicLibraryMap (<> std::unordered_map std::string DynamicLibrary))
 (var dynamicLibraries DynamicLibraryMap)
-
-(defun-local make-backslash-filename (buffer (* char) bufferSize
-                                             int filename (* (const char)))
-  (var bufferWrite (* char) buffer)
-  (var currentChar (* (const char)) filename)
-  (while (deref currentChar)
-    (if (= (deref currentChar)  '/')
-        (set (deref bufferWrite) '\\')
-        (set (deref bufferWrite) (deref currentChar)))
-
-    (incr bufferWrite)
-    (incr currentChar)
-    (when (>= (- bufferWrite buffer) bufferSize)
-      (fprintf stderr "error: could not make safe filename: buffer too small\n")
-      (break))))
 
 ;; allow-global-linking = Allow subsequently loaded libraries to resolve from this library You do
 ;;  NOT want this if you intend to reload the library, because it may resolve to the old version
@@ -69,12 +55,12 @@
     ;; TODO Clean this up! Only the cakelispBin is necessary I think (need to double check that)
     ;; TODO Clear added dirs after? (RemoveDllDirectory())
     (var absoluteLibPath (* (const char))
-         (makeAbsolutePath_Allocated null libraryPath))
+         (make-absolute-path-allocated null libraryPath))
     (var convertedPath ([] MAX_PATH_LENGTH char) (array 0))
     ;; TODO Remove, redundant with makeAbsolutePath_Allocated()
     (make-backslash-filename convertedPath (sizeof convertedPath) absoluteLibPath)
     (var dllDirectory ([] MAX_PATH_LENGTH char) (array 0))
-    (getDirectoryFromPath convertedPath dllDirectory (sizeof dllDirectory))
+    (get-directory-from-path convertedPath dllDirectory (sizeof dllDirectory))
     (scope ;; DLL directory
      (var wchars_num int (MultiByteToWideChar CP_UTF8 0 dllDirectory -1 null 0))
      (var wstrDllDirectory (* wchar_t) (new-array wchars_num wchar_t))

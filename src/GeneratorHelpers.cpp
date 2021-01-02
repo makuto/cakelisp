@@ -368,6 +368,32 @@ void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken
 	}
 }
 
+void PushBackAllTokenExpressions(std::vector<Token>& output, const Token* startToken,
+                                 const Token* finalToken)
+{
+	if (!startToken)
+	{
+		Log("error: PushBackTokenExpression() received null token\n");
+		return;
+	}
+
+	int depth = 0;
+	for (const Token* currentToken = startToken; depth >= 0; ++currentToken)
+	{
+		if (currentToken->type == TokenType_OpenParen)
+			++depth;
+		else if (currentToken->type == TokenType_CloseParen)
+			--depth;
+
+		if (depth < 0)
+			break;
+
+		output.push_back(*currentToken);
+
+		if (currentToken == finalToken)
+			break;
+	}
+}
 //
 // Outputting
 //

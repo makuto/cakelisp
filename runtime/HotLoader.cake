@@ -24,4 +24,8 @@
   (hot-reload-clean-up)
   (return 0))
 
-(set-cakelisp-option executable-output "hot_loader")
+(comptime-cond
+ ('Unix
+  (set-cakelisp-option executable-output "hot_loader"))
+ ('Windows
+  (set-cakelisp-option executable-output "hot_loader.exe")))

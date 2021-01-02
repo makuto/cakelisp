@@ -336,28 +336,48 @@ bool validateTokens(const std::vector<Token>& tokens)
 
 bool appendTokenToString(const Token& token, char** at, char* bufferStart, int bufferSize)
 {
+	char previousCharacter = 0;
+	if (*at != bufferStart)
+		previousCharacter = *(*at - 1);
+
 	switch (token.type)
 	{
 		case TokenType_OpenParen:
+			if (previousCharacter != '(' && previousCharacter != 0)
+			{
+				if (!writeCharToBufferErrorToken(' ', at, bufferStart, bufferSize, token))
+					return false;
+			}
+
 			return writeCharToBufferErrorToken('(', at, bufferStart, bufferSize, token);
 		case TokenType_CloseParen:
 			return writeCharToBufferErrorToken(')', at, bufferStart, bufferSize, token);
 		case TokenType_Symbol:
+			// Need space after paren for symbols
+			if (previousCharacter != '(' && previousCharacter != ' ' && previousCharacter != 0)
+			{
+				if (!writeCharToBufferErrorToken(' ', at, bufferStart, bufferSize, token))
+					return false;
+			}
 			if (!writeStringToBufferErrorToken(token.contents.c_str(), at, bufferStart, bufferSize,
 			                                   token))
 				return false;
-			// Must add space after symbol to separate it from everything else
 			return writeCharToBufferErrorToken(' ', at, bufferStart, bufferSize, token);
 		case TokenType_String:
+			// Need space after paren for strings
+			if (previousCharacter != '(' && previousCharacter != ' ' && previousCharacter != 0)
+			{
+				if (!writeCharToBufferErrorToken(' ', at, bufferStart, bufferSize, token))
+					return false;
+			}
 			if (!writeStringToBufferErrorToken("\\\"", at, bufferStart, bufferSize, token))
 				return false;
 			// TODO Need to delimit quotes properly (try e.g. "test\"" and see it break)
 			if (!writeStringToBufferErrorToken(token.contents.c_str(), at, bufferStart, bufferSize,
 			                                   token))
 				return false;
-			// Must add space after string to separate it from everything else
+
 			return writeStringToBufferErrorToken("\\\" ", at, bufferStart, bufferSize, token);
-			break;
 		default:
 			ErrorAtToken(token, "cannot append token of this type to string");
 			return false;

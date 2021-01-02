@@ -8,7 +8,7 @@
 # clang -g -fPIC -x c++-header src/Evaluator.hpp -o src/Evaluator.hpp.pch
 
 ./bin/cakelisp --execute \
-						  test/CodeModification.cake
+			   test/CodeModification.cake
 
 ./bin/cakelisp \
 	test/BuildOptions.cake

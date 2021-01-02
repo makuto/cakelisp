@@ -78,6 +78,13 @@ void MakeContextUniqueSymbolName(EvaluatorEnvironment& environment, const Evalua
 
 CAKELISP_API void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
 
+// e.g. output a whole block of expressions, stopping once we reach a closing paren that doesn't
+// match any opening parens since startToken, or once finalToken is reached (which will be included
+// if it isn't the extra closing paren). finalToken is only for the case where the expressions are
+// not wrapped in a block; you should be fine to set it to the end of the tokens array
+CAKELISP_API void PushBackAllTokenExpressions(std::vector<Token>& output, const Token* startToken,
+                                              const Token* finalToken);
+
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
 
 void addStringOutput(std::vector<StringOutput>& output, const std::string& symbol,

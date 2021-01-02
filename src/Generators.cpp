@@ -2406,10 +2406,12 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 		if (currentToken.type == TokenType_OpenParen && nextToken.type == TokenType_Symbol &&
 		    (nextToken.contents.compare("token-splice") == 0 ||
 		     nextToken.contents.compare("token-splice-addr") == 0 ||
-		     nextToken.contents.compare("token-splice-array") == 0))
+		     nextToken.contents.compare("token-splice-array") == 0 ||
+		     nextToken.contents.compare("token-splice-rest") == 0))
 		{
-			// TODO: Performance: remove extra string compare
+			// TODO: Performance: remove extra string compares
 			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
+			bool isRest = nextToken.contents.compare("token-splice-rest") == 0;
 			bool tokenMakePointer = nextToken.contents.compare("token-splice-addr") == 0;
 
 			if (tokenToStringWrite != tokenToStringBuffer)
@@ -2428,9 +2430,15 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 			for (int spliceArg = startSpliceArgs; spliceArg < endSpliceIndex;
 			     spliceArg = getNextArgument(tokens, spliceArg, endSpliceIndex))
 			{
-				addStringOutput(output.source,
-				                isArray ? "PushBackAll(" : "PushBackTokenExpression(",
-				                StringOutMod_None, &tokens[spliceArg]);
+				if (isArray)
+					addStringOutput(output.source, "PushBackAll(", StringOutMod_None,
+					                &tokens[spliceArg]);
+				else if (isRest)
+					addStringOutput(output.source, "PushBackAllTokenExpressions(",
+					                StringOutMod_None, &tokens[spliceArg]);
+				else
+					addStringOutput(output.source, "PushBackTokenExpression(", StringOutMod_None,
+					                &tokens[spliceArg]);
 
 				// Write output argument
 				addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_None,
@@ -2448,8 +2456,35 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 				                               output) != 0)
 					return false;
 
+				// Second argument is tokens array. Need to get it for bounds check
+				bool shouldBreak = false;
+				if (isRest)
+				{
+					int tokenArrayArg =
+					    getExpectedArgument("token-splice-rest array which holds given token",
+					                        tokens, i, 2, endSpliceIndex);
+					if (tokenArrayArg == -1)
+						return false;
+
+					addLangTokenOutput(output.source, StringOutMod_ListSeparator,
+					                   &tokens[spliceArg]);
+					addStringOutput(output.source, "&(", StringOutMod_None, &tokens[spliceArg]);
+					EvaluatorContext expressionContext = context;
+					expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+					if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+					                               tokenArrayArg, output) != 0)
+						return false;
+
+					addStringOutput(output.source, ".back())", StringOutMod_None,
+					                &tokens[spliceArg]);
+					shouldBreak = true;
+				}
+
 				addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[spliceArg]);
 				addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[spliceArg]);
+
+				if (shouldBreak)
+					break;
 			}
 
 			// Finished splice list

@@ -34,7 +34,7 @@ src/dynamicLoadTest
 src/runProcessTest
 src/dependencyTest
 runtime/HotReloadingTest
-hot_loader
+hot_loader*
 test/ExecuteMe
 test/MultiLineStrings
 
