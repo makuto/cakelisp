@@ -175,7 +175,8 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 
 					tokenizeState = TokenizeState_Normal;
 				}
-				else if (*currentChar == '\n')
+				else if (*currentChar == '\n' ||
+				         (*currentChar == '\r' && *(currentChar + 1) == '\n'))
 				{
 					// Absorb newline for multi-line strings
 				}
