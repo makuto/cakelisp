@@ -53,6 +53,21 @@ The bad things:
 - There's no macro-writing library to draw from (macros which help write macros)
 - Like previously mentioned, macros and generators need to be converted to C/C++ and compiled by an external compiler to be executed, whereas Common Lisp would make this whole process much easier by natively supporting macro code generation and evaluation
 
+* Compared to Scopes
+[[https://scopes.readthedocs.io/en/latest/about/][Scopes]] was also made as an alternative to C++ for game development.
+
+I appreciate the existence of Scopes, and it provides some interesting features (esp. GPU support). Scopes also provides the tight 3rd party C/C++ build system support that I haven't seen any other language offer (besides Scopes and Cakelisp).
+
+We do have different approaches to solving similar problems, so I recommend anyone give both a deep look before deciding. Here are some things which I think make Cakelisp more suitable to me, personally:
+
+- Cakelisp is very lightweight in terms of installation. Windows has no dependency other than MSVC, and is a one-click batch script after you have MSVC installed. Linux is a single shell script execution, assuming your system already has ~g++~ (which I think is a safe assumption, but I haven't done a survey or anything)
+- If you are porting to another platform (e.g. game console), you may also need to port the Scopes runtime compiler, unlike Cakelisp, which doesn't run on the target hardware. In Cakelisp, the compilation stage is separate from the runtime, unlike Scopes
+- Scopes uses a mixed syntax instead of being strictly S-expressions. I'm somewhat hard-line in applying S-expressions, e.g. I don't have ~[]~ for function signatures like Clojure. I figure if I'm going to be using a constraining syntax for consistency, I'm going to be consistent!
+- Cakelisp is explicitly typed. I personally am not a fan of C++'s ~auto~; I like seeing types because it helps me imagine what's actually going on much better, and better know what's possible given the existing arguments/variables. Scopes allows you to be explicit with your types, but doesn't require it
+- Cakelisp to C++ is much closer than Scopes. This means a shorter ramp-up time for an existing C++ programmer to adapt to a Cakelisp codebase
+- Cakelisp outputs clean, human-readable C/C++. This makes debugging support solid as well as gives an out if you decide you would rather switch back to straight C/C++
+
+Overall, I'd say Scopes is a much more heavyweight set-up. It has more features and more time has gone into it. If you'd rather go for something more minimal, Cakelisp may be a better option.
 * Other languages of interest
 - Jai: [[https://www.youtube.com/user/jblow888][Jonathan Blow's talks on Jai]] have been a source of ideas and inspiration to continue
 - [[https://github.com/vlang/v][V]]: Cakelisp has different goals, but V acts as another reference for how fast things should be, and how easy they should be to set up. I agree with their assessment of the validity of [[https://github.com/vlang/v/wiki/On-the-benefits-of-using-C-as-a-language-backend][using C as a backend]] instead of native code generation
