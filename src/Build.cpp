@@ -1,8 +1,11 @@
 #include "Build.hpp"
 
+#include "Logging.hpp"
 #include "Utilities.hpp"
 
 #ifdef WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 const char* compilerObjectExtension = "obj";
 const char* linkerDynamicLibraryPrefix = "";
 const char* linkerDynamicLibraryExtension = "dll";
