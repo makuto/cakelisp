@@ -311,7 +311,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 			NoteAtToken(invocationStart,
 			            "code was generated from macro. See erroneous macro "
 			            "expansion below:");
-			printTokens(*macroOutputTokens);
+			prettyPrintTokens(*macroOutputTokens);
 			Log("\n");
 			// Deleting these tokens is only safe at this point because we know we have not
 			// evaluated them. As soon as they are evaluated, they must be kept around
@@ -351,7 +351,7 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		{
 			NoteAtToken(invocationStart,
 			            "code was generated from macro. See macro expansion below:");
-			printTokens(*macroOutputTokens);
+			prettyPrintTokens(*macroOutputTokens);
 			Log("\n");
 			return false;
 		}

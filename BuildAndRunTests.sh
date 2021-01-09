@@ -8,13 +8,13 @@
 # clang -g -fPIC -x c++-header src/Evaluator.hpp -o src/Evaluator.hpp.pch
 
 ./bin/cakelisp --execute \
-			   test/CodeModification.cake
+			   test/CodeModification.cake || exit $?
 
 ./bin/cakelisp \
-	test/BuildOptions.cake
+	test/BuildOptions.cake || exit $?
 
 ./bin/cakelisp --execute \
-	test/Execute.cake
+	test/Execute.cake || exit $?
 
 ./bin/cakelisp \
 	runtime/Config_Linux.cake runtime/HotReloadingCodeModifier.cake runtime/TextAdventure.cake || exit $?
@@ -27,8 +27,10 @@
 	runtime/Config_Linux.cake runtime/HotLoader.cake || exit $?
 
 ./bin/cakelisp --execute \
-	test/Defines.cake
+	test/Defines.cake || exit $?
 
-# ./bin/cakelisp CrossCompile_Windows.cake
+# ./bin/cakelisp CrossCompile_Windows.cake || exit $?
 
 ./bin/cakelisp --execute test/MultiLineStrings.cake || exit $?
+
+./bin/cakelisp --execute --verbose-processes test/BuildHelpers.cake || exit $?

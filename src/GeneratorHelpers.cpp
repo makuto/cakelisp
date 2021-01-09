@@ -934,8 +934,11 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				bodyContext.scope = EvaluatorScope_ExpressionsOnly;
 				StringOutput spliceDelimiterTemplate = {};
 				spliceDelimiterTemplate.output = operation[i].keywordOrSymbol;
-				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
-				addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
+				if (operation[i].type != SpliceNoSpace)
+				{
+					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceBefore);
+					addModifierToStringOutput(spliceDelimiterTemplate, StringOutMod_SpaceAfter);
+				}
 				bodyContext.delimiterTemplate = spliceDelimiterTemplate;
 				int numErrors = EvaluateGenerateAll_Recursive(environment, bodyContext, tokens,
 				                                              startSpliceListIndex, output);

@@ -425,7 +425,8 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	}
 
 	ErrorAtToken(tokens[hookNameIndex],
-	             "failed to set hook. Hook name not recognized or context mismatched");
+	             "failed to set hook. Hook name not recognized or context mismatched. Available "
+	             "hooks:\n\tpre-build (module only)\n\tpre-link\n\tpost-references-resolved\n");
 	return false;
 }
 

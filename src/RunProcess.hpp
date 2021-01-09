@@ -9,7 +9,7 @@ struct RunProcessArguments
 {
 	const char* fileToExecute;
 	// nullptr = no change (use parent process's working dir)
-	const char* workingDir;
+	const char* workingDirectory;
 	const char** arguments;
 };
 

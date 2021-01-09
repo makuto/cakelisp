@@ -269,7 +269,7 @@ int main(int numArguments, char* arguments[])
 			char workingDirectory[MAX_PATH_LENGTH] = {0};
 			getDirectoryFromPath(arguments.fileToExecute, workingDirectory,
 			                     ArraySize(workingDirectory));
-			arguments.workingDir = workingDirectory;
+			arguments.workingDirectory = workingDirectory;
 			int status = 0;
 
 			if (runProcess(arguments, &status) != 0)

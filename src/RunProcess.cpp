@@ -64,6 +64,13 @@ void subprocessReceiveStdOut(const char* processOutputBuffer)
 
 int runProcess(const RunProcessArguments& arguments, int* statusOut)
 {
+	if (!arguments.arguments)
+	{
+		Log("error: runProcess() called with empty arguments. At a minimum, first argument must be "
+		    "executable name\n");
+		return 1;
+	}
+
 	if (logging.processes)
 	{
 		Log("RunProcess command: ");
@@ -122,16 +129,18 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 			nonConstArguments[numArgs] = nullptr;
 		}
 
-		if (arguments.workingDir)
+		if (arguments.workingDirectory)
 		{
-			if (chdir(arguments.workingDir) != 0)
+			if (chdir(arguments.workingDirectory) != 0)
 			{
-				perror("RunProcess chdir: ");
+				Logf("error: RunProcess failed to change directory to '%s'\n",
+				     arguments.workingDirectory);
+				perror("RunProcess chdir");
 				goto childProcessFailed;
 			}
 
 			if (logging.processes)
-				Logf("Set working directory to %s\n", arguments.workingDir);
+				Logf("Set working directory to %s\n", arguments.workingDirectory);
 		}
 
 		systemExecute(arguments.fileToExecute, nonConstArguments);
@@ -309,16 +318,16 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
 
 	// Start the child process.
-	if (!CreateProcess(fileToExecute,      // No module name (use command line)
-	                   commandLineString,  // Command line
-	                   nullptr,            // No security attributes
-	                   nullptr,            // Thread handle not inheritable
-	                   true,               // Set handle inheritance to true
-	                   0,                  // No creation flags
-	                   nullptr,            // Use parent's environment block
-	                   nullptr,            // Use parent's starting directory
-	                   &startupInfo,       // Pointer to STARTUPINFO structure
-	                   processInfo))       // Pointer to PROCESS_INFORMATION structure
+	if (!CreateProcess(fileToExecute,               // No module name (use command line)
+	                   commandLineString,           // Command line
+	                   nullptr,                     // No security attributes
+	                   nullptr,                     // Thread handle not inheritable
+	                   true,                        // Set handle inheritance to true
+	                   0,                           // No creation flags
+	                   nullptr,                     // Use parent's environment block
+	                   arguments.workingDirectory,  // If nullptr, use parent's starting directory
+	                   &startupInfo,                // Pointer to STARTUPINFO structure
+	                   processInfo))                // Pointer to PROCESS_INFORMATION structure
 	{
 		CloseHandle(hChildStd_OUT_Rd);
 		CloseHandle(hChildStd_OUT_Wr);
@@ -387,7 +396,7 @@ void readProcessPipe(Subprocess& process, SubprocessOnOutputFunc onOutput)
 			break;
 		}
 
-		if (bytesRead <= sizeof(buffer))
+		if (onOutput && bytesRead <= sizeof(buffer))
 			onOutput(buffer);
 	}
 
@@ -415,7 +424,8 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		{
 			processOutputBuffer[numBytesRead] = '\0';
 			subprocessReceiveStdOut(processOutputBuffer);
-			onOutput(processOutputBuffer);
+			if (onOutput)
+				onOutput(processOutputBuffer);
 			numBytesRead = read(process.pipeReadFileDescriptor, processOutputBuffer,
 			                    sizeof(processOutputBuffer));
 		}

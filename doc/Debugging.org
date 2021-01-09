@@ -7,7 +7,7 @@ Run ~cakelisp --help~ to see what command-line arguments may be passed in to con
 The following command may be run in order to tell GDB where the ~.so~ files you want to debug are located:
 
 #+BEGIN_SRC sh
-set solib-search-path ~/Development/code/repositories/cakelisp/
+set solib-search-path ~/Development/code/repositories/cakelisp/cakelisp_cache
 set cwd ~/Development/code/repositories/cakelisp/
 #+END_SRC
 
