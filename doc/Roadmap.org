@@ -38,8 +38,6 @@ The syntax will be opt-in because it does make first/clean build times longer. E
 All of those header files will be grouped into one header, then that header will be precompiled. Any other modules which share the same header group will also use the same precompiled header.
 
 Another stage will be added to the build system which will check all headers for modifications, and build/rebuild the precompiled header if necessary. For 3rd party dependencies, PCH builds should only occur when you update the dependency (or create a new build configuration).
-** External process execution
-It should be easy to run external dependencies' build systems within a Cakelisp build phase. For example, I want to be able to lazily build Ogre during the ~pre-build~ hook of my game. Ogre requires CMake and ninja to build. Utilizing the ~RunProcess~ and file system code should make this straightforward.
 ** General-purpose dependency system
 I would like to build my game assets using Cakelisp's build system.
 
@@ -222,6 +220,11 @@ I need to turn off most of the special indentation rules.
 ** ETags/CTags support
 Mostly listing this because it's what I use (LSP is a bit too heavyweight for my tastes). I think this only requires a few regexes to be written which cover the important Cakelisp definition signatures.
 * DONE Archive
+The following are things that were on the Roadmap that are now complete.
+
+These are sorted with most recently completed appearing first.
+** External process execution
+It should be easy to run external dependencies' build systems within a Cakelisp build phase. For example, I want to be able to lazily build Ogre during the ~pre-build~ hook of my game. Ogre requires CMake and ninja to build. Utilizing the ~RunProcess~ and file system code should make this straightforward.
 ** GitHub syntax highlighting
 ~bab33b7b0744af46faefc857bce8aec2b97e45a4~ fixed this via ~.gitattributes. See [[https://stackoverflow.com/questions/13597892/how-to-change-the-language-of-a-repository-on-github/13599737#13599737][How to change the language of a repository]].
 
