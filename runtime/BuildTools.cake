@@ -161,3 +161,18 @@ Put it in Dependencies/SDL")
    (set (field (token-splice arguments-out-name) arguments)
         (token-splice-addr command-array-var)))
   (return true))
+
+;; Sequential means this will block until the process completes. If it fails, on-failure block will
+;; execute.
+(defmacro run-process-sequential-or (command array &rest on-failure array)
+  (var my-tokens (<> std::vector Token))
+  (tokenize-push
+   ;; output
+   my-tokens
+   (scope (run-process-make-arguments process-command
+                                      ;; +1 because we want the inside of the command
+                                      (token-splice-rest (+ 1 command) tokens))
+          (unless (= 0 (run-process-wait-for-completion (addr process-command)))
+            (token-splice-rest on-failure tokens))))
+  (PushBackAll output my-tokens)
+  (return true))
