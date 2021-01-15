@@ -2461,9 +2461,11 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 				bool shouldBreak = false;
 				if (isRest)
 				{
-					int tokenArrayArg =
-					    getExpectedArgument("token-splice-rest array which holds given token",
-					                        tokens, i, 2, endSpliceIndex);
+					int tokenArrayArg = getExpectedArgument(
+					    "token-splice-rest requires the array which holds the token to splice as "
+					    "the second argument, e.g. (token-splice-rest my-start-token tokens), "
+					    "where my-start-token is a pointer to a token stored within 'tokens'",
+					    tokens, i, 2, endSpliceIndex);
 					if (tokenArrayArg == -1)
 						return false;
 

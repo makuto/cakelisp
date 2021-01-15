@@ -81,4 +81,7 @@ enum ObjectReferenceResolutionType
 {
 	ObjectReferenceResolutionType_None = 0,
 	ObjectReferenceResolutionType_Splice,
+	// In the case of compile-time functions, the first reference encountered was when the comptime
+	// function was already loaded, so no action needs to be taken
+	ObjectReferenceResolutionType_AlreadyLoaded
 };

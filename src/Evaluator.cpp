@@ -157,7 +157,9 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 		{
 			ObjectReferenceStatus newStatus;
 			newStatus.name = &referenceNameToken;
-			newStatus.guessState = GuessState_None;
+			newStatus.guessState = reference.type == ObjectReferenceResolutionType_AlreadyLoaded ?
+			                           GuessState_Resolved :
+			                           GuessState_None;
 			newStatus.references.push_back(reference);
 			std::pair<ObjectReferenceStatusMap::iterator, bool> newRefStatusResult =
 			    findDefinition->second.references.emplace(
@@ -370,13 +372,33 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 
 	// Check for known Cakelisp functions
 	ObjectDefinitionMap::iterator findIt = environment.definitions.find(invocationName.contents);
-	if (findIt != environment.definitions.end() &&
-	    (!isCompileTimeObject(findIt->second.type) ||
-	     (findIt->second.type == ObjectType_CompileTimeFunction &&
-	      findCompileTimeFunction(environment, invocationName.contents.c_str()))))
+	if (findIt != environment.definitions.end())
 	{
-		return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
+		// Plain-old Cakelisp runtime function
+	    if (!isCompileTimeObject(findIt->second.type))
+			return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
 		                                   output);
+
+		if (findIt->second.type == ObjectType_CompileTimeFunction &&
+		    findCompileTimeFunction(environment, invocationName.contents.c_str()))
+		{
+			ObjectReference newReference = {};
+			newReference.type = ObjectReferenceResolutionType_AlreadyLoaded;
+			newReference.tokens = &tokens;
+			newReference.startIndex = invocationStartIndex;
+			newReference.context = context;
+
+			const ObjectReferenceStatus* referenceStatus =
+			    addObjectReference(environment, invocationName, newReference);
+			if (!referenceStatus)
+			{
+				ErrorAtToken(tokens[invocationStartIndex],
+				             "failed to create reference status (internal error)");
+				return false;
+			}
+			return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
+			                                   output);
+		}
 	}
 
 	// Unknown reference
@@ -1108,6 +1130,10 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				referenceValidPreEval = nullptr;
 				hasErrors |= result > 0;
 				numErrorsOut += result;
+			}
+			else if (references[i].type == ObjectReferenceResolutionType_AlreadyLoaded)
+			{
+				// Nothing to do
 			}
 			else
 			{
