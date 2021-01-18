@@ -401,7 +401,7 @@ This indicates the current module should not be built, nor be linked into the fi
 This changes the location where the final executable is output. Note that if you don't have a ~(main)~ function defined, you can change this output to e.g. ~lib/libCakelisp.so~ to output a dynamic library (on Linux).
 
 #+BEGIN_SRC lisp
-(add-c-search-directory module "src")
+(add-c-search-directory-module "src")
 #+END_SRC
 It is good practice to refer to files without any directories in the path. This helps future developers if they need to relocate files. In this case, we add ~src~ to the ~module~ search paths, which means only this module and its dependencies will have that search path.
 

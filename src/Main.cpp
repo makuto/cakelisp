@@ -108,6 +108,9 @@ int main(int numArguments, char* arguments[])
 	     "Output when #include files are not found during include scanning. The more header files "
 	     "not found, the higher the chances false \"nothing to do\" builds could occur"},
 	    {"--verbose-metadata", &logging.metadata, "Output generated metadata"},
+	    {"--verbose-option-adding", &logging.optionAdding,
+	     "Output where options are added, such as search directories, additional build options, "
+	     "etc."},
 	};
 
 	if (numArguments == 1)

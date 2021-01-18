@@ -2,7 +2,7 @@
 
 (set-cakelisp-option executable-output "bin/cakelisp")
 
-(add-c-search-directory module "src")
+(add-c-search-directory-module "src")
 (add-cpp-build-dependency
  "Tokenizer.cpp"
  "Evaluator.cpp"

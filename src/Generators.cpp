@@ -9,6 +9,7 @@
 #include "FileUtilities.hpp"
 #include "GeneratorHelpers.hpp"
 #include "GeneratorHelpersEnums.hpp"
+#include "Logging.hpp"
 #include "ModuleManager.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
@@ -430,91 +431,42 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	return false;
 }
 
-bool AddCakelispSearchPathGenerator(EvaluatorEnvironment& environment,
-                                    const EvaluatorContext& context,
-                                    const std::vector<Token>& tokens, int startTokenIndex,
-                                    GeneratorOutput& output)
+bool AddStringOptionsGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                               const std::vector<Token>& tokens, int startTokenIndex,
+                               GeneratorOutput& output)
 {
 	// Don't let the user think this function can be called during comptime
-	if (!ExpectEvaluatorScope("add-cakelisp-search-directory", tokens[startTokenIndex], context,
+	if (!ExpectEvaluatorScope("add string option", tokens[startTokenIndex], context,
 	                          EvaluatorScope_Module))
-		return false;
-
-	if (!context.module)
 	{
-		ErrorAtToken(tokens[startTokenIndex], "cannot find module (internal code error?)");
+		NoteAtToken(
+		    tokens[startTokenIndex],
+		    "if you are trying to set an option conditionally from within a comptime function, you "
+		    "should directly set the option rather than using this generator");
 		return false;
 	}
 
-	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	const Token& invocationToken = tokens[startTokenIndex + 1];
 
-	int startDirectoriesIndex =
-	    getExpectedArgument("expected directories", tokens, startTokenIndex, 1, endInvocationIndex);
-	if (startDirectoriesIndex == -1)
-		return false;
-
-	for (int i = startDirectoriesIndex; i < endInvocationIndex;
-	     i = getNextArgument(tokens, i, endInvocationIndex))
-	{
-		if (!ExpectTokenType("add-cakelisp-search-directory", tokens[i], TokenType_String))
-			return false;
-
-		bool found = false;
-		for (const std::string& path : environment.searchPaths)
-		{
-			if (tokens[i].contents.compare(path) == 0)
-			{
-				found = true;
-				break;
-			}
-		}
-		if (!found)
-			environment.searchPaths.push_back(tokens[i].contents);
-	}
-
-	return true;
-}
-
-bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
-                                  const EvaluatorContext& context, const std::vector<Token>& tokens,
-                                  int startTokenIndex, GeneratorOutput& output)
-{
-	// Don't let the user think this function can be called during comptime
-	if (!ExpectEvaluatorScope("add-c-search-directory", tokens[startTokenIndex], context,
-	                          EvaluatorScope_Module))
-		return false;
-
-	if (!context.module)
-	{
-		ErrorAtToken(tokens[startTokenIndex], "cannot find module (internal code error?)");
-		return false;
-	}
-
-	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
-
-	int destinationIndex = getExpectedArgument("expected destination (module or global)", tokens,
-	                                           startTokenIndex, 1, endInvocationIndex);
-	if (destinationIndex == -1)
-		return false;
-
-	const Token& destinationToken = tokens[destinationIndex];
-
-	if (!ExpectTokenType("add-c-search-directory destination", destinationToken, TokenType_Symbol))
-		return false;
-
-	struct SearchDirectoryDestination
+	struct StringOptionList
 	{
 		const char* name;
-		std::vector<std::string>* searchDirs;
+		std::vector<std::string>* stringList;
 	};
-	const SearchDirectoryDestination possibleDestinations[] = {
-	    // TODO: Add compile-time
-	    {"global", &environment.cSearchDirectories},
-	    {"module", &context.module->cSearchDirectories}};
-	const SearchDirectoryDestination* destination = nullptr;
+	const StringOptionList possibleDestinations[] = {
+	    {"add-cakelisp-search-directory", &environment.searchPaths},
+		{"add-c-search-directory-global", &environment.cSearchDirectories},
+	    {"add-c-search-directory-module", &context.module->cSearchDirectories},
+		{"add-library-search-directory", &context.module->librarySearchDirectories},
+		{"add-library-runtime-search-directory", &context.module->libraryRuntimeSearchDirectories},
+		{"add-library-dependency", &context.module->libraryDependencies},
+	    {"add-build-options", &context.module->additionalBuildOptions},
+	    {"add-build-config-label", &environment.buildConfigurationLabels}};
+
+	const StringOptionList* destination = nullptr;
 	for (unsigned int i = 0; i < ArraySize(possibleDestinations); ++i)
 	{
-		if (destinationToken.contents.compare(possibleDestinations[i].name) == 0)
+		if (invocationToken.contents.compare(possibleDestinations[i].name) == 0)
 		{
 			destination = &possibleDestinations[i];
 			break;
@@ -523,78 +475,51 @@ bool AddCSearchDirectoryGenerator(EvaluatorEnvironment& environment,
 
 	if (!destination)
 	{
-		ErrorAtToken(destinationToken, "unrecognized destination. Available destinations:");
+		ErrorAtToken(invocationToken,
+		             "unrecognized string option destination. Available destinations:");
 		for (unsigned int i = 0; i < ArraySize(possibleDestinations); ++i)
 			Logf("\t%s\n", possibleDestinations[i].name);
 
 		return false;
 	}
 
-	int startDirectoriesIndex =
-	    getExpectedArgument("expected directories", tokens, startTokenIndex, 2, endInvocationIndex);
-	if (startDirectoriesIndex == -1)
-		return false;
-
-	for (int i = startDirectoriesIndex; i < endInvocationIndex;
-	     i = getNextArgument(tokens, i, endInvocationIndex))
-	{
-		if (!ExpectTokenType("add-c-search-directory", tokens[i], TokenType_String))
-			return false;
-
-		bool found = false;
-		for (const std::string& dir : (*destination->searchDirs))
-		{
-			if (dir.compare(tokens[i].contents) == 0)
-			{
-				found = true;
-				break;
-			}
-		}
-		if (!found)
-			(*destination->searchDirs).push_back(tokens[i].contents);
-	}
-
-	return true;
-}
-
-bool AddBuildOptionGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                             const std::vector<Token>& tokens, int startTokenIndex,
-                             GeneratorOutput& output)
-{
-	// Don't let the user think this function can be called during comptime
-	if (!ExpectEvaluatorScope("add-build-option", tokens[startTokenIndex], context,
-	                          EvaluatorScope_Module))
-		return false;
-
-	if (!context.module)
-	{
-		ErrorAtToken(tokens[startTokenIndex], "cannot find module (internal code error?)");
-		return false;
-	}
-
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
-	for (int i = startTokenIndex + 2; i < endInvocationIndex;
+
+	int startStringsIndex =
+	    getExpectedArgument("expected string(s)", tokens, startTokenIndex, 1, endInvocationIndex);
+	if (startStringsIndex == -1)
+		return false;
+
+	for (int i = startStringsIndex; i < endInvocationIndex;
 	     i = getNextArgument(tokens, i, endInvocationIndex))
 	{
-		if (!ExpectTokenType("add-build-option", tokens[i], TokenType_String))
+		const Token& currentToken = tokens[i];
+		if (!ExpectTokenType("add string options", currentToken, TokenType_String))
 			return false;
 
 		bool found = false;
-		for (const std::string& option : context.module->additionalBuildOptions)
+		for (const std::string& existingValue : *destination->stringList)
 		{
-			if (option.compare(tokens[i].contents) == 0)
+			if (currentToken.contents.compare(existingValue) == 0)
 			{
 				found = true;
 				break;
 			}
 		}
 		if (!found)
-			context.module->additionalBuildOptions.push_back(tokens[i].contents);
+		{
+			destination->stringList->push_back(currentToken.contents);
+
+			if (logging.optionAdding)
+				NoteAtTokenf(currentToken, "added option %s (%s)", currentToken.contents.c_str(),
+				             destination->name);
+		}
 	}
 
 	return true;
 }
 
+// Only adds additional validation before AddStringOptionsGenerator()
 bool AddBuildConfigLabelGenerator(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, GeneratorOutput& output)
@@ -612,27 +537,7 @@ bool AddBuildConfigLabelGenerator(EvaluatorEnvironment& environment,
 		return false;
 	}
 
-	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
-	for (int i = startTokenIndex + 2; i < endInvocationIndex;
-	     i = getNextArgument(tokens, i, endInvocationIndex))
-	{
-		if (!ExpectTokenType("add-build-config-label", tokens[i], TokenType_String))
-			return false;
-
-		bool found = false;
-		for (const std::string& label : environment.buildConfigurationLabels)
-		{
-			if (label.compare(tokens[i].contents) == 0)
-			{
-				found = true;
-				break;
-			}
-		}
-		if (!found)
-			environment.buildConfigurationLabels.push_back(tokens[i].contents);
-	}
-
-	return true;
+	return AddStringOptionsGenerator(environment, context, tokens, startTokenIndex, output);
 }
 
 bool SkipBuildGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
@@ -2999,11 +2904,15 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["skip-build"] = SkipBuildGenerator;
 	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
 	environment.generators["add-c-build-dependency"] = AddDependencyGenerator;
-	environment.generators["add-build-options"] = AddBuildOptionGenerator;
 	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
 	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
-	environment.generators["add-c-search-directory"] = AddCSearchDirectoryGenerator;
-	environment.generators["add-cakelisp-search-directory"] = AddCakelispSearchPathGenerator;
+	environment.generators["add-build-options"] = AddStringOptionsGenerator;
+	environment.generators["add-c-search-directory-module"] = AddStringOptionsGenerator;
+	environment.generators["add-c-search-directory-global"] = AddStringOptionsGenerator;
+	environment.generators["add-cakelisp-search-directory"] = AddStringOptionsGenerator;
+	environment.generators["add-library-search-directory"] = AddStringOptionsGenerator;
+	environment.generators["add-library-runtime-search-directory"] = AddStringOptionsGenerator;
+	environment.generators["add-library-dependency"] = AddStringOptionsGenerator;
 	environment.generators["add-build-config-label"] = AddBuildConfigLabelGenerator;
 
 	// Compile-time conditionals, erroring, etc.

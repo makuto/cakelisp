@@ -31,6 +31,9 @@ struct Module
 	// Build system
 	std::vector<ModuleDependency> dependencies;
 	std::vector<std::string> cSearchDirectories;
+	std::vector<std::string> librarySearchDirectories;
+	std::vector<std::string> libraryRuntimeSearchDirectories;
+	std::vector<std::string> libraryDependencies;
 	std::vector<std::string> additionalBuildOptions;
 	// Do not build or link this module. Useful both for compile-time only files (which error
 	// because they are empty files) and for files only evaluated for their declarations (e.g. if

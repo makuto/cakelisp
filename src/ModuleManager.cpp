@@ -669,18 +669,6 @@ static void OnCompileProcessOutput(const char* output)
 	// TODO C/C++ error to Cakelisp token mapper
 }
 
-// enum BuildTargetType
-// {
-// 	BuildTargetType_Executable,
-// 	BuildTargetType_Library
-// };
-
-// struct BuildTarget
-// {
-// 	BuildTargetType type;
-// 	std::vector<std::string> filesToLink;
-// };
-
 struct BuiltObject
 {
 	int buildStatus;

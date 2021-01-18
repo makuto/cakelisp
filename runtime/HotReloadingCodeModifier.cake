@@ -318,7 +318,7 @@
 
    (tokenize-push (deref new-initializer-def)
                   ;; TODO: This is a hack. Make sure imports work by adding working dir as search
-                  (add-c-search-directory module ".")
+                  (add-c-search-directory-module ".")
                   (token-splice-array imports)
                   (defun hot-reload-initialize-state ()
                     (token-splice-array invocations)))
