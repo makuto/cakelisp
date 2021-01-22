@@ -127,7 +127,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 #else
 		// G++ by default
-		manager.environment.compileTimeBuildCommand.fileToExecute = "/usr/bin/g++";
+		manager.environment.compileTimeBuildCommand.fileToExecute = "g++";
 		manager.environment.compileTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
 		    {ProcessCommandArgumentType_String, "-c"},
@@ -137,14 +137,14 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
-		manager.environment.compileTimeLinkCommand.fileToExecute = "/usr/bin/g++";
+		manager.environment.compileTimeLinkCommand.fileToExecute = "g++";
 		manager.environment.compileTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-shared"},
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 
-		manager.environment.buildTimeBuildCommand.fileToExecute = "/usr/bin/g++";
+		manager.environment.buildTimeBuildCommand.fileToExecute = "g++";
 		manager.environment.buildTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
 		    {ProcessCommandArgumentType_String, "-c"},
@@ -157,7 +157,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
 
-		manager.environment.buildTimeLinkCommand.fileToExecute = "/usr/bin/g++";
+		manager.environment.buildTimeLinkCommand.fileToExecute = "g++";
 		manager.environment.buildTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},

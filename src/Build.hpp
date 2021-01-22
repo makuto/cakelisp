@@ -13,7 +13,6 @@ void makeDynamicLibraryOutputArgument(char* buffer, int bufferSize, const char* 
                                       const char* buildExecutable);
 
 // On Windows, extra work is done to find the compiler and linker executables. This function handles
-// looking up those environment variables to determine which executable to use. On Linux, this
-// function might be a good place for executable search paths, e.g. check /usr/bin for g++
+// looking up those environment variables to determine which executable to use
 bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
                            int resolvedPathOutSize);

@@ -127,48 +127,7 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 	}
 #endif
 
-#ifdef UNIX
-	if (fileToExecute[0] == '/' || fileToExecute[0] == '.')
-	{
-		SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s", fileToExecute);
-		if (!fileExists(resolvedPathOut))
-		{
-			Logf(
-			    "error: failed to find '%s'. Checked exact path because it is directory-relative "
-			    "or absolute\n",
-			    fileToExecute);
-			return false;
-		}
-	}
-	else
-	{
-		// TODO: Use PATH environment variable instead
-		const char* pathsToCheck[] = {"/usr/local/sbin", "/usr/local/bin", "/usr/sbin",
-		                              "/usr/bin",        "/sbin",          "/bin"};
-		bool found = false;
-		for (int i = 0; i < ArraySize(pathsToCheck); ++i)
-		{
-			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s/%s", pathsToCheck[i],
-			             fileToExecute);
-			if (fileExists(resolvedPathOut))
-			{
-				found = true;
-				break;
-			}
-		}
-
-		if (!found)
-		{
-			Logf("error: failed to find '%s'. Checked the following paths:\n", fileToExecute);
-			for (int i = 0; i < ArraySize(pathsToCheck); ++i)
-				Logf("\t%s\n", pathsToCheck[i]);
-			return false;
-		}
-	}
-
-	return true;
-#endif
-
+	// Unix searches PATH automatically, thanks to the 'p' of execvp()
 	SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s", fileToExecute);
 
 	return true;
