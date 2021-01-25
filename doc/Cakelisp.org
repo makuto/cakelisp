@@ -450,16 +450,16 @@ These options are appended to the default or module-overridden build command.
 (add-linker-options "--export-dynamic")
 #+END_SRC
 
-Before linking, we also need to add some flags to the linker.
+~add-library-dependency~ adds dynamic libraries to the list of dependencies.
 
 Note that ~add-library-dependency~ will attempt to modify the given library names in a platform-independent way. For example, if you pass in ~"dl"~, here is how it would change:
 | Linker        | Modified |
 |---------------+----------|
-| ~link.exe~    | ~dl.lib~ |
-| ~cl.exe~      | ~dl.lib~ |
-| Anything else | ~ldl~    |
+| ~link.exe~    | ~dl.dll~ |
+| ~cl.exe~      | ~dl.dll~ |
+| Anything else | ~-ldl~   |
 
-Note that on Linux, dynamic libraries are named e.g. ~libdl.so~, then requested via e.g. ~ldl~. Windows' MSVC typically names dlls simply ~dl.dll~. Cakelisp takes ~dl~ and tries to do the right thing for each platform. If it's not working, use ~add-compiler-link-options~ to provide the exact format you need, and it will not be converted.
+Note that on Linux, dynamic libraries are named e.g. ~libdl.so~, then requested via e.g. ~-ldl~. Windows' MSVC typically names dlls simply ~dl.dll~. Cakelisp takes ~dl~ and tries to do the right thing for each platform. If it's not working, use ~add-compiler-link-options~ to provide the exact format you need, and it will not be converted.
 
 ~add-linker-options~ passes the given options to the linker itself, not the compiler which invokes the linker. For example, ~g++ -o~ will not get ~--export-dynamic~, rather, ~ld~ will get it due to ~-Wl~ automatically being prepended by ~add-linker-options~. If you want to pass arbitrary options to the compiler invoking the linker, use ~add-compiler-link-options~.
 

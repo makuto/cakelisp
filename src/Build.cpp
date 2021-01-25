@@ -80,11 +80,11 @@ void makeLinkLibraryArgument(char* buffer, int bufferSize, const char* libraryNa
 {
 	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
 	{
-		SafeSnprintf(buffer, bufferSize, "%s.lib", libraryName);
+		SafeSnprintf(buffer, bufferSize, "%s.dll", libraryName);
 	}
 	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
 	{
-		SafeSnprintf(buffer, bufferSize, "%s.lib", libraryName);
+		SafeSnprintf(buffer, bufferSize, "%s.dll", libraryName);
 	}
 	else
 	{
