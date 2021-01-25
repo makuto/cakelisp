@@ -18,7 +18,7 @@ enum ProcessCommandArgumentType
 	ProcessCommandArgumentType_LibrarySearchDirs,
 	ProcessCommandArgumentType_Libraries,
 	ProcessCommandArgumentType_LibraryRuntimeSearchDirs,
-// Pass to the linker, e.g. on clang, add -Wl,
+	// Pass to the linker, e.g. on clang, add -Wl,
 	ProcessCommandArgumentType_LinkerArguments,
 	ProcessCommandArgumentType_ExecutableOutput
 };
