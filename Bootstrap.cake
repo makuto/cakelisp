@@ -22,22 +22,10 @@
 
 (add-build-options "-DUNIX")
 
-(defun-comptime cakelisp-link-hook (manager (& ModuleManager)
-                                    linkCommand (& ProcessCommand)
-                                    linkTimeInputs (* ProcessCommandInput) numLinkTimeInputs int
-                                    &return bool)
-  (Log "Cakelisp: Adding link arguments\n")
-  ;; Dynamic loading
-  (on-call (field linkCommand arguments) push_back
-           (array ProcessCommandArgumentType_String
-                  "-ldl"))
-  ;; Expose Cakelisp symbols for compile-time function symbol resolution
-  (on-call (field linkCommand arguments) push_back
-           (array ProcessCommandArgumentType_String
-                  "-Wl,--export-dynamic"))
-  (return true))
-
-(add-compile-time-hook pre-link cakelisp-link-hook)
+;; Cakelisp dynamically loads compile-time code
+(add-library-dependency "dl")
+;; Compile-time code can call much of Cakelisp. This flag exposes Cakelisp to dynamic libraries
+(add-linker-options "--export-dynamic")
 
 ;; Use separate build configuration in case other things build files from src/
 (add-build-config-label "Bootstrap")

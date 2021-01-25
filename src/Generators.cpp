@@ -71,6 +71,11 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			    {"'object-input", ProcessCommandArgumentType_ObjectInput},
 			    {"'library-output", ProcessCommandArgumentType_DynamicLibraryOutput},
 			    {"'executable-output", ProcessCommandArgumentType_ExecutableOutput},
+			    {"'library-search-dirs", ProcessCommandArgumentType_LibrarySearchDirs},
+			    {"'libraries", ProcessCommandArgumentType_Libraries},
+			    {"'library-runtime-search-dirs",
+			     ProcessCommandArgumentType_LibraryRuntimeSearchDirs},
+			    {"'linker-arguments", ProcessCommandArgumentType_LinkerArguments},
 			};
 			bool found = false;
 			for (unsigned int i = 0; i < ArraySize(symbolsToCommandTypes); ++i)
@@ -455,11 +460,13 @@ bool AddStringOptionsGenerator(EvaluatorEnvironment& environment, const Evaluato
 	};
 	const StringOptionList possibleDestinations[] = {
 	    {"add-cakelisp-search-directory", &environment.searchPaths},
-		{"add-c-search-directory-global", &environment.cSearchDirectories},
+	    {"add-c-search-directory-global", &environment.cSearchDirectories},
 	    {"add-c-search-directory-module", &context.module->cSearchDirectories},
-		{"add-library-search-directory", &context.module->librarySearchDirectories},
-		{"add-library-runtime-search-directory", &context.module->libraryRuntimeSearchDirectories},
-		{"add-library-dependency", &context.module->libraryDependencies},
+	    {"add-library-search-directory", &context.module->librarySearchDirectories},
+	    {"add-library-runtime-search-directory", &context.module->libraryRuntimeSearchDirectories},
+	    {"add-library-dependency", &context.module->libraryDependencies},
+	    {"add-compiler-link-options", &context.module->compilerLinkOptions},
+	    {"add-linker-options", &context.module->toLinkerOptions},
 	    {"add-build-options", &context.module->additionalBuildOptions},
 	    {"add-build-config-label", &environment.buildConfigurationLabels}};
 
@@ -2913,6 +2920,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["add-library-search-directory"] = AddStringOptionsGenerator;
 	environment.generators["add-library-runtime-search-directory"] = AddStringOptionsGenerator;
 	environment.generators["add-library-dependency"] = AddStringOptionsGenerator;
+	environment.generators["add-compiler-link-options"] = AddStringOptionsGenerator;
+	environment.generators["add-linker-options"] = AddStringOptionsGenerator;
 	environment.generators["add-build-config-label"] = AddBuildConfigLabelGenerator;
 
 	// Compile-time conditionals, erroring, etc.

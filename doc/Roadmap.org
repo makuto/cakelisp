@@ -58,15 +58,6 @@ For example, you could have one of your computers with spare cycles run ~cakelis
 
 Ideally, this wouldn't require any 3rd-party dependencies. It's made trickier by the requirement that build slaves should be able to cross-compile things for the master/client architecture, which might not match the slave architecture.
 * Language
-** Conditionals based on build configuration
-It is useful to be able to define blocks of code which are e.g. operating-system specific, e.g. something like:
-#+BEGIN_SRC lisp
-  (defun file-exists ()
-   (comptime-when 'Unix (return (!= -1 (access filename F_OK))))
-   (comptime-when 'Windows (return (windows-code-here))))
-#+END_SRC
-
-I don't have an idea what the cleanest, easiest, and reasonably flexible solution is yet.
 ** Classes with member functions
 While I have been focusing on a C-style implementation that doesn't emphasize member function usage, defining classses with member functions is an essential feature for interfacing with 3rd party libraries. For example, Ogre requires it for window callbacks:
 #+BEGIN_SRC C++
@@ -223,6 +214,15 @@ Mostly listing this because it's what I use (LSP is a bit too heavyweight for my
 The following are things that were on the Roadmap that are now complete.
 
 These are sorted with most recently completed appearing first.
+** Conditionals based on build configuration
+It is useful to be able to define blocks of code which are e.g. operating-system specific, e.g. something like:
+#+BEGIN_SRC lisp
+  (defun file-exists ()
+   (comptime-when 'Unix (return (!= -1 (access filename F_OK))))
+   (comptime-when 'Windows (return (windows-code-here))))
+#+END_SRC
+
+I don't have an idea what the cleanest, easiest, and reasonably flexible solution is yet.
 ** External process execution
 It should be easy to run external dependencies' build systems within a Cakelisp build phase. For example, I want to be able to lazily build Ogre during the ~pre-build~ hook of my game. Ogre requires CMake and ninja to build. Utilizing the ~RunProcess~ and file system code should make this straightforward.
 ** GitHub syntax highlighting

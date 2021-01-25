@@ -1489,7 +1489,8 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 
 					if (referenceStatus.guessState == GuessState_None)
 					{
-						ErrorAtToken(*referenceStatus.name, "reference has not been resolved");
+						if (logging.references || logging.buildProcess)
+							ErrorAtToken(*referenceStatus.name, "reference has not been resolved");
 					}
 				}
 

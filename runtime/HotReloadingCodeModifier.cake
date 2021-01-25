@@ -31,6 +31,11 @@
 ;; This needs to be set before any functions which need C linkage are evaluated by Cakelisp
 (set-cakelisp-option use-c-linkage true)
 
+;; This is a hack: We want to generate HotReloading.cake.hpp, but we don't want to inherit all the
+;; loader-specific options. HotReloading.cake will see this define and not add the options
+;; TODO: Make a context variable for preventing environment changes during &decls-only?
+(comptime-define-symbol 'No-Hot-Reload-Options)
+
 (import &comptime-only "Macros.cake")
 
 ;; This is redefined by make-code-hot-reloadable
@@ -336,15 +341,7 @@
 
 (add-compile-time-hook post-references-resolved make-code-hot-reloadable)
 
-(defun-comptime hot-reload-lib-link-hook (manager (& ModuleManager)
-                                                  linkCommand (& ProcessCommand)
-                                                  linkTimeInputs (* ProcessCommandInput)
-                                                  numLinkTimeInputs int
-                                                  &return bool)
-  (command-add-string-argument linkCommand "-shared")
-  (return true))
-
-(add-compile-time-hook pre-link hot-reload-lib-link-hook)
+(add-compiler-link-options "-shared")
 
 ;; TODO: Automatically make library if no main found?
 (set-cakelisp-option executable-output "libGeneratedCakelisp.so")

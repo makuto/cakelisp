@@ -33,12 +33,12 @@
 (set-cakelisp-option compile-time-compile-arguments
                      "/nologo" "/DEBUG:FASTLINK" "/MDd" "/c" 'source-input 'object-output
                      'cakelisp-headers-include)
-;; "-fPIC"
 
 ;; cl.exe for linker also works
 (set-cakelisp-option build-time-linker "link.exe")
 (set-cakelisp-option build-time-link-arguments
-                     "/nologo" "/DEBUG:FASTLINK" 'executable-output 'object-input)
+                     'additional-options "/nologo" "/DEBUG:FASTLINK" 'executable-output 'object-input
+                     'library-search-dirs 'libraries 'library-runtime-search-dirs 'linker-arguments)
 
 ;; Use separate build configuration in case other things build files from src/
 (add-build-config-label "Bootstrap_Windows")

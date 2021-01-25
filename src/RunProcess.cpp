@@ -482,6 +482,43 @@ void PrintProcessArguments(const char** processArguments)
 	Log("\n");
 }
 
+static const char* ProcessCommandArgumentTypeToString(ProcessCommandArgumentType type)
+{
+	switch (type)
+	{
+		case ProcessCommandArgumentType_None:
+			return "None";
+		case ProcessCommandArgumentType_String:
+			return "String";
+		case ProcessCommandArgumentType_SourceInput:
+			return "SourceInput";
+		case ProcessCommandArgumentType_ObjectOutput:
+			return "ObjectOutput";
+		case ProcessCommandArgumentType_CakelispHeadersInclude:
+			return "CakelispHeadersInclude";
+		case ProcessCommandArgumentType_IncludeSearchDirs:
+			return "IncludeSearchDirs";
+		case ProcessCommandArgumentType_AdditionalOptions:
+			return "AdditionalOptions";
+		case ProcessCommandArgumentType_ObjectInput:
+			return "ObjectInput";
+		case ProcessCommandArgumentType_DynamicLibraryOutput:
+			return "DynamicLibraryOutput";
+		case ProcessCommandArgumentType_LibrarySearchDirs:
+			return "LibrarySearchDirs";
+		case ProcessCommandArgumentType_Libraries:
+			return "Libraries";
+		case ProcessCommandArgumentType_LibraryRuntimeSearchDirs:
+			return "LibraryRuntimeSearchDirs";
+		case ProcessCommandArgumentType_LinkerArguments:
+			return "LinkerArguments";
+		case ProcessCommandArgumentType_ExecutableOutput:
+			return "ExecutableOutput";
+		default:
+			return "Unknown";
+	}
+}
+
 // The array will need to be deleted, but the array members will not
 const char** MakeProcessArgumentsFromCommand(const char* fileToExecute,
                                              std::vector<ProcessCommandArgument>& arguments,
@@ -510,7 +547,8 @@ const char** MakeProcessArgumentsFromCommand(const char* fileToExecute,
 			}
 			if (!found)
 			{
-				Log("error: command missing input\n");
+				Logf("error: command to %s missing ProcessCommandInput of type %s\n", fileToExecute,
+				     ProcessCommandArgumentTypeToString(argument.type));
 				return nullptr;
 			}
 		}

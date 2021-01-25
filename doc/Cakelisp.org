@@ -444,6 +444,39 @@ You can specify multiple options. For example, we could set a debug build with w
 These options are appended to the default or module-overridden build command.
 
 #+BEGIN_SRC lisp
+;; Cakelisp dynamically loads compile-time code
+(add-library-dependency "dl")
+;; Compile-time code can call much of Cakelisp. This flag exposes Cakelisp to dynamic libraries
+(add-linker-options "--export-dynamic")
+#+END_SRC
+
+Before linking, we also need to add some flags to the linker.
+
+Note that ~add-library-dependency~ will attempt to modify the given library names in a platform-independent way. For example, if you pass in ~"dl"~, here is how it would change:
+| Linker        | Modified |
+|---------------+----------|
+| ~link.exe~    | ~dl.lib~ |
+| ~cl.exe~      | ~dl.lib~ |
+| Anything else | ~ldl~    |
+
+Note that on Linux, dynamic libraries are named e.g. ~libdl.so~, then requested via e.g. ~ldl~. Windows' MSVC typically names dlls simply ~dl.dll~. Cakelisp takes ~dl~ and tries to do the right thing for each platform. If it's not working, use ~add-compiler-link-options~ to provide the exact format you need, and it will not be converted.
+
+~add-linker-options~ passes the given options to the linker itself, not the compiler which invokes the linker. For example, ~g++ -o~ will not get ~--export-dynamic~, rather, ~ld~ will get it due to ~-Wl~ automatically being prepended by ~add-linker-options~. If you want to pass arbitrary options to the compiler invoking the linker, use ~add-compiler-link-options~.
+
+The following are also related to linker configuration:
+- ~add-library-search-directory~
+- ~add-library-runtime-search-directory~: Adds given strings to ~rpath~, which tells Unix systems where to look for dynamic libraries. Note that this does not work on Windows, which requires special treatment for DLL loading. Figuring out how to handle this in Cakelisp is TBD
+
+#+BEGIN_SRC lisp
+;; Use separate build configuration in case other things build files from src/
+(add-build-config-label "Bootstrap")
+#+END_SRC
+
+This configuration label ensures Cakelisp itself doesn't get affected by your runtime programs. It does this by using a separate folder in the cache.
+*** Procedural command modification
+There may be cases when you need to do complex logic or modifications of the link command. We use a ~hook~ to give us a chance to do so.
+
+#+BEGIN_SRC lisp
 (defun-comptime cakelisp-link-hook (manager (& ModuleManager)
                                     linkCommand (& ProcessCommand)
                                     linkTimeInputs (* ProcessCommandInput) numLinkTimeInputs int
@@ -462,22 +495,12 @@ These options are appended to the default or module-overridden build command.
 (add-compile-time-hook pre-link cakelisp-link-hook)
 #+END_SRC
 
-Before linking, we need to add some flags to the linker. We use a ~hook~ to give us a chance to do so. ~(add-compile-time-hook pre-link cakelisp-link-hook)~ adds the hook, then ~cakelisp-link-hook~ is invoked before link time.
-
-/Note:/ An easier way to specify Link arguments is on the roadmap. They will resemble ~add-build-options~.
-
-#+BEGIN_SRC lisp
-;; Use separate build configuration in case other things build files from src/
-(add-build-config-label "Bootstrap")
-#+END_SRC
-
-This configuration label ensures Cakelisp itself doesn't get affected by your runtime programs. It does this by using a separate folder in the cache.
-
+~(add-compile-time-hook pre-link cakelisp-link-hook)~ adds the hook, then ~cakelisp-link-hook~ is invoked before link time.
 ** Build commands
-The environment comes with default commands. Build commands can be overridden to whatever process you choose, with the structure you choose. For example, the linker can be changed like so:
+The environment comes with default commands (defined in ~src/ModuleManager.cpp~). Build commands can be overridden to whatever process you choose, with the structure you choose. For example, the linker can be changed like so:
 
 #+BEGIN_SRC lisp
-(set-cakelisp-option build-time-linker "/usr/bin/g++")
+(set-cakelisp-option build-time-linker "g++")
 (set-cakelisp-option build-time-link-arguments
                      "-o" 'executable-output 'object-input
                      "-ldl" "-lpthread" "-Wl,-rpath,.,--export-dynamic")

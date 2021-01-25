@@ -1,3 +1,5 @@
+(set-cakelisp-option use-c-linkage true)
+
 (import "DynamicLoader.cake"
         &comptime-only "Macros.cake")
 (c-import "<unordered_map>" "<vector>")
@@ -159,16 +161,14 @@
 ;;
 
 (comptime-cond
- ('Unix
-  ;; TODO: This only makes sense on a per-target basis. Instead, modules should be able to append
-  ;; arguments to the link command only
-  (set-cakelisp-option build-time-linker "/usr/bin/g++")
-  ;; This needs to link -ldl and such (depending on platform...)
-  (set-cakelisp-option build-time-link-arguments
-                       ;; "-shared" ;; This causes c++ initializers to fail and no linker errors. Need to only enable on lib?
-                       "-o" 'executable-output 'object-input
-                       ;; TODO: OS dependent
-                       ;; Need --export-dynamic so the loaded library can use our symbols
-                       "-ldl" "-lpthread" "-Wl,-rpath,.,--export-dynamic")
-
-  (add-build-options "-fPIC")))
+ ;; Did this weird thing because comptime-cond doesn't have (not)
+ ('No-Hot-Reload-Options) ;; Make sure to not touch environment (they only want headers)
+ (true
+  (comptime-cond
+   ('Unix
+    ;; dl for dynamic loading
+    (add-library-dependency "dl" "pthread")
+    (add-library-runtime-search-directory ".")
+    ;; Make sure the thing which gets loaded can access our API
+    (add-linker-options "--export-dynamic")
+    (add-build-options "-fPIC")))))

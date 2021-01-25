@@ -57,6 +57,95 @@ void makeDynamicLibraryOutputArgument(char* buffer, int bufferSize, const char* 
 	}
 }
 
+void makeExecutableOutputArgument(char* buffer, int bufferSize, const char* executableName,
+                                  const char* linkExecutable)
+{
+	// Annoying exception for MSVC not having spaces between some arguments
+	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/Fe\"%s\"", executableName);
+	}
+	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/out:\"%s\"", executableName);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", executableName);
+	}
+}
+
+void makeLinkLibraryArgument(char* buffer, int bufferSize, const char* libraryName,
+                             const char* linkExecutable)
+{
+	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "%s.lib", libraryName);
+	}
+	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "%s.lib", libraryName);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "-l%s", libraryName);
+	}
+}
+
+void makeLinkLibrarySearchDirArgument(char* buffer, int bufferSize, const char* searchDir,
+                                      const char* linkExecutable)
+{
+	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/LIBPATH:%s", searchDir);
+	}
+	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/LIBPATH:%s", searchDir);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "-L%s", searchDir);
+	}
+}
+
+void makeLinkLibraryRuntimeSearchDirArgument(char* buffer, int bufferSize, const char* searchDir,
+                                             const char* linkExecutable)
+{
+	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
+	{
+		// TODO: Decide how to handle DLLs on Windows. Copy to same dir? Convert to full paths?
+		// SafeSnprintf(buffer, bufferSize, "/LIBPATH:%s", searchDir);
+		Log("warning: link library runtime search directories not supported on Windows\n");
+	}
+	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
+	{
+		// SafeSnprintf(buffer, bufferSize, "/LIBPATH:%s", searchDir);
+		Log("warning: link library runtime search directories not supported on Windows\n");
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "-Wl,-rpath,%s", searchDir);
+	}
+}
+
+void makeLinkerArgument(char* buffer, int bufferSize, const char* argument,
+                        const char* linkExecutable)
+{
+	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", argument);
+	}
+	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", argument);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "-Wl,%s", argument);
+	}
+}
+
 bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
                            int resolvedPathOutSize)
 {

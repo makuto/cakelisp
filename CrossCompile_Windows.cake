@@ -51,7 +51,8 @@
 
 (set-cakelisp-option build-time-linker "/usr/bin/x86_64-w64-mingw32-g++")
 (set-cakelisp-option build-time-link-arguments
-                     "-o" 'executable-output 'object-input)
+                     'additional-options "-o" 'executable-output 'object-input
+                     'library-search-dirs 'libraries 'library-runtime-search-dirs 'linker-arguments)
 
 ;; Use separate build configuration in case other things build files from src/
 (add-build-config-label "CrossCompile_Windows")

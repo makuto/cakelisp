@@ -1,6 +1,7 @@
 #include "ModuleManager.hpp"
 
 #include <string.h>
+
 #include <cstring>
 
 #include "Build.hpp"
@@ -89,7 +90,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    // with this matching as well (use just /MD for release) See
 		    // https://stackoverflow.com/questions/22279052/c-passing-stdstring-by-reference-to-function-in-dll
 		    {ProcessCommandArgumentType_String, "/MDd"},
-			// Debug only
+		    // Debug only
 		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
 		    {ProcessCommandArgumentType_String, "/Zi"},
 		    {ProcessCommandArgumentType_String, "/c"},
@@ -103,11 +104,11 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "/DLL"},
 		    // On Windows, .exes create .lib files for exports. Link it here so we don't get
 		    // unresolved externals
-		    {ProcessCommandArgumentType_String, "/LIBPATH:\"bin\""},
+		    {ProcessCommandArgumentType_String, "/LIBPATH:bin"},
 		    {ProcessCommandArgumentType_String, "cakelisp.lib"},
-			// Debug only
-			{ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
-			{ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
+		    // Debug only
+		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
+		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
@@ -123,8 +124,13 @@ void moduleManagerInitialize(ModuleManager& manager)
 		manager.environment.buildTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.buildTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "/nologo"},
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
 		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
+		    {ProcessCommandArgumentType_LibrarySearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_Libraries, EmptyString},
+		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
 #else
 		// G++ by default
 		manager.environment.compileTimeBuildCommand.fileToExecute = "g++";
@@ -159,9 +165,14 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "g++";
 		manager.environment.buildTimeLinkCommand.arguments = {
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
+		    {ProcessCommandArgumentType_LibrarySearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_Libraries, EmptyString},
+		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
 #endif
 	}
 
@@ -789,6 +800,12 @@ static bool commandEqualsCachedCommand(ModuleManager& manager, const char* artif
 	return findIt->second == newCommandCrc;
 }
 
+static void addStringIfUnique(std::vector<std::string>& output, const char* stringToAdd)
+{
+	if (FindInContainer(output, stringToAdd) == output.end())
+		output.push_back(stringToAdd);
+}
+
 static bool moduleManagerReadCacheFile(ModuleManager& manager);
 static void moduleManagerWriteCacheFile(ModuleManager& manager);
 
@@ -802,6 +819,12 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	int numModules = manager.modules.size();
 	// Pointer because the objects can't move, status codes are pointed to
 	std::vector<BuiltObject*> builtObjects;
+
+	std::vector<std::string> linkLibraries;
+	std::vector<std::string> librarySearchDirs;
+	std::vector<std::string> libraryRuntimeSearchDirs;
+	std::vector<std::string> compilerLinkOptions;
+	std::vector<std::string> toLinkerOptions;
 
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
@@ -875,6 +898,26 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				copyModuleBuildOptionsToBuiltObject(module, buildCommandOverride, newBuiltObject);
 
 				builtObjects.push_back(newBuiltObject);
+			}
+		}
+
+		// Add link arguments
+		{
+			struct
+			{
+				std::vector<std::string>* inputs;
+				std::vector<std::string>* output;
+			} linkArgumentsToAdd[]{
+			    {&module->toLinkerOptions, &toLinkerOptions},
+			    {&module->compilerLinkOptions, &compilerLinkOptions},
+			    {&module->libraryDependencies, &linkLibraries},
+			    {&module->librarySearchDirectories, &librarySearchDirs},
+			    {&module->libraryRuntimeSearchDirectories, &libraryRuntimeSearchDirs}};
+			for (int linkArgumentSet = 0; linkArgumentSet < ArraySize(linkArgumentsToAdd);
+			     ++linkArgumentSet)
+			{
+				for (const std::string& str : *(linkArgumentsToAdd[linkArgumentSet].inputs))
+					addStringIfUnique(*(linkArgumentsToAdd[linkArgumentSet].output), str.c_str());
 			}
 		}
 
@@ -1132,30 +1175,76 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			objectsToLink[i] = object->filename.c_str();
 		}
 
+		// Copy it so hooks can modify it
 		ProcessCommand linkCommand = manager.environment.buildTimeLinkCommand;
 
-		// Annoying exception for MSVC not having spaces between some arguments
-		std::string* executableOutput = &outputExecutableName;
-		std::string executableOutputOverride;
-		if (StrCompareIgnoreCase(linkCommand.fileToExecute.c_str(), "cl.exe") == 0)
+		char executableOutput[MAX_PATH_LENGTH + 5] = {0};
+		makeExecutableOutputArgument(executableOutput, sizeof(executableOutput),
+		                             outputExecutableName.c_str(),
+		                             linkCommand.fileToExecute.c_str());
+
+		// Various library and linker arguments need prefixes added. Do that here
+		std::vector<const char*> librariesArgs;
+		std::vector<const char*> librarySearchDirsArgs;
+		std::vector<const char*> libraryRuntimeSearchDirsArgs;
+		std::vector<const char*> convertedLinkerArgs;
+		std::vector<const char*> compilerLinkArgs;
+		struct
 		{
-			char msvcExecutableOutput[MAX_PATH_LENGTH] = {0};
-			PrintfBuffer(msvcExecutableOutput, "/Fe\"%s\"", outputExecutableName.c_str());
-			executableOutputOverride = msvcExecutableOutput;
-			executableOutput = &executableOutputOverride;
-		}
-		else if (StrCompareIgnoreCase(linkCommand.fileToExecute.c_str(), "link.exe") == 0)
+			std::vector<std::string>* stringsIn;
+
+			// Use C++ to manage our string memory, pointed to by argumentsOut
+			std::vector<std::string> argumentsOutMemory;
+			std::vector<const char*>* argumentsOut;
+			void (*argumentConversionFunc)(char* buffer, int bufferSize, const char* stringIn,
+			                               const char* linkExecutable);
+		} libraryArguments[] = {
+		    {&linkLibraries, {}, &librariesArgs, makeLinkLibraryArgument},
+		    {&librarySearchDirs, {}, &librarySearchDirsArgs, makeLinkLibrarySearchDirArgument},
+		    {&libraryRuntimeSearchDirs,
+		     {},
+		     &libraryRuntimeSearchDirsArgs,
+		     makeLinkLibraryRuntimeSearchDirArgument},
+		    {&toLinkerOptions, {}, &convertedLinkerArgs, makeLinkerArgument},
+		    // We can't know how to auto-convert these because they could be anything
+		    {&compilerLinkOptions, {}, &compilerLinkArgs, nullptr}};
+		for (int inputIndex = 0; inputIndex < ArraySize(libraryArguments); ++inputIndex)
 		{
-			char msvcExecutableOutput[MAX_PATH_LENGTH] = {0};
-			PrintfBuffer(msvcExecutableOutput, "/out:\"%s\"", outputExecutableName.c_str());
-			executableOutputOverride = msvcExecutableOutput;
-			executableOutput = &executableOutputOverride;
+			int numStrings = (int)libraryArguments[inputIndex].stringsIn->size();
+			libraryArguments[inputIndex].argumentsOutMemory.resize(numStrings);
+			libraryArguments[inputIndex].argumentsOut->resize(numStrings);
+
+			int currentString = 0;
+			for (const std::string& stringIn : *libraryArguments[inputIndex].stringsIn)
+			{
+				if (libraryArguments[inputIndex].argumentConversionFunc)
+				{
+					// Give some extra padding for prefixes
+					char argumentOut[MAX_PATH_LENGTH + 15] = {0};
+					libraryArguments[inputIndex].argumentConversionFunc(
+					    argumentOut, sizeof(argumentOut), stringIn.c_str(),
+					    linkCommand.fileToExecute.c_str());
+					libraryArguments[inputIndex].argumentsOutMemory[currentString] = argumentOut;
+				}
+				else
+					libraryArguments[inputIndex].argumentsOutMemory[currentString] = stringIn;
+
+				++currentString;
+			}
+
+			for (int stringIndex = 0; stringIndex < numStrings; ++stringIndex)
+				(*libraryArguments[inputIndex].argumentsOut)[stringIndex] =
+				    libraryArguments[inputIndex].argumentsOutMemory[stringIndex].c_str();
 		}
 
-		// Copy it so hooks can modify it
 		ProcessCommandInput linkTimeInputs[] = {
-		    {ProcessCommandArgumentType_ExecutableOutput, {executableOutput->c_str()}},
-		    {ProcessCommandArgumentType_ObjectInput, objectsToLink}};
+		    {ProcessCommandArgumentType_ExecutableOutput, {executableOutput}},
+		    {ProcessCommandArgumentType_ObjectInput, objectsToLink},
+		    {ProcessCommandArgumentType_AdditionalOptions, compilerLinkArgs},
+		    {ProcessCommandArgumentType_LibrarySearchDirs, librarySearchDirsArgs},
+		    {ProcessCommandArgumentType_Libraries, librariesArgs},
+		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, libraryRuntimeSearchDirsArgs},
+		    {ProcessCommandArgumentType_LinkerArguments, convertedLinkerArgs}};
 
 		// Hooks should cooperate with eachother, i.e. try to only add things
 		for (PreLinkHook preLinkHook : manager.environment.preLinkHooks)

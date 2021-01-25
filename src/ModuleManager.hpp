@@ -30,11 +30,19 @@ struct Module
 
 	// Build system
 	std::vector<ModuleDependency> dependencies;
+
 	std::vector<std::string> cSearchDirectories;
+	std::vector<std::string> additionalBuildOptions;
+
 	std::vector<std::string> librarySearchDirectories;
 	std::vector<std::string> libraryRuntimeSearchDirectories;
 	std::vector<std::string> libraryDependencies;
-	std::vector<std::string> additionalBuildOptions;
+
+	// compilerLinkOptions goes to e.g. G++ to set up arguments to the actual linker.
+	// toLinkerOptions is forwarded to e.g. ld directly, not to G++
+	std::vector<std::string> compilerLinkOptions;
+	std::vector<std::string> toLinkerOptions;
+
 	// Do not build or link this module. Useful both for compile-time only files (which error
 	// because they are empty files) and for files only evaluated for their declarations (e.g. if
 	// the definitions are going to be provided via dynamic linking)
