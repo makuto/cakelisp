@@ -166,8 +166,7 @@
  (true
   (comptime-cond
    ('Unix
-    ;; dl for dynamic loading
-    (add-library-dependency "dl" "pthread")
+    ;; Search the current directory for hot-reloading library to load
     (add-library-runtime-search-directory ".")
     ;; Make sure the thing which gets loaded can access our API
     (add-linker-options "--export-dynamic")

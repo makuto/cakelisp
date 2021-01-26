@@ -155,3 +155,16 @@
     (dlclose libHandle))
    ('Windows
     (FreeLibrary (type-cast libHandle HMODULE)))))
+
+;;
+;; Building
+;;
+
+(comptime-cond
+ ;; Did this weird thing because comptime-cond doesn't have (not)
+ ('No-Hot-Reload-Options) ;; Make sure to not touch environment (they only want headers)
+ (true
+  (comptime-cond
+   ('Unix
+    ;; dl for dynamic loading
+    (add-library-dependency "dl" "pthread")))))
