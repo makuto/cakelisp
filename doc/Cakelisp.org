@@ -13,6 +13,8 @@ This means that except in the case of macros, reading /The C Programming Languag
 ** A note on the name
 I thought of the name because the idiom "you can't have your cake and eat it too" was in my head while researching Lisp languages. It is about having both the power of Lisp languages (having cake) /and/ high performance (eating it too).
 
+Admittedly, it is a bit of a misnomer, because Cakelisp is in no way compatible with Common Lisp.
+
 The combination is pronounced the same as the individual words one after another, i.e. "cake lisp", not "cakel isp", "cak e-lisp" or anything like that. Someone who uses Cakelisp is a "Cakelisp user", not a "caker", nor "baker", nor "Cakelisper".
 
 It's my personal preference that puns off of "cake" when naming programming things don't become a thing. Please don't name your thing something cleverly cake- or baking-related. Name it what it is or what it does. Of course, I'm a hypocrite for not naming Cakelisp "Lisp-to-C-Transpiler (with a bunch of other features)".

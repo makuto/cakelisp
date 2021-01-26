@@ -25,10 +25,12 @@ void printHelp(const CommandLineOption* options, int numOptions)
 {
 	const char* helpString =
 	    "OVERVIEW: Cakelisp\n\n"
-	    "Cakelisp is a transpiler/compiler which generates C/C++ from a Lisp dialect.\n\n"
+	    "Cakelisp is a transpiler/compiler which generates C/C++ from an S-expression syntax. "
+	    "Cakelisp compiles and loads user code during its runtime ('comptime'), allowing it to be "
+	    "extended easily. It also includes a powerful C/C++ build system.\n\n"
 	    "Created by Macoy Madson <macoy@macoy.me>.\nhttps://macoy.me/code/macoy/cakelisp\n"
 	    "Copyright (c) 2020 Macoy Madson.\n"
-		"Licensed under GPL-3.0-or-later.\n\n"
+	    "Licensed under GPL-3.0-or-later.\n\n"
 	    "USAGE: cakelisp [options] <input .cake files>\nAll options must precede .cake files.\n\n"
 	    "OPTIONS:\n";
 	Logf("%s", helpString);
