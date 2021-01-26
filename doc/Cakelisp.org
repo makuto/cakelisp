@@ -13,7 +13,9 @@ This means that except in the case of macros, reading /The C Programming Languag
 ** A note on the name
 I thought of the name because the idiom "you can't have your cake and eat it too" was in my head while researching Lisp languages. It is about having both the power of Lisp languages (having cake) /and/ high performance (eating it too).
 
-Admittedly, it is a bit of a misnomer, because Cakelisp is in no way compatible with Common Lisp.
+Admittedly, it is a bit of a misnomer, because Cakelisp is in no way compatible with Common Lisp. The name "Cakelisp" brings some baggage that makes what Cakelisp actually /is/ less clear. A more accurate name would be CakeC, because the actual mechanics of the language are much closer to C/C++. I expect programmers would call it Lisp if they saw it, simply because the code uses S-expression syntax and borrows some keywords (~defun~, ~defmacro~, ~when~, ~unless~, etc.).
+
+Regardless, the name has excellent characteristics for finding it via search engines, so I'm keeping it.
 
 The combination is pronounced the same as the individual words one after another, i.e. "cake lisp", not "cakel isp", "cak e-lisp" or anything like that. Someone who uses Cakelisp is a "Cakelisp user", not a "caker", nor "baker", nor "Cakelisper".
 
