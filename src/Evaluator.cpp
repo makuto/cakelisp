@@ -747,7 +747,6 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 	// Spin up as many compile processes as necessary
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
-	// TODO: Instead of creating files, pipe straight to compiler?
 	// TODO: Make pipeline able to start e.g. linker while other objects are still compiling
 	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
 	// waitForAllProcessesClosed(), else the status pointer could be invalidated
@@ -896,6 +895,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		char compileTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
 		if (!resolveExecutablePath(environment.compileTimeBuildCommand.fileToExecute.c_str(),
 		                           compileTimeBuildExecutable, sizeof(compileTimeBuildExecutable)))
+			// TODO: Add error message?
 			continue;
 
 		ProcessCommandInput compileTimeInputs[] = {

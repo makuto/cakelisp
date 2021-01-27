@@ -244,7 +244,7 @@ int main(int numArguments, char* arguments[])
 		Log("\nBuild:\n");
 
 	std::vector<std::string> builtOutputs;
-	if (!moduleManagerBuild(moduleManager, builtOutputs))
+	if (!moduleManagerBuildAndLink(moduleManager, builtOutputs))
 	{
 		moduleManagerDestroy(moduleManager);
 		return 1;

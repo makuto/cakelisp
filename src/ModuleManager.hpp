@@ -88,7 +88,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, Module** moduleOut);
 bool moduleManagerEvaluateResolveReferences(ModuleManager& manager);
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager);
-bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs);
+bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs);
 
 // Initializes a normal environment and outputs all generators available to it
 void listBuiltInGenerators();

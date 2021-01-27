@@ -719,14 +719,6 @@ void copyModuleBuildOptionsToBuildObject(Module* module, ProcessCommand* buildCo
 	PushBackAll(object->additionalOptions, module->additionalBuildOptions);
 }
 
-void getExecutableOutputName(ModuleManager& manager, std::string& finalOutputNameOut)
-{
-	if (!manager.environment.executableOutput.empty())
-		finalOutputNameOut = manager.environment.executableOutput;
-	else
-		finalOutputNameOut = defaultExecutableName;
-}
-
 // Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
 // TODO: There's no easy way to know whether this exe is the current build configuration's
 // output exe, so copy it every time
@@ -808,10 +800,9 @@ static void addStringIfUnique(std::vector<std::string>& output, const char* stri
 
 struct SharedBuildOptions
 {
-
 	std::vector<std::string>* cSearchDirectories;
-	ProcessCommand* buildTimeBuildCommand;
-	ProcessCommand* buildTimeLinkCommand;
+	ProcessCommand* buildCommand;
+	ProcessCommand* linkCommand;
 	std::string* executableOutput;
 	// Cached directory, not necessarily the final artifacts directory (e.g. executable-output
 	// option sets different location for the final executable)
@@ -831,8 +822,8 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
                                            SharedBuildOptions& sharedBuildOptions)
 {
 	sharedBuildOptions.cSearchDirectories = &manager.environment.cSearchDirectories;
-	sharedBuildOptions.buildTimeBuildCommand = &manager.environment.buildTimeBuildCommand;
-	sharedBuildOptions.buildTimeLinkCommand = &manager.environment.buildTimeLinkCommand;
+	sharedBuildOptions.buildCommand = &manager.environment.buildTimeBuildCommand;
+	sharedBuildOptions.linkCommand = &manager.environment.buildTimeLinkCommand;
 	sharedBuildOptions.executableOutput = &manager.environment.executableOutput;
 	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
 	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
@@ -962,24 +953,11 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 	return true;
 }
 
-static bool moduleManagerReadCacheFile(ModuleManager& manager);
-static void moduleManagerWriteCacheFile(ModuleManager& manager);
-
-bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs)
+// On successful build (true return value), you need to free buildObjects once you're done with them
+bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& buildObjects,
+                        SharedBuildOptions& buildOptions)
 {
-	if (!moduleManagerReadCacheFile(manager))
-		return false;
-
 	int currentNumProcessesSpawned = 0;
-
-	// Pointer because the objects can't move, status codes are pointed to
-	std::vector<BuildObject*> buildObjects;
-	SharedBuildOptions buildOptions = {0};
-	if (!moduleManagerGetObjectsToBuild(manager, buildObjects, buildOptions))
-	{
-		buildObjectsFree(buildObjects);
-		return false;
-	}
 
 	if (buildObjects.empty())
 	{
@@ -1021,7 +999,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 		ProcessCommand& buildCommand = object->buildCommandOverride ?
 		                                   *object->buildCommandOverride :
-		                                   *buildOptions.buildTimeBuildCommand;
+		                                   *buildOptions.buildCommand;
 
 		// Annoying exception for MSVC not having spaces between some arguments
 		std::string* objectOutput = &object->filename;
@@ -1153,6 +1131,30 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;
 
+	bool succeededBuild = true;
+	for (BuildObject* object : buildObjects)
+	{
+		int buildResult = object->buildStatus;
+		if (buildResult != 0 || !fileExists(object->filename.c_str()))
+		{
+			Logf("error: failed to make target %s\n", object->filename.c_str());
+			succeededBuild = false;
+			continue;
+		}
+	}
+
+	if (!succeededBuild)
+	{
+		buildObjectsFree(buildObjects);
+		return false;
+	}
+
+	return true;
+}
+
+bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildObjects,
+                       SharedBuildOptions& buildOptions, std::vector<std::string>& builtOutputs)
+{
 	std::string outputExecutableName;
 	if (!buildOptions.executableOutput->empty())
 	{
@@ -1176,18 +1178,9 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	outputExecutableName = outputExecutableCachePath;
 
 	int numObjectsToLink = 0;
-	bool succeededBuild = true;
 	bool objectsDirty = false;
 	for (BuildObject* object : buildObjects)
 	{
-		int buildResult = object->buildStatus;
-		if (buildResult != 0 || !fileExists(object->filename.c_str()))
-		{
-			Logf("error: failed to make target %s\n", object->filename.c_str());
-			succeededBuild = false;
-			continue;
-		}
-
 		if (logging.buildProcess)
 			Logf("Need to link %s\n", object->filename.c_str());
 
@@ -1198,15 +1191,13 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		                                  outputExecutableName.c_str());
 	}
 
-	if (!succeededBuild)
-	{
-		buildObjectsFree(buildObjects);
-		return false;
-	}
-
 	std::string finalOutputName;
-	getExecutableOutputName(manager, finalOutputName);
+	if (!buildOptions.executableOutput->empty())
+		finalOutputName = *buildOptions.executableOutput;
+	else
+		finalOutputName = defaultExecutableName;
 
+	bool succeededBuild = false;
 	if (numObjectsToLink)
 	{
 		std::vector<const char*> objectsToLink(numObjectsToLink);
@@ -1218,7 +1209,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		}
 
 		// Copy it so hooks can modify it
-		ProcessCommand linkCommand = *buildOptions.buildTimeLinkCommand;
+		ProcessCommand linkCommand = *buildOptions.linkCommand;
 
 		char executableOutput[MAX_PATH_LENGTH + 5] = {0};
 		makeExecutableOutputArgument(executableOutput, sizeof(executableOutput),
@@ -1344,7 +1335,6 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 			free(linkArgumentList);
 			buildObjectsFree(buildObjects);
-			moduleManagerWriteCacheFile(manager);
 			return true;
 		}
 
@@ -1396,7 +1386,6 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	}
 
 	buildObjectsFree(buildObjects);
-	moduleManagerWriteCacheFile(manager);
 	return true;
 }
 
@@ -1514,4 +1503,26 @@ static void moduleManagerWriteCacheFile(ModuleManager& manager)
 	prettyPrintTokensToFile(file, outputTokens);
 
 	fclose(file);
+}
+
+bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs)
+{
+	if (!moduleManagerReadCacheFile(manager))
+		return false;
+
+	// Pointer because the objects can't move, status codes are pointed to
+	std::vector<BuildObject*> buildObjects;
+	SharedBuildOptions buildOptions = {0};
+	if (!moduleManagerGetObjectsToBuild(manager, buildObjects, buildOptions))
+		return false;
+
+	if (!moduleManagerBuild(manager, buildObjects, buildOptions))
+		return false;
+
+	if (!moduleManagerLink(manager, buildObjects, buildOptions, builtOutputs))
+		return false;
+
+	moduleManagerWriteCacheFile(manager);
+
+	return true;
 }
