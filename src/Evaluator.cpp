@@ -727,7 +727,7 @@ enum BuildStage
 // Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
 // iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
 // references on resize. This will need to change if the data structure changes
-struct BuildObject
+struct ComptimeBuildObject
 {
 	int buildId = -1;
 	int status = -1;
@@ -740,7 +740,7 @@ struct BuildObject
 };
 
 int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
-                                     std::vector<BuildObject>& definitionsToBuild,
+                                     std::vector<ComptimeBuildObject>& definitionsToBuild,
                                      int& numErrorsOut)
 {
 	int numReferencesResolved = 0;
@@ -752,7 +752,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
 	// waitForAllProcessesClosed(), else the status pointer could be invalidated
 	int currentNumProcessesSpawned = 0;
-	for (BuildObject& buildObject : definitionsToBuild)
+	for (ComptimeBuildObject& buildObject : definitionsToBuild)
 	{
 		ObjectDefinition* definition = buildObject.definition;
 
@@ -939,7 +939,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	currentNumProcessesSpawned = 0;
 
 	// Linking
-	for (BuildObject& buildObject : definitionsToBuild)
+	for (ComptimeBuildObject& buildObject : definitionsToBuild)
 	{
 		if (buildObject.stage != BuildStage_Compiling)
 			continue;
@@ -1004,7 +1004,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;
 
-	for (BuildObject& buildObject : definitionsToBuild)
+	for (ComptimeBuildObject& buildObject : definitionsToBuild)
 	{
 		if (buildObject.stage != BuildStage_Linking)
 			continue;
@@ -1200,7 +1200,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		definitionsToCheck.push_back(&definition);
 	}
 
-	std::vector<BuildObject> definitionsToBuild;
+	std::vector<ComptimeBuildObject> definitionsToBuild;
 	// If it's possible a definition has new requirements, make sure we do another pass to add those
 	// requirements to the build
 	bool requireDependencyPropagation = false;
@@ -1345,7 +1345,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		if (canBuild && (!hasGuessedRefs || hasRelevantChangeOccurred) &&
 		    isCompileTimeObject(definition.type))
 		{
-			BuildObject objectToBuild = {};
+			ComptimeBuildObject objectToBuild = {};
 			objectToBuild.buildId = getNextFreeBuildId(environment);
 			objectToBuild.definition = &definition;
 			objectToBuild.hasAnyRefs = hasAnyRefs;
@@ -1358,7 +1358,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		int numToBuild = (int)definitionsToBuild.size();
 		Logf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
 
-		for (BuildObject& buildObject : definitionsToBuild)
+		for (ComptimeBuildObject& buildObject : definitionsToBuild)
 		{
 			Logf("\t%s\n", buildObject.definition->name.c_str());
 		}
