@@ -1,12 +1,14 @@
 #pragma once
 
-#include "EvaluatorEnums.hpp"
-#include "RunProcess.hpp"
-
 #include <string>
 #include <vector>
 // TODO: Replace with fast hash table
 #include <unordered_map>
+
+#include "Build.hpp"
+#include "EvaluatorEnums.hpp"
+#include "FileTypes.hpp"
+#include "RunProcess.hpp"
 
 struct GeneratorOutput;
 struct ModuleManager;
@@ -252,6 +254,8 @@ typedef RequiredCompileTimeFunctionReasonsTable::iterator
 
 typedef std::unordered_map<std::string, bool> CompileTimeSymbolTable;
 
+typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTable;
+
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
@@ -278,6 +282,14 @@ struct EvaluatorEnvironment
 	// Tokens will become invalid. The const here is to protect from that. You can change the token
 	// contents, however
 	std::vector<const std::vector<Token>*> comptimeTokens;
+
+	// Shared across comptime build rounds
+	HeaderModificationTimeTable comptimeHeaderModifiedCache;
+	// If an existing cached build was run, check the current build's commands against the previous
+	// commands via CRC comparison. This ensures changing commands will cause rebuilds
+	ArtifactCrcTable comptimeCachedCommandCrcs;
+	// If any artifact no longer matches its crc in cachedCommandCrcs, the change will appear here
+	ArtifactCrcTable comptimeNewCommandCrcs;
 
 	// When a definition is replaced (e.g. by ReplaceAndEvaluateDefinition()), the original
 	// definition's output is still used, but no longer has a definition to keep track of it. We'll

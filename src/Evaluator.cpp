@@ -739,6 +739,52 @@ struct ComptimeBuildObject
 	ObjectDefinition* definition = nullptr;
 };
 
+// bool makeBuildObjectFromCompileTimeBuildObject(EvaluatorEnvironment& environment,
+//                                                std::vector<BuildObject*>& buildObjects,
+//                                                SharedBuildOptions& sharedBuildOptions)
+// {
+// 	// TODO: Get this from comptime build configuration
+// 	std::string comptimeCacheDir = "cakelisp_cache";
+
+// 	for (ComptimeBuildObject& comptimeBuildObject : definitionsToBuild)
+// 	{
+// 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
+// 		PrintfBuffer(sourceOutputName, "%s/%s.cpp", comptimeCacheDir.c_str(),
+// 		             buildObject.artifactsName.c_str());
+// 		char buildObjectName[MAX_PATH_LENGTH] = {0};
+// 		if (!outputFilenameFromSourceFilename(comptimeCacheDir.c_str(), sourceOutputName,
+// 		                                      compilerObjectExtension, buildObjectName,
+// 		                                      sizeof(buildObjectName)))
+// 		{
+// 			Log("error: failed to create suitable output filename");
+// 			buildObjectsFree(buildObjects);
+// 			return false;
+// 		}
+
+// 		BuildObject* newBuildObject = new BuildObject;
+// 		newBuildObject->buildStatus = 0;
+// 		newBuildObject->sourceFilename = sourceOutputName;
+// 		newBuildObject->filename = buildObjectName;
+
+// 		// newBuildObject->buildCommandOverride = buildCommandOverride;
+
+// 		// for (const std::string& searchDir : module->cSearchDirectories)
+// 		// {
+// 		// 	char searchDirToArgument[MAX_PATH_LENGTH + 2];
+// 		// 	makeIncludeArgument(searchDirToArgument, sizeof(searchDirToArgument), searchDir.c_str());
+// 		// 	newBuildObject->includesSearchDirs.push_back(searchDirToArgument);
+// 		// }
+
+// 		// PushBackAll(newBuildObject->headerSearchDirectories, module->cSearchDirectories);
+
+// 		// PushBackAll(newBuildObject->additionalOptions, module->additionalBuildOptions);
+
+// 		buildObjects.push_back(newBuildObject);
+// 	}
+
+// 	return true;
+// }
+
 int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
                                      std::vector<ComptimeBuildObject>& definitionsToBuild,
                                      int& numErrorsOut)
@@ -872,16 +918,6 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		             linkerDynamicLibraryExtension);
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
-		if (canUseCachedFile(environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
-		{
-			if (logging.buildProcess)
-				Logf("Skipping compiling %s (using cached library)\n", sourceOutputName);
-			// Skip straight to linking, which immediately becomes loading
-			buildObject.stage = BuildStage_Linking;
-			buildObject.status = 0;
-			continue;
-		}
-
 		char headerInclude[MAX_PATH_LENGTH] = {0};
 		if (environment.cakelispSrcDir.empty())
 			makeIncludeArgument(headerInclude, sizeof(headerInclude), "src/");
@@ -890,7 +926,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			                    environment.cakelispSrcDir.c_str());
 
 		char buildObjectArgument[MAX_PATH_LENGTH] = {0};
-		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument), buildObjectName);
+		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument),
+		                         buildObject.buildObjectName.c_str());
 
 		char compileTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
 		if (!resolveExecutablePath(environment.compileTimeBuildCommand.fileToExecute.c_str(),
@@ -909,6 +946,34 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		{
 			// TODO: Abort building if cannot invoke compiler
 			continue;
+		}
+
+		// Can we use the cached version?
+		{
+			std::vector<std::string> headerSearchDirectories;
+			{
+				// Need working dir to find cached file itself
+				headerSearchDirectories.push_back(".");
+				// Need Cakelisp src dir to find cakelisp headers. If these aren't checked for
+				// modification, comptime code can end up calling stale functions/initializing
+				// incorrect types
+				headerSearchDirectories.push_back(
+				    environment.cakelispSrcDir.empty() ? "src" : environment.cakelispSrcDir);
+			}
+
+			if (!cppFileNeedsBuild(
+			        environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str(),
+			        buildArguments, environment.comptimeCachedCommandCrcs,
+			        environment.comptimeNewCommandCrcs, environment.comptimeHeaderModifiedCache,
+			        headerSearchDirectories))
+			{
+				if (logging.buildProcess)
+					Logf("Skipping compiling %s (using cached library)\n", sourceOutputName);
+				// Skip straight to linking, which immediately becomes loading
+				buildObject.stage = BuildStage_Linking;
+				buildObject.status = 0;
+				continue;
+			}
 		}
 
 		RunProcessArguments compileArguments = {};
@@ -1372,6 +1437,11 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 {
+	// We're about to start compiling comptime code; read the cache
+	// TODO: Multiple comptime configurations require different working dir
+	if (!buildReadCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs))
+		return false;
+
 	// Print state
 	if (logging.references)
 	{
@@ -1512,6 +1582,9 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 				             definition.name.c_str());
 		}
 	}
+
+	buildWriteCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
+	                    environment.comptimeNewCommandCrcs);
 
 	return errors == 0 && numBuildResolveErrors == 0;
 }

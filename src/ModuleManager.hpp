@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
-#include "ModuleManagerEnums.hpp"
-
+#include "Build.hpp"
 #include "Evaluator.hpp"
+#include "ModuleManagerEnums.hpp"
 #include "RunProcess.hpp"
 #include "Tokenizer.hpp"
 
@@ -58,9 +58,6 @@ struct Module
 
 	std::vector<ModulePreBuildHook> preBuildHooks;
 };
-
-typedef std::unordered_map<std::string, uint32_t> ArtifactCrcTable;
-typedef std::pair<const std::string, uint32_t> ArtifactCrcTablePair;
 
 struct ModuleManager
 {
