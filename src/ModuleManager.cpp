@@ -565,122 +565,12 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	return true;
 }
 
-typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTable;
-
-// It is essential to scan the #include files to determine if any of the headers have been modified,
-// because changing them could require a rebuild (for e.g., you change the size or order of a struct
-// declared in a header; all source files now need updated sizeof calls). This is annoyingly
-// complex, but must be done every time a build is run, just in case headers change. If this step
-// was skipped, it opens the door to very frustrating bugs involving stale builds and mismatched
-// headers.
-//
-// Note that this cannot early out because we have no reference file to compare against. While it
-// could be faster to implement it that way, my gut tells me having a cache sharable across build
-// objects is faster. We must find the absolute time because different build objects may be more
-// recently modified than others, so they shouldn't get built. If we wanted to early out, we cannot
-// share the cache because of this
-static FileModifyTime GetMostRecentIncludeModified_Recursive(
-    const std::vector<std::string>& searchDirectories, const char* filename,
-    const char* includedInFile, HeaderModificationTimeTable& isModifiedCache)
-{
-	// Already cached?
-	{
-		const HeaderModificationTimeTable::iterator findIt = isModifiedCache.find(filename);
-		if (findIt != isModifiedCache.end())
-		{
-			if (logging.includeScanning)
-				Logf("    > cache hit %s\n", filename);
-			return findIt->second;
-		}
-	}
-
-	// Find a match
-	char resolvedPathBuffer[MAX_PATH_LENGTH] = {0};
-	if (!searchForFileInPaths(filename, includedInFile, searchDirectories, resolvedPathBuffer,
-	                          ArraySize(resolvedPathBuffer)))
-	{
-		if (logging.includeScanning || logging.strictIncludes)
-			Logf("warning: failed to find %s in search paths\n", filename);
-
-		// Might as well not keep failing to find it. It doesn't cause modification up the stream if
-		// not found (else you'd get full rebuilds every time if you had even one header not found)
-		isModifiedCache[filename] = 0;
-
-		return 0;
-	}
-
-	// Is the resolved path cached?
-	{
-		const HeaderModificationTimeTable::iterator findIt =
-		    isModifiedCache.find(resolvedPathBuffer);
-		if (findIt != isModifiedCache.end())
-			return findIt->second;
-	}
-
-	if (logging.includeScanning)
-		Logf("Checking %s for headers\n", resolvedPathBuffer);
-
-	const FileModifyTime thisModificationTime = fileGetLastModificationTime(resolvedPathBuffer);
-
-	// To prevent loops, add ourselves to the cache now. We'll revise our answer higher if necessary
-	isModifiedCache[filename] = thisModificationTime;
-
-	FileModifyTime mostRecentModTime = thisModificationTime;
-
-	FILE* file = fileOpen(resolvedPathBuffer, "r");
-	if (!file)
-		return false;
-	char lineBuffer[2048] = {0};
-	while (fgets(lineBuffer, sizeof(lineBuffer), file))
-	{
-		// I think '#   include' is valid
-		if (lineBuffer[0] != '#' || !strstr(lineBuffer, "include"))
-			continue;
-
-		char foundInclude[MAX_PATH_LENGTH] = {0};
-		char* foundIncludeWrite = foundInclude;
-		bool foundOpening = false;
-		for (char* c = &lineBuffer[0]; *c != '\0'; ++c)
-		{
-			if (foundOpening)
-			{
-				if (*c == '\"' || *c == '>')
-				{
-					if (logging.includeScanning)
-						Logf("\t%s include: %s\n", resolvedPathBuffer, foundInclude);
-
-					FileModifyTime includeModifiedTime = GetMostRecentIncludeModified_Recursive(
-					    searchDirectories, foundInclude, resolvedPathBuffer, isModifiedCache);
-
-					if (logging.includeScanning)
-						Logf("\t tree modificaiton time: %lu\n", includeModifiedTime);
-
-					if (includeModifiedTime > mostRecentModTime)
-						mostRecentModTime = includeModifiedTime;
-				}
-
-				*foundIncludeWrite = *c;
-				++foundIncludeWrite;
-			}
-			else if (*c == '\"' || *c == '<')
-				foundOpening = true;
-		}
-	}
-
-	if (thisModificationTime != mostRecentModTime)
-		isModifiedCache[filename] = mostRecentModTime;
-
-	fclose(file);
-
-	return mostRecentModTime;
-}
-
 static void OnCompileProcessOutput(const char* output)
 {
 	// TODO C/C++ error to Cakelisp token mapper
 }
 
-struct BuiltObject
+struct BuildObject
 {
 	int buildStatus;
 	std::string sourceFilename;
@@ -694,16 +584,16 @@ struct BuiltObject
 	std::vector<std::string> headerSearchDirectories;
 };
 
-void builtObjectsFree(std::vector<BuiltObject*>& objects)
+void buildObjectsFree(std::vector<BuildObject*>& objects)
 {
-	for (BuiltObject* object : objects)
+	for (BuildObject* object : objects)
 		delete object;
 
 	objects.clear();
 }
 
-void copyModuleBuildOptionsToBuiltObject(Module* module, ProcessCommand* buildCommandOverride,
-                                         BuiltObject* object)
+void copyModuleBuildOptionsToBuildObject(Module* module, ProcessCommand* buildCommandOverride,
+                                         BuildObject* object)
 {
 	object->buildCommandOverride = buildCommandOverride;
 
@@ -719,18 +609,10 @@ void copyModuleBuildOptionsToBuiltObject(Module* module, ProcessCommand* buildCo
 	PushBackAll(object->additionalOptions, module->additionalBuildOptions);
 }
 
-void getExecutableOutputName(ModuleManager& manager, std::string& finalOutputNameOut)
-{
-	if (!manager.environment.executableOutput.empty())
-		finalOutputNameOut = manager.environment.executableOutput;
-	else
-		finalOutputNameOut = defaultExecutableName;
-}
-
 // Copy cachedOutputExecutable to finalOutputNameOut, adding executable permissions
 // TODO: There's no easy way to know whether this exe is the current build configuration's
 // output exe, so copy it every time
-bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cachedOutputExecutable,
+bool copyExecutableToFinalOutput(const std::string& cachedOutputExecutable,
                                  const std::string& finalOutputName)
 {
 	if (logging.fileSystem)
@@ -767,65 +649,43 @@ bool copyExecutableToFinalOutput(ModuleManager& manager, const std::string& cach
 	return true;
 }
 
-// commandArguments should have terminating null sentinel
-static bool commandEqualsCachedCommand(ModuleManager& manager, const char* artifactKey,
-                                       const char** commandArguments, uint32_t* crcOut)
-{
-	uint32_t newCommandCrc = 0;
-	if (logging.commandCrcs)
-		Log("\"");
-	for (const char** currentArg = commandArguments; *currentArg; ++currentArg)
-	{
-		crc32(*currentArg, strlen(*currentArg), &newCommandCrc);
-		if (logging.commandCrcs)
-			Logf("%s ", *currentArg);
-	}
-	if (logging.commandCrcs)
-		Log("\"\n");
-
-	if (crcOut)
-		*crcOut = newCommandCrc;
-
-	ArtifactCrcTable::iterator findIt = manager.cachedCommandCrcs.find(artifactKey);
-	if (findIt == manager.cachedCommandCrcs.end())
-	{
-		if (logging.commandCrcs)
-			Logf("CRC32 for %s: %u (not cached)\n", artifactKey, newCommandCrc);
-		return false;
-	}
-
-	if (logging.commandCrcs)
-		Logf("CRC32 for %s: old %u new %u\n", artifactKey, findIt->second, newCommandCrc);
-
-	return findIt->second == newCommandCrc;
-}
-
 static void addStringIfUnique(std::vector<std::string>& output, const char* stringToAdd)
 {
 	if (FindInContainer(output, stringToAdd) == output.end())
 		output.push_back(stringToAdd);
 }
 
-static bool moduleManagerReadCacheFile(ModuleManager& manager);
-static void moduleManagerWriteCacheFile(ModuleManager& manager);
-
-bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs)
+struct SharedBuildOptions
 {
-	if (!moduleManagerReadCacheFile(manager))
-		return false;
+	std::vector<std::string>* cSearchDirectories;
+	ProcessCommand* buildCommand;
+	ProcessCommand* linkCommand;
+	std::string* executableOutput;
+	// Cached directory, not necessarily the final artifacts directory (e.g. executable-output
+	// option sets different location for the final executable)
+	std::string* buildOutputDir;
+	std::vector<PreLinkHook>* preLinkHooks;
 
-	int currentNumProcessesSpawned = 0;
-
-	int numModules = manager.modules.size();
-	// Pointer because the objects can't move, status codes are pointed to
-	std::vector<BuiltObject*> builtObjects;
-
+	// Link options
 	std::vector<std::string> linkLibraries;
 	std::vector<std::string> librarySearchDirs;
 	std::vector<std::string> libraryRuntimeSearchDirs;
 	std::vector<std::string> compilerLinkOptions;
 	std::vector<std::string> toLinkerOptions;
+};
 
+static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
+                                           std::vector<BuildObject*>& buildObjects,
+                                           SharedBuildOptions& sharedBuildOptions)
+{
+	sharedBuildOptions.cSearchDirectories = &manager.environment.cSearchDirectories;
+	sharedBuildOptions.buildCommand = &manager.environment.buildTimeBuildCommand;
+	sharedBuildOptions.linkCommand = &manager.environment.buildTimeLinkCommand;
+	sharedBuildOptions.executableOutput = &manager.environment.executableOutput;
+	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
+	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
+
+	int numModules = manager.modules.size();
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
 		Module* module = manager.modules[moduleIndex];
@@ -835,7 +695,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			if (!hook(manager, module))
 			{
 				Log("error: hook returned failure. Aborting build\n");
-				builtObjectsFree(builtObjects);
+				buildObjectsFree(buildObjects);
 				return false;
 			}
 		}
@@ -855,7 +715,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				    "error: module build command override must be completely defined. Missing %s\n",
 				    module->buildTimeBuildCommand.fileToExecute.empty() ? "file to execute" :
 				                                                          "arguments");
-				builtObjectsFree(builtObjects);
+				buildObjectsFree(buildObjects);
 				return false;
 			}
 
@@ -877,27 +737,27 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 			if (dependency.type == ModuleDependency_CFile)
 			{
-				BuiltObject* newBuiltObject = new BuiltObject;
-				newBuiltObject->buildStatus = 0;
-				newBuiltObject->sourceFilename = dependency.name;
+				BuildObject* newBuildObject = new BuildObject;
+				newBuildObject->buildStatus = 0;
+				newBuildObject->sourceFilename = dependency.name;
 
 				char buildObjectName[MAX_PATH_LENGTH] = {0};
 				if (!outputFilenameFromSourceFilename(
-				        manager.buildOutputDir.c_str(), newBuiltObject->sourceFilename.c_str(),
+				        manager.buildOutputDir.c_str(), newBuildObject->sourceFilename.c_str(),
 				        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
 				{
-					delete newBuiltObject;
+					delete newBuildObject;
 					Log("error: failed to create suitable output filename");
-					builtObjectsFree(builtObjects);
+					buildObjectsFree(buildObjects);
 					return false;
 				}
 
-				newBuiltObject->filename = buildObjectName;
+				newBuildObject->filename = buildObjectName;
 
 				// This is a bit weird to automatically use the parent module's build command
-				copyModuleBuildOptionsToBuiltObject(module, buildCommandOverride, newBuiltObject);
+				copyModuleBuildOptionsToBuildObject(module, buildCommandOverride, newBuildObject);
 
-				builtObjects.push_back(newBuiltObject);
+				buildObjects.push_back(newBuildObject);
 			}
 		}
 
@@ -908,11 +768,12 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				std::vector<std::string>* inputs;
 				std::vector<std::string>* output;
 			} linkArgumentsToAdd[]{
-			    {&module->toLinkerOptions, &toLinkerOptions},
-			    {&module->compilerLinkOptions, &compilerLinkOptions},
-			    {&module->libraryDependencies, &linkLibraries},
-			    {&module->librarySearchDirectories, &librarySearchDirs},
-			    {&module->libraryRuntimeSearchDirectories, &libraryRuntimeSearchDirs}};
+			    {&module->toLinkerOptions, &sharedBuildOptions.toLinkerOptions},
+			    {&module->compilerLinkOptions, &sharedBuildOptions.compilerLinkOptions},
+			    {&module->libraryDependencies, &sharedBuildOptions.linkLibraries},
+			    {&module->librarySearchDirectories, &sharedBuildOptions.librarySearchDirs},
+			    {&module->libraryRuntimeSearchDirectories,
+			     &sharedBuildOptions.libraryRuntimeSearchDirs}};
 			for (int linkArgumentSet = 0; linkArgumentSet < ArraySize(linkArgumentsToAdd);
 			     ++linkArgumentSet)
 			{
@@ -930,29 +791,46 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
 		{
 			Log("error: failed to create suitable output filename");
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
 		// At this point, we do want to build the object. We might skip building it if it is cached.
 		// In that case, the status code should still be 0, as if we built and succeeded building it
-		BuiltObject* newBuiltObject = new BuiltObject;
-		newBuiltObject->buildStatus = 0;
-		newBuiltObject->sourceFilename = module->sourceOutputName.c_str();
-		newBuiltObject->filename = buildObjectName;
+		BuildObject* newBuildObject = new BuildObject;
+		newBuildObject->buildStatus = 0;
+		newBuildObject->sourceFilename = module->sourceOutputName.c_str();
+		newBuildObject->filename = buildObjectName;
 
-		copyModuleBuildOptionsToBuiltObject(module, buildCommandOverride, newBuiltObject);
+		copyModuleBuildOptionsToBuildObject(module, buildCommandOverride, newBuildObject);
 
-		builtObjects.push_back(newBuiltObject);
+		buildObjects.push_back(newBuildObject);
+	}
+
+	return true;
+}
+
+// On successful build (true return value), you need to free buildObjects once you're done with them
+bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& buildObjects,
+                        SharedBuildOptions& buildOptions)
+{
+	int currentNumProcessesSpawned = 0;
+
+	if (buildObjects.empty())
+	{
+		Log("Nothing to build. This may break the various hooks which expect something to be "
+		    "built\n");
+		buildObjectsFree(buildObjects);
+		return false;
 	}
 
 	HeaderModificationTimeTable headerModifiedCache;
 
-	for (BuiltObject* object : builtObjects)
+	for (BuildObject* object : buildObjects)
 	{
 		std::vector<const char*> searchDirArgs;
 		searchDirArgs.reserve(object->includesSearchDirs.size() +
-		                      manager.environment.cSearchDirectories.size());
+		                      buildOptions.cSearchDirectories->size());
 		for (const std::string& searchDirArg : object->includesSearchDirs)
 		{
 			searchDirArgs.push_back(searchDirArg.c_str());
@@ -960,8 +838,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 		// This code sucks
 		std::vector<std::string> globalSearchDirArgs;
-		globalSearchDirArgs.reserve(manager.environment.cSearchDirectories.size());
-		for (const std::string& searchDir : manager.environment.cSearchDirectories)
+		globalSearchDirArgs.reserve(buildOptions.cSearchDirectories->size());
+		for (const std::string& searchDir : *buildOptions.cSearchDirectories)
 		{
 			char searchDirToArgument[MAX_PATH_LENGTH + 2];
 			makeIncludeArgument(searchDirToArgument, sizeof(searchDirToArgument),
@@ -978,7 +856,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 		ProcessCommand& buildCommand = object->buildCommandOverride ?
 		                                   *object->buildCommandOverride :
-		                                   manager.environment.buildTimeBuildCommand;
+		                                   *buildOptions.buildCommand;
 
 		// Annoying exception for MSVC not having spaces between some arguments
 		std::string* objectOutput = &object->filename;
@@ -996,7 +874,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (!resolveExecutablePath(buildCommand.fileToExecute.c_str(), buildTimeBuildExecutable,
 		                           sizeof(buildTimeBuildExecutable)))
 		{
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
@@ -1011,72 +889,31 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (!buildArguments)
 		{
 			Log("error: failed to construct build arguments\n");
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
-		uint32_t commandCrc = 0;
-		bool commandEqualsCached = commandEqualsCachedCommand(manager, object->filename.c_str(),
-		                                                      buildArguments, &commandCrc);
-		// We could avoid doing this work, but it makes it easier to log if we do it regardless of
-		// commandEqualsCached invalidating our cache anyways
-		bool canUseCache = canUseCachedFile(manager.environment, object->sourceFilename.c_str(),
-		                                    object->filename.c_str());
-		bool headersModified = false;
-		if (commandEqualsCached && canUseCache)
+		// Can we use the cached version?
 		{
 			std::vector<std::string> headerSearchDirectories;
 			{
 				headerSearchDirectories.reserve(object->headerSearchDirectories.size() +
-				                                manager.environment.cSearchDirectories.size() + 1);
+				                                buildOptions.cSearchDirectories->size() + 1);
 				// Must include CWD to find generated cakelisp files
 				headerSearchDirectories.push_back(".");
 				PushBackAll(headerSearchDirectories, object->headerSearchDirectories);
-				PushBackAll(headerSearchDirectories, manager.environment.cSearchDirectories);
+				PushBackAll(headerSearchDirectories, *buildOptions.cSearchDirectories);
 			}
 
-			// Note that I use the .o as "includedBy" because our header may not have needed any
-			// changes if our include changed. We have to use the .o as the time reference that
-			// we've rebuilt
-			FileModifyTime mostRecentHeaderModTime = GetMostRecentIncludeModified_Recursive(
-			    headerSearchDirectories, object->sourceFilename.c_str(),
-			    /*includedBy*/ nullptr, headerModifiedCache);
-
-			FileModifyTime artifactModTime = fileGetLastModificationTime(object->filename.c_str());
-			if (artifactModTime >= mostRecentHeaderModTime)
+			if (!cppFileNeedsBuild(manager.environment, object->sourceFilename.c_str(),
+			                       object->filename.c_str(), buildArguments,
+			                       manager.cachedCommandCrcs, manager.newCommandCrcs,
+			                       headerModifiedCache, headerSearchDirectories))
 			{
-				if (logging.buildProcess)
-					Logf("Skipping compiling %s (using cached object)\n",
-					     object->sourceFilename.c_str());
 				free(buildArguments);
 				continue;
 			}
-			else
-			{
-				headersModified = true;
-				if (logging.includeScanning || logging.buildProcess)
-				{
-					Logf("--- Must rebuild %s (header files modified)\n",
-					     object->sourceFilename.c_str());
-					Logf("Artifact: %lu Most recent header: %lu\n", artifactModTime,
-					     mostRecentHeaderModTime);
-				}
-			}
 		}
-
-		if (logging.buildReasons)
-		{
-			Logf("Build %s reason(s):\n", object->filename.c_str());
-			if (!canUseCache)
-				Log("\tobject files updated\n");
-			if (!commandEqualsCached)
-				Log("\tcommand changed since last run\n");
-			if (headersModified)
-				Log("\theaders modified\n");
-		}
-
-		if (!commandEqualsCached)
-			manager.newCommandCrcs[object->filename] = commandCrc;
 
 		// Go through with the build
 		RunProcessArguments compileArguments = {};
@@ -1088,7 +925,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		{
 			Log("error: failed to invoke compiler\n");
 			free(buildArguments);
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
@@ -1110,11 +947,35 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;
 
+	bool succeededBuild = true;
+	for (BuildObject* object : buildObjects)
+	{
+		int buildResult = object->buildStatus;
+		if (buildResult != 0 || !fileExists(object->filename.c_str()))
+		{
+			Logf("error: failed to make target %s\n", object->filename.c_str());
+			succeededBuild = false;
+			continue;
+		}
+	}
+
+	if (!succeededBuild)
+	{
+		buildObjectsFree(buildObjects);
+		return false;
+	}
+
+	return true;
+}
+
+bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildObjects,
+                       SharedBuildOptions& buildOptions, std::vector<std::string>& builtOutputs)
+{
 	std::string outputExecutableName;
-	if (!manager.environment.executableOutput.empty())
+	if (!buildOptions.executableOutput->empty())
 	{
 		char outputExecutableFilename[MAX_PATH_LENGTH] = {0};
-		getFilenameFromPath(manager.environment.executableOutput.c_str(), outputExecutableFilename,
+		getFilenameFromPath(buildOptions.executableOutput->c_str(), outputExecutableFilename,
 		                    sizeof(outputExecutableFilename));
 
 		outputExecutableName = outputExecutableFilename;
@@ -1124,28 +985,18 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 	char outputExecutableCachePath[MAX_PATH_LENGTH] = {0};
 	if (!outputFilenameFromSourceFilename(
-	        manager.buildOutputDir.c_str(), outputExecutableName.c_str(),
+	        buildOptions.buildOutputDir->c_str(), outputExecutableName.c_str(),
 	        /*addExtension=*/nullptr, outputExecutableCachePath, sizeof(outputExecutableCachePath)))
 	{
-		builtObjectsFree(builtObjects);
+		buildObjectsFree(buildObjects);
 		return false;
 	}
 	outputExecutableName = outputExecutableCachePath;
 
 	int numObjectsToLink = 0;
-	bool succeededBuild = true;
 	bool objectsDirty = false;
-	for (BuiltObject* object : builtObjects)
+	for (BuildObject* object : buildObjects)
 	{
-		// Module* module = manager.modules[moduleIndex];
-		int buildResult = object->buildStatus;
-		if (buildResult != 0 || !fileExists(object->filename.c_str()))
-		{
-			Logf("error: failed to make target %s\n", object->filename.c_str());
-			succeededBuild = false;
-			continue;
-		}
-
 		if (logging.buildProcess)
 			Logf("Need to link %s\n", object->filename.c_str());
 
@@ -1156,27 +1007,25 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		                                  outputExecutableName.c_str());
 	}
 
-	if (!succeededBuild)
-	{
-		builtObjectsFree(builtObjects);
-		return false;
-	}
-
 	std::string finalOutputName;
-	getExecutableOutputName(manager, finalOutputName);
+	if (!buildOptions.executableOutput->empty())
+		finalOutputName = *buildOptions.executableOutput;
+	else
+		finalOutputName = defaultExecutableName;
 
+	bool succeededBuild = false;
 	if (numObjectsToLink)
 	{
 		std::vector<const char*> objectsToLink(numObjectsToLink);
 		for (int i = 0; i < numObjectsToLink; ++i)
 		{
-			BuiltObject* object = builtObjects[i];
+			BuildObject* object = buildObjects[i];
 
 			objectsToLink[i] = object->filename.c_str();
 		}
 
 		// Copy it so hooks can modify it
-		ProcessCommand linkCommand = manager.environment.buildTimeLinkCommand;
+		ProcessCommand linkCommand = *buildOptions.linkCommand;
 
 		char executableOutput[MAX_PATH_LENGTH + 5] = {0};
 		makeExecutableOutputArgument(executableOutput, sizeof(executableOutput),
@@ -1199,15 +1048,18 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			void (*argumentConversionFunc)(char* buffer, int bufferSize, const char* stringIn,
 			                               const char* linkExecutable);
 		} libraryArguments[] = {
-		    {&linkLibraries, {}, &librariesArgs, makeLinkLibraryArgument},
-		    {&librarySearchDirs, {}, &librarySearchDirsArgs, makeLinkLibrarySearchDirArgument},
-		    {&libraryRuntimeSearchDirs,
+		    {&buildOptions.linkLibraries, {}, &librariesArgs, makeLinkLibraryArgument},
+		    {&buildOptions.librarySearchDirs,
+		     {},
+		     &librarySearchDirsArgs,
+		     makeLinkLibrarySearchDirArgument},
+		    {&buildOptions.libraryRuntimeSearchDirs,
 		     {},
 		     &libraryRuntimeSearchDirsArgs,
 		     makeLinkLibraryRuntimeSearchDirArgument},
-		    {&toLinkerOptions, {}, &convertedLinkerArgs, makeLinkerArgument},
+		    {&buildOptions.toLinkerOptions, {}, &convertedLinkerArgs, makeLinkerArgument},
 		    // We can't know how to auto-convert these because they could be anything
-		    {&compilerLinkOptions, {}, &compilerLinkArgs, nullptr}};
+		    {&buildOptions.compilerLinkOptions, {}, &compilerLinkArgs, nullptr}};
 		for (int inputIndex = 0; inputIndex < ArraySize(libraryArguments); ++inputIndex)
 		{
 			int numStrings = (int)libraryArguments[inputIndex].stringsIn->size();
@@ -1247,12 +1099,12 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		    {ProcessCommandArgumentType_LinkerArguments, convertedLinkerArgs}};
 
 		// Hooks should cooperate with eachother, i.e. try to only add things
-		for (PreLinkHook preLinkHook : manager.environment.preLinkHooks)
+		for (PreLinkHook preLinkHook : *buildOptions.preLinkHooks)
 		{
 			if (!preLinkHook(manager, linkCommand, linkTimeInputs, ArraySize(linkTimeInputs)))
 			{
 				Log("error: hook returned failure. Aborting build\n");
-				builtObjectsFree(builtObjects);
+				buildObjectsFree(buildObjects);
 				return false;
 			}
 		}
@@ -1261,7 +1113,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (!resolveExecutablePath(linkCommand.fileToExecute.c_str(), buildTimeLinkExecutable,
 		                           sizeof(buildTimeLinkExecutable)))
 		{
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
@@ -1270,13 +1122,13 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		                                    linkTimeInputs, ArraySize(linkTimeInputs));
 		if (!linkArgumentList)
 		{
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
 		uint32_t commandCrc = 0;
-		bool commandEqualsCached = commandEqualsCachedCommand(manager, finalOutputName.c_str(),
-		                                                      linkArgumentList, &commandCrc);
+		bool commandEqualsCached = commandEqualsCachedCommand(
+		    manager.cachedCommandCrcs, finalOutputName.c_str(), linkArgumentList, &commandCrc);
 
 		// Check if we can use the cached version
 		if (!objectsDirty && commandEqualsCached)
@@ -1286,10 +1138,10 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 				    "identical)\n");
 
 			{
-				if (!copyExecutableToFinalOutput(manager, outputExecutableName, finalOutputName))
+				if (!copyExecutableToFinalOutput(outputExecutableName, finalOutputName))
 				{
 					free(linkArgumentList);
-					builtObjectsFree(builtObjects);
+					buildObjectsFree(buildObjects);
 					return false;
 				}
 
@@ -1298,8 +1150,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 			}
 
 			free(linkArgumentList);
-			builtObjectsFree(builtObjects);
-			moduleManagerWriteCacheFile(manager);
+			buildObjectsFree(buildObjects);
 			return true;
 		}
 
@@ -1322,7 +1173,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		if (runProcess(linkArguments, &linkStatus) != 0)
 		{
 			free(linkArgumentList);
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
@@ -1335,14 +1186,14 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 
 	if (!succeededBuild)
 	{
-		builtObjectsFree(builtObjects);
+		buildObjectsFree(buildObjects);
 		return false;
 	}
 
 	{
-		if (!copyExecutableToFinalOutput(manager, outputExecutableName, finalOutputName))
+		if (!copyExecutableToFinalOutput(outputExecutableName, finalOutputName))
 		{
-			builtObjectsFree(builtObjects);
+			buildObjectsFree(buildObjects);
 			return false;
 		}
 
@@ -1350,123 +1201,29 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtO
 		builtOutputs.push_back(finalOutputName);
 	}
 
-	builtObjectsFree(builtObjects);
-	moduleManagerWriteCacheFile(manager);
+	buildObjectsFree(buildObjects);
 	return true;
 }
 
-// Returns false if there were errors; the file not existing is not an error
-static bool moduleManagerReadCacheFile(ModuleManager& manager)
+bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs)
 {
-	char inputFilename[MAX_PATH_LENGTH] = {0};
-	if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(), "Cache", "cake",
-	                                      inputFilename, sizeof(inputFilename)))
-	{
-		Log("error: failed to create cache file name\n");
+	if (!buildReadCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs))
 		return false;
-	}
 
-	// This is fine if it's the first build of this configuration
-	if (!fileExists(inputFilename))
-		return true;
-
-	const std::vector<Token>* tokens = nullptr;
-	if (!moduleLoadTokenizeValidate(inputFilename, &tokens))
-	{
-		// moduleLoadTokenizeValidate deletes tokens on error
+	// Pointer because the objects can't move, status codes are pointed to
+	std::vector<BuildObject*> buildObjects;
+	SharedBuildOptions buildOptions = {0};
+	if (!moduleManagerGetObjectsToBuild(manager, buildObjects, buildOptions))
 		return false;
-	}
 
-	for (int i = 0; i < (int)(*tokens).size(); ++i)
-	{
-		const Token& currentToken = (*tokens)[i];
-		if (currentToken.type == TokenType_OpenParen)
-		{
-			int endInvocationIndex = FindCloseParenTokenIndex((*tokens), i);
-			const Token& invocationToken = (*tokens)[i + 1];
-			if (invocationToken.contents.compare("command-crc") == 0)
-			{
-				int artifactIndex = getExpectedArgument("expected artifact name", (*tokens), i, 1,
-				                                        endInvocationIndex);
-				if (artifactIndex == -1)
-				{
-					delete tokens;
-					return false;
-				}
-				int crcIndex =
-				    getExpectedArgument("expected crc", (*tokens), i, 2, endInvocationIndex);
-				if (crcIndex == -1)
-				{
-					delete tokens;
-					return false;
-				}
+	if (!moduleManagerBuild(manager, buildObjects, buildOptions))
+		return false;
 
-				char* endPtr;
-				manager.cachedCommandCrcs[(*tokens)[artifactIndex].contents] =
-				    static_cast<uint32_t>(std::stoul((*tokens)[crcIndex].contents));
-			}
-			else
-			{
-				Logf("error: unrecognized invocation in %s: %s\n", inputFilename,
-				     invocationToken.contents.c_str());
-				delete tokens;
-				return false;
-			}
+	if (!moduleManagerLink(manager, buildObjects, buildOptions, builtOutputs))
+		return false;
 
-			i = endInvocationIndex;
-		}
-	}
+	buildWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
+	                    manager.newCommandCrcs);
 
-	delete tokens;
 	return true;
-}
-
-static void moduleManagerWriteCacheFile(ModuleManager& manager)
-{
-	char outputFilename[MAX_PATH_LENGTH] = {0};
-	if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(), "Cache", "cake",
-	                                      outputFilename, sizeof(outputFilename)))
-	{
-		Log("error: failed to create cache file name\n");
-		return;
-	}
-
-	// Combine all CRCs into a single map
-	ArtifactCrcTable outputCrcs;
-	for (ArtifactCrcTablePair& crcPair : manager.cachedCommandCrcs)
-		outputCrcs.insert(crcPair);
-	// New commands override previously cached
-	for (ArtifactCrcTablePair& crcPair : manager.newCommandCrcs)
-		outputCrcs[crcPair.first] = crcPair.second;
-
-	std::vector<Token> outputTokens;
-	const Token openParen = {TokenType_OpenParen, EmptyString, "ModuleManager.cpp", 1, 0, 0};
-	const Token closeParen = {TokenType_CloseParen, EmptyString, "ModuleManager.cpp", 1, 0, 0};
-	const Token crcInvoke = {TokenType_Symbol, "command-crc", "ModuleManager.cpp", 1, 0, 0};
-
-	for (ArtifactCrcTablePair& crcPair : outputCrcs)
-	{
-		outputTokens.push_back(openParen);
-		outputTokens.push_back(crcInvoke);
-
-		Token artifactName = {TokenType_String, crcPair.first, "ModuleManager.cpp", 1, 0, 0};
-		outputTokens.push_back(artifactName);
-
-		Token crcToken = {
-		    TokenType_Symbol, std::to_string(crcPair.second), "ModuleManager.cpp", 1, 0, 0};
-		outputTokens.push_back(crcToken);
-
-		outputTokens.push_back(closeParen);
-	}
-
-	FILE* file = fileOpen(outputFilename, "w");
-	if (!file)
-	{
-		Logf("error: Could not write cache file %s", outputFilename);
-		return;
-	}
-
-	prettyPrintTokensToFile(file, outputTokens);
-
-	fclose(file);
 }

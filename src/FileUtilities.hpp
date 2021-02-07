@@ -1,8 +1,6 @@
 #pragma once
 
-#include <stdint.h> // int64_t
-
-typedef int64_t FileModifyTime;
+#include "FileTypes.hpp"
 
 // Returns zero if the file doesn't exist, or there was some other error
 FileModifyTime fileGetLastModificationTime(const char* filename);

@@ -727,7 +727,7 @@ enum BuildStage
 // Note: environment.definitions can be resized/rehashed during evaluation, which invalidates
 // iterators. For now, I will rely on the fact that std::unordered_map does not invalidate
 // references on resize. This will need to change if the data structure changes
-struct BuildObject
+struct ComptimeBuildObject
 {
 	int buildId = -1;
 	int status = -1;
@@ -836,19 +836,18 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 }
 
 int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
-                                     std::vector<BuildObject>& definitionsToBuild,
+                                     std::vector<ComptimeBuildObject>& definitionsToBuild,
                                      int& numErrorsOut)
 {
 	int numReferencesResolved = 0;
 
 	// Spin up as many compile processes as necessary
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
-	// TODO: Instead of creating files, pipe straight to compiler?
 	// TODO: Make pipeline able to start e.g. linker while other objects are still compiling
 	// NOTE: definitionsToBuild must not be resized from when runProcess() is called until
 	// waitForAllProcessesClosed(), else the status pointer could be invalidated
 	int currentNumProcessesSpawned = 0;
-	for (BuildObject& buildObject : definitionsToBuild)
+	for (ComptimeBuildObject& buildObject : definitionsToBuild)
 	{
 		ObjectDefinition* definition = buildObject.definition;
 
@@ -969,16 +968,6 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		             linkerDynamicLibraryExtension);
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
-		if (canUseCachedFile(environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str()))
-		{
-			if (logging.buildProcess)
-				Logf("Skipping compiling %s (using cached library)\n", sourceOutputName);
-			// Skip straight to linking, which immediately becomes loading
-			buildObject.stage = BuildStage_Linking;
-			buildObject.status = 0;
-			continue;
-		}
-
 		char headerInclude[MAX_PATH_LENGTH] = {0};
 		if (environment.cakelispSrcDir.empty())
 			makeIncludeArgument(headerInclude, sizeof(headerInclude), "src/");
@@ -987,11 +976,13 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			                    environment.cakelispSrcDir.c_str());
 
 		char buildObjectArgument[MAX_PATH_LENGTH] = {0};
-		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument), buildObjectName);
+		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument),
+		                         buildObject.buildObjectName.c_str());
 
 		char compileTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
 		if (!resolveExecutablePath(environment.compileTimeBuildCommand.fileToExecute.c_str(),
 		                           compileTimeBuildExecutable, sizeof(compileTimeBuildExecutable)))
+			// TODO: Add error message?
 			continue;
 
 		ProcessCommandInput compileTimeInputs[] = {
@@ -1005,6 +996,34 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		{
 			// TODO: Abort building if cannot invoke compiler
 			continue;
+		}
+
+		// Can we use the cached version?
+		{
+			std::vector<std::string> headerSearchDirectories;
+			{
+				// Need working dir to find cached file itself
+				headerSearchDirectories.push_back(".");
+				// Need Cakelisp src dir to find cakelisp headers. If these aren't checked for
+				// modification, comptime code can end up calling stale functions/initializing
+				// incorrect types
+				headerSearchDirectories.push_back(
+				    environment.cakelispSrcDir.empty() ? "src" : environment.cakelispSrcDir);
+			}
+
+			if (!cppFileNeedsBuild(
+			        environment, sourceOutputName, buildObject.dynamicLibraryPath.c_str(),
+			        buildArguments, environment.comptimeCachedCommandCrcs,
+			        environment.comptimeNewCommandCrcs, environment.comptimeHeaderModifiedCache,
+			        headerSearchDirectories))
+			{
+				if (logging.buildProcess)
+					Logf("Skipping compiling %s (using cached library)\n", sourceOutputName);
+				// Skip straight to linking, which immediately becomes loading
+				buildObject.stage = BuildStage_Linking;
+				buildObject.status = 0;
+				continue;
+			}
 		}
 
 		RunProcessArguments compileArguments = {};
@@ -1035,7 +1054,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	currentNumProcessesSpawned = 0;
 
 	// Linking
-	for (BuildObject& buildObject : definitionsToBuild)
+	for (ComptimeBuildObject& buildObject : definitionsToBuild)
 	{
 		if (buildObject.stage != BuildStage_Compiling)
 			continue;
@@ -1100,7 +1119,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;
 
-	for (BuildObject& buildObject : definitionsToBuild)
+	for (ComptimeBuildObject& buildObject : definitionsToBuild)
 	{
 		if (buildObject.stage != BuildStage_Linking)
 			continue;
@@ -1223,7 +1242,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		definitionsToCheck.push_back(&definition);
 	}
 
-	std::vector<BuildObject> definitionsToBuild;
+	std::vector<ComptimeBuildObject> definitionsToBuild;
 	// If it's possible a definition has new requirements, make sure we do another pass to add those
 	// requirements to the build
 	bool requireDependencyPropagation = false;
@@ -1368,7 +1387,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		if (canBuild && (!hasGuessedRefs || hasRelevantChangeOccurred) &&
 		    isCompileTimeObject(definition.type))
 		{
-			BuildObject objectToBuild = {};
+			ComptimeBuildObject objectToBuild = {};
 			objectToBuild.buildId = getNextFreeBuildId(environment);
 			objectToBuild.definition = &definition;
 			objectToBuild.hasAnyRefs = hasAnyRefs;
@@ -1381,7 +1400,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		int numToBuild = (int)definitionsToBuild.size();
 		Logf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
 
-		for (BuildObject& buildObject : definitionsToBuild)
+		for (ComptimeBuildObject& buildObject : definitionsToBuild)
 		{
 			Logf("\t%s\n", buildObject.definition->name.c_str());
 		}
@@ -1395,6 +1414,11 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 {
+	// We're about to start compiling comptime code; read the cache
+	// TODO: Multiple comptime configurations require different working dir
+	if (!buildReadCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs))
+		return false;
+
 	// Print state
 	if (logging.references)
 	{
@@ -1535,6 +1559,9 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 				             definition.name.c_str());
 		}
 	}
+
+	buildWriteCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
+	                    environment.comptimeNewCommandCrcs);
 
 	return errors == 0 && numBuildResolveErrors == 0;
 }

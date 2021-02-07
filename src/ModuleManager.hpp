@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
-#include "ModuleManagerEnums.hpp"
-
+#include "Build.hpp"
 #include "Evaluator.hpp"
+#include "ModuleManagerEnums.hpp"
 #include "RunProcess.hpp"
 #include "Tokenizer.hpp"
 
@@ -59,9 +59,6 @@ struct Module
 	std::vector<ModulePreBuildHook> preBuildHooks;
 };
 
-typedef std::unordered_map<std::string, uint32_t> ArtifactCrcTable;
-typedef std::pair<const std::string, uint32_t> ArtifactCrcTablePair;
-
 struct ModuleManager
 {
 	// Shared environment across all modules
@@ -88,7 +85,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, Module** moduleOut);
 bool moduleManagerEvaluateResolveReferences(ModuleManager& manager);
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager);
-bool moduleManagerBuild(ModuleManager& manager, std::vector<std::string>& builtOutputs);
+bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs);
 
 // Initializes a normal environment and outputs all generators available to it
 void listBuiltInGenerators();
