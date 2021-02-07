@@ -151,10 +151,12 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 
 			if (!stringOptions[i].output->empty())
 			{
-				NoteAtTokenf(pathToken,
-				             "ignoring %s - only the first encountered set will have an effect. "
-				             "Currently set to '%s'",
-				             stringOptions[i].option, stringOptions[i].output->c_str());
+				if (logging.optionAdding)
+					NoteAtTokenf(
+					    pathToken,
+					    "ignoring %s - only the first encountered set will have an effect. "
+					    "Currently set to '%s'",
+					    stringOptions[i].option, stringOptions[i].output->c_str());
 				return true;
 			}
 
