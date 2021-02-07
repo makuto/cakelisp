@@ -1781,5 +1781,5 @@ bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* ge
 			ReevaluateResolveReferences(environment, generatorName, /*warnIfNoReferences=*/false,
 			                            numErrors);
 	}
-	return numErrors = 0;
+	return numErrors == 0;
 }
