@@ -500,6 +500,8 @@ static const char* ProcessCommandArgumentTypeToString(ProcessCommandArgumentType
 			return "IncludeSearchDirs";
 		case ProcessCommandArgumentType_AdditionalOptions:
 			return "AdditionalOptions";
+		case ProcessCommandArgumentType_PrecompiledHeaderOutput:
+			return "PrecompiledHeaderOutput";
 		case ProcessCommandArgumentType_ObjectInput:
 			return "ObjectInput";
 		case ProcessCommandArgumentType_DynamicLibraryOutput:

@@ -27,14 +27,13 @@ echo "\nHot reloadable library\n"
 ./bin/cakelisp \
 	runtime/Config_Linux.cake runtime/HotReloadingCodeModifier.cake runtime/TextAdventure.cake || exit $?
 
-# TestMain is the loader. It doesn't care at all about fancy hot reloading macros, it just loads libs
-# ./bin/cakelisp \
-	# runtime/Config_Windows.cake runtime/HotLoader.cake  || exit $?
-
 echo "\nHot loader\n"
 
 ./bin/cakelisp \
 	runtime/Config_Linux.cake runtime/HotLoader.cake || exit $?
+
+# ./bin/cakelisp \
+	# runtime/Config_Windows.cake runtime/HotLoader.cake  || exit $?
 
 echo "\nCompile-time defines\n"
 

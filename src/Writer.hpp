@@ -37,3 +37,7 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
                           const NameStyleSettings& nameSettings,
                           const WriterFormatSettings& formatSettings,
                           const WriterOutputSettings& outputSettings);
+
+// Create combinedHeaderFilename which is a header that includes headersToInclude
+bool writeCombinedHeader(const char* combinedHeaderFilename,
+                         std::vector<const char*>& headersToInclude);

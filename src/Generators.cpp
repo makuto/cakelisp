@@ -68,6 +68,7 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
 			    {"'include-search-dirs", ProcessCommandArgumentType_IncludeSearchDirs},
 			    {"'additional-options", ProcessCommandArgumentType_AdditionalOptions},
+			    {"'precompiled-header-output", ProcessCommandArgumentType_PrecompiledHeaderOutput},
 			    {"'object-input", ProcessCommandArgumentType_ObjectInput},
 			    {"'library-output", ProcessCommandArgumentType_DynamicLibraryOutput},
 			    {"'executable-output", ProcessCommandArgumentType_ExecutableOutput},

@@ -26,6 +26,8 @@ const char* linkerDynamicLibraryExtension = "so";
 const char* defaultExecutableName = "a.out";
 #endif
 
+const char* precompiledHeaderExtension = "pch";
+
 void makeIncludeArgument(char* buffer, int bufferSize, const char* searchDir)
 {
 // TODO: Make this a setting rather than a define
@@ -67,6 +69,24 @@ void makeDynamicLibraryOutputArgument(char* buffer, int bufferSize, const char* 
 
 void makeExecutableOutputArgument(char* buffer, int bufferSize, const char* executableName,
                                   const char* linkExecutable)
+{
+	// Annoying exception for MSVC not having spaces between some arguments
+	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/Fe\"%s\"", executableName);
+	}
+	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/out:\"%s\"", executableName);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", executableName);
+	}
+}
+
+void makePrecompiledHeaderOutputArgument(char* buffer, int bufferSize, const char* executableName,
+                                         const char* linkExecutable)
 {
 	// Annoying exception for MSVC not having spaces between some arguments
 	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
+// This will delete the file at tempFilename
 bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 {
 	// Read temporary file and destination file and compare
@@ -483,6 +484,35 @@ bool writeGeneratorOutput(const GeneratorOutput& generatedOutput,
 			Log("\n");
 		}
 	}
+
+	return true;
+}
+
+bool writeCombinedHeader(const char* combinedHeaderFilename,
+                         std::vector<const char*>& headersToInclude)
+{
+	char tempFilename[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(tempFilename, "%s.temp", combinedHeaderFilename);
+
+	FILE* combinedHeaderFile = fopen(tempFilename, "w");
+	if (!combinedHeaderFile)
+	{
+		perror("fopen: ");
+		Logf("error: failed open %s", tempFilename);
+		return false;
+	}
+
+	fprint(combinedHeaderFile, "#pragma once\n");
+
+	for (const char* sourceHeader : headersToInclude)
+	{
+		fprintf(combinedHeaderFile, "#include \"%s\"\n", sourceHeader);
+	}
+
+	fclose(combinedHeaderFile);
+
+	if (!writeIfContentsNewer(tempFilename, combinedHeaderFilename))
+		return false;
 
 	return true;
 }

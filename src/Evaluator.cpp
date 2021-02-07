@@ -835,11 +835,102 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 	return numReferencesResolved;
 }
 
+bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
+{
+	const char* outputDir = cakelispWorkingDir;
+	const char* combinedHeaderName = "CakelispComptime.hpp";
+
+	std::vector<std::string> headerSearchDirectories;
+	{
+		// Need working dir to find cached file itself
+		headerSearchDirectories.push_back(".");
+		// Need Cakelisp src dir to find cakelisp headers. If these aren't checked for
+		// modification, comptime code can end up calling stale functions/initializing
+		// incorrect types
+		headerSearchDirectories.push_back(
+		    environment.cakelispSrcDir.empty() ? "src" : environment.cakelispSrcDir);
+	}
+
+	char combinedHeaderFilename[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(combinedHeaderFileName, "%s/%s", outputDir, combinedHeaderName);
+
+	std::vector<const char*> headersToCombine(ArraySize(g_comptimeDefaultHeaders));
+	for (int i = 0; i < ArraySize(g_comptimeDefaultHeaders); ++i)
+		headersToCombine[i] = g_comptimeDefaultHeaders[i];
+
+	if (!writeCombinedHeader(combinedHeaderFilename, headersToCombine))
+		return false;
+
+	char precompiledHeaderFilename[MAX_PATH_LENGTH] = {0};
+	if (!outputFilenameFromSourceFilename(outputDir, combinedHeaderFilename,
+	                                      precompiledHeaderExtension))
+	{
+		Logf("error: failed to prepare precompiled header output filename");
+		return false;
+	}
+
+	char precompiledHeaderOutputArgument[MAX_PATH_LENGTH + 5] = {0};
+	makePrecompiledHeaderOutputArgument(precompiledHeaderOutputArgument,
+	                                    sizeof(precompiledHeaderOutputArgument),
+	                                    precompiledHeaderFilename, buildExecutable);
+
+	const char* buildExecutable = environment.comptimePrecompileHeaderBuildCommand.fileToExecute.c_str();
+
+	char headerInclude[MAX_PATH_LENGTH] = {0};
+	if (environment.cakelispSrcDir.empty())
+		makeIncludeArgument(headerInclude, sizeof(headerInclude), "src/");
+	else
+		makeIncludeArgument(headerInclude, sizeof(headerInclude),
+		                    environment.cakelispSrcDir.c_str());
+
+	char precompileHeaderExecutable[MAX_PATH_LENGTH] = {0};
+	if (!resolveExecutablePath(buildExecutable, precompileHeaderExecutable,
+	                           sizeof(precompileHeaderExecutable)))
+		// TODO: Add error message?
+		continue;
+
+	ProcessCommandInput precompileHeaderInputs[] = {
+	    {ProcessCommandArgumentType_SourceInput, {combinedHeaderFilename}},
+	    {ProcessCommandArgumentType_PrecompiledHeaderOutput, {precompiledHeaderOutputArgument}},
+	    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
+	const char** buildArguments = MakeProcessArgumentsFromCommand(
+	    precompileHeaderExecutable, environment.comptimePrecompileHeaderBuildCommand.arguments,
+	    precompileHeaderInputs, ArraySize(precompileHeaderInputs));
+	if (!buildArguments)
+	{
+		// TODO: Abort building if cannot invoke compiler
+		continue;
+	}
+
+	// Can we use the cached version?
+	if (!cppFileNeedsBuild(environment, combinedHeaderFilename, precompiledHeaderFilename,
+	                       buildArguments, environment.comptimeCachedCommandCrcs,
+	                       environment.comptimeNewCommandCrcs,
+	                       environment.comptimeHeaderModifiedCache, headerSearchDirectories))
+	{
+		if (logging.buildProcess)
+			Logf("Skipping precompiling %s (using cached header)\n", sourceOutputName);
+		return true;
+	}
+
+	environment.comptimeHeadersPrepared = true;
+	return true;
+}
+
 int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
                                      std::vector<ComptimeBuildObject>& definitionsToBuild,
                                      int& numErrorsOut)
 {
 	int numReferencesResolved = 0;
+
+	if (environment.comptimeUsePrecompiledHeaders && !environment.comptimeHeadersPrepared)
+	{
+		if (!ComptimePrepareHeaders(environment))
+		{
+			++numErrorsOut;
+			return 0;
+		}
+	}
 
 	// Spin up as many compile processes as necessary
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
@@ -1395,19 +1486,23 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 		}
 	}
 
-	if (logging.compileTimeBuildObjects && !definitionsToBuild.empty())
+	int numReferencesResolved = 0;
+	if (!definitionsToBuild.empty())
 	{
-		int numToBuild = (int)definitionsToBuild.size();
-		Logf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
-
-		for (ComptimeBuildObject& buildObject : definitionsToBuild)
+		if (logging.compileTimeBuildObjects)
 		{
-			Logf("\t%s\n", buildObject.definition->name.c_str());
-		}
-	}
+			int numToBuild = (int)definitionsToBuild.size();
+			Logf("Building %d compile-time object%c\n", numToBuild, numToBuild > 1 ? 's' : ' ');
 
-	int numReferencesResolved =
-	    BuildExecuteCompileTimeFunctions(environment, definitionsToBuild, numErrorsOut);
+			for (ComptimeBuildObject& buildObject : definitionsToBuild)
+			{
+				Logf("\t%s\n", buildObject.definition->name.c_str());
+			}
+		}
+
+		numReferencesResolved =
+		    BuildExecuteCompileTimeFunctions(environment, definitionsToBuild, numErrorsOut);
+	}
 
 	return numReferencesResolved > 0 || requireDependencyPropagation;
 }

@@ -4,19 +4,19 @@
 #include "GeneratorHelpers.hpp"
 #include "Utilities.hpp"
 
+const char* g_comptimeDefaultHeaders[10] = {
+    "Evaluator.hpp", "EvaluatorEnums.hpp", "Tokenizer.hpp",  "GeneratorHelpers.hpp",
+    "Utilities.hpp", "ModuleManager.hpp",  "Converters.hpp", "RunProcess.hpp",
+    "Build.hpp",     "FileUtilities.hpp"};
+
 void makeCompileTimeHeaderFooter(GeneratorOutput& headerOut, GeneratorOutput& footerOut,
                                  GeneratorOutput* spliceAfterHeaders, const Token* blameToken)
 {
-	const char* defaultIncludes[] = {
-	    "Evaluator.hpp", "EvaluatorEnums.hpp", "Tokenizer.hpp",  "GeneratorHelpers.hpp",
-	    "Utilities.hpp", "ModuleManager.hpp",  "Converters.hpp", "RunProcess.hpp",
-	    "Build.hpp",     "FileUtilities.hpp"};
-
-	for (unsigned int i = 0; i < ArraySize(defaultIncludes); ++i)
+	for (unsigned int i = 0; i < ArraySize(g_comptimeDefaultHeaders); ++i)
 	{
 		addStringOutput(headerOut.source, "#include", StringOutMod_SpaceAfter, blameToken);
-		addStringOutput(headerOut.source, defaultIncludes[i], StringOutMod_SurroundWithQuotes,
-		                blameToken);
+		addStringOutput(headerOut.source, g_comptimeDefaultHeaders[i],
+		                StringOutMod_SurroundWithQuotes, blameToken);
 		addLangTokenOutput(headerOut.source, StringOutMod_NewlineAfter, blameToken);
 	}
 

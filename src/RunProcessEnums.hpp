@@ -13,6 +13,8 @@ enum ProcessCommandArgumentType
 	ProcessCommandArgumentType_IncludeSearchDirs,
 	ProcessCommandArgumentType_AdditionalOptions,
 
+	ProcessCommandArgumentType_PrecompiledHeaderOutput,
+
 	ProcessCommandArgumentType_ObjectInput,
 	ProcessCommandArgumentType_DynamicLibraryOutput,
 	ProcessCommandArgumentType_LibrarySearchDirs,

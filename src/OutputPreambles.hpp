@@ -7,3 +7,5 @@ void makeCompileTimeHeaderFooter(GeneratorOutput& headerOut, GeneratorOutput& fo
                                  GeneratorOutput* spliceAfterHeaders, const Token* blameToken);
 void makeRunTimeHeaderFooter(GeneratorOutput& headerOut, GeneratorOutput& footerOut,
                              const Token* blameToken);
+
+extern const char* g_comptimeDefaultHeaders[10];
