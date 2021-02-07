@@ -382,6 +382,11 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
                                                 const Token& referenceNameToken,
                                                 ObjectReference& reference);
 
+// When registering new generators, this function will re-evaluate any existing references that
+// would otherwise be guessed incorrectly, now that we know it's a generator
+bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* generatorName,
+                               GeneratorFunc function);
+
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName);
 void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
 bool findCompileTimeSymbol(EvaluatorEnvironment& environment, const char* symbolName);

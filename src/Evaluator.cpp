@@ -375,9 +375,9 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 	if (findIt != environment.definitions.end())
 	{
 		// Plain-old Cakelisp runtime function
-	    if (!isCompileTimeObject(findIt->second.type))
+		if (!isCompileTimeObject(findIt->second.type))
 			return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
-		                                   output);
+			                                   output);
 
 		if (findIt->second.type == ObjectType_CompileTimeFunction &&
 		    findCompileTimeFunction(environment, invocationName.contents.c_str()))
@@ -739,6 +739,102 @@ struct BuildObject
 	ObjectDefinition* definition = nullptr;
 };
 
+// Once a definition is known, references to it can be re-evaluated to splice in the appropriate
+// code. Returns the number of references resolved
+static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
+                                       const char* referenceToResolve, bool warnIfNoReferences,
+                                       int& numErrorsOut)
+{
+	int numReferencesResolved = 0;
+
+	// Resolve references
+	ObjectReferencePoolMap::iterator referencePoolIt =
+	    environment.referencePools.find(referenceToResolve);
+	if (referencePoolIt == environment.referencePools.end())
+	{
+		if (warnIfNoReferences)
+			Logf(
+			    "warning: built an object %s which had no references. It should not have been "
+			    "built. There may be a problem with Cakelisp internally\n",
+			    referenceToResolve);
+		return 0;
+	}
+
+	bool hasErrors = false;
+	std::vector<ObjectReference>& references = referencePoolIt->second.references;
+	// The old-style loop must be used here because EvaluateGenerate_Recursive can add to this
+	// list, which invalidates iterators
+	for (int i = 0; i < (int)references.size(); ++i)
+	{
+		const int maxNumReferences = 1 << 13;
+		if (i >= maxNumReferences)
+		{
+			Logf(
+			    "error: definition %s exceeded max number of references (%d). Is it in an infinite "
+			    "loop?",
+			    referenceToResolve, maxNumReferences);
+			for (int n = 0; n < 10; ++n)
+			{
+				ErrorAtToken((*references[n].tokens)[references[n].startIndex], "Reference here");
+			}
+			hasErrors = true;
+			++numErrorsOut;
+			break;
+		}
+
+		if (references[i].isResolved)
+			continue;
+
+		if (references[i].type == ObjectReferenceResolutionType_Splice &&
+		    references[i].spliceOutput)
+		{
+			ObjectReference* referenceValidPreEval = &references[i];
+			// In case a compile-time function has already guessed the invocation was a C/C++
+			// function, clear that invocation output
+			resetGeneratorOutput(*referenceValidPreEval->spliceOutput);
+
+			if (logging.buildProcess)
+				NoteAtToken((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
+				            "resolving reference");
+
+			// Evaluate from that reference
+			int result = EvaluateGenerate_Recursive(
+			    environment, referenceValidPreEval->context, *referenceValidPreEval->tokens,
+			    referenceValidPreEval->startIndex, *referenceValidPreEval->spliceOutput);
+			referenceValidPreEval = nullptr;
+			hasErrors |= result > 0;
+			numErrorsOut += result;
+		}
+		else if (references[i].type == ObjectReferenceResolutionType_AlreadyLoaded)
+		{
+			// Nothing to do
+		}
+		else
+		{
+			// Do not resolve, we don't know how to resolve this type of reference
+			ErrorAtToken((*references[i].tokens)[references[i].startIndex],
+			             "do not know how to resolve this reference (internal code error?)");
+			hasErrors = true;
+			++numErrorsOut;
+			continue;
+		}
+
+		if (hasErrors)
+			continue;
+
+		// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
+		// again isn't going to change the number of errors
+		// Note that if new references emerge to this definition, they will automatically be
+		// recognized as the definition and handled then and there, so we don't need to make
+		// more than one pass
+		references[i].isResolved = true;
+
+		++numReferencesResolved;
+	}
+
+	return numReferencesResolved;
+}
+
 int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
                                      std::vector<BuildObject>& definitionsToBuild,
                                      int& numErrorsOut)
@@ -1075,89 +1171,16 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		buildObject.stage = BuildStage_ResolvingReferences;
 
-		// Resolve references
-		ObjectReferencePoolMap::iterator referencePoolIt =
-		    environment.referencePools.find(buildObject.definition->name);
-		if (referencePoolIt == environment.referencePools.end())
-		{
-			if (!buildObject.definition->environmentRequired)
-				Log("error: built an object which had no references. It should not have been "
-				    "required. There must be a problem with Cakelisp internally\n");
-			continue;
-		}
+		// warnIfNoReferences is only enabled if the environment didn't require this definition for
+		// some other reason. environmentRequired is the catch-all for comptime functions that
+		// aren't necessarily referenced by the user's code (e.g. comptime var destructors)
+		int numErrorsOutBefore = numErrorsOut;
+		numReferencesResolved += ReevaluateResolveReferences(
+		    environment, buildObject.definition->name.c_str(),
+		    /*warnIfNoReferences=*/!buildObject.definition->environmentRequired, numErrorsOut);
 
-		bool hasErrors = false;
-		std::vector<ObjectReference>& references = referencePoolIt->second.references;
-		// The old-style loop must be used here because EvaluateGenerate_Recursive can add to this
-		// list, which invalidates iterators
-		for (int i = 0; i < (int)references.size(); ++i)
-		{
-			const int maxNumReferences = 1 << 13;
-			if (i >= maxNumReferences)
-			{
-				ErrorAtTokenf(*buildObject.definition->definitionInvocation,
-				              "error: definition %s exceeded max number of references (%d). Is it "
-				              "in an infinite loop?",
-				              buildObject.definition->name.c_str(), maxNumReferences);
-				for (int n = 0; n < 10; ++n)
-				{
-					ErrorAtToken((*references[n].tokens)[references[n].startIndex],
-					             "Reference here");
-				}
-				hasErrors = true;
-				break;
-			}
-
-			if (references[i].isResolved)
-				continue;
-
-			if (references[i].type == ObjectReferenceResolutionType_Splice &&
-			    references[i].spliceOutput)
-			{
-				ObjectReference* referenceValidPreEval = &references[i];
-				// In case a compile-time function has already guessed the invocation was a C/C++
-				// function, clear that invocation output
-				resetGeneratorOutput(*referenceValidPreEval->spliceOutput);
-
-				if (logging.buildProcess)
-					NoteAtToken((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
-					            "resolving reference");
-
-				// Evaluate from that reference
-				int result = EvaluateGenerate_Recursive(
-				    environment, referenceValidPreEval->context, *referenceValidPreEval->tokens,
-				    referenceValidPreEval->startIndex, *referenceValidPreEval->spliceOutput);
-				referenceValidPreEval = nullptr;
-				hasErrors |= result > 0;
-				numErrorsOut += result;
-			}
-			else if (references[i].type == ObjectReferenceResolutionType_AlreadyLoaded)
-			{
-				// Nothing to do
-			}
-			else
-			{
-				// Do not resolve, we don't know how to resolve this type of reference
-				ErrorAtToken((*references[i].tokens)[references[i].startIndex],
-				             "do not know how to resolve this reference (internal code error?)");
-				hasErrors = true;
-				continue;
-			}
-
-			if (hasErrors)
-				continue;
-
-			// Regardless of what evaluate turned up, we resolved this as far as we care. Trying
-			// again isn't going to change the number of errors
-			// Note that if new references emerge to this definition, they will automatically be
-			// recognized as the definition and handled then and there, so we don't need to make
-			// more than one pass
-			references[i].isResolved = true;
-
-			++numReferencesResolved;
-		}
-
-		if (hasErrors)
+		// This definition had errors, don't consider it finished
+		if (numErrorsOut != numErrorsOutBefore)
 			continue;
 
 		if (logging.buildProcess)
@@ -1737,4 +1760,26 @@ bool searchForFileInPathsWithError(const char* shortPath, const char* encountere
 	}
 
 	return true;
+}
+
+bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* generatorName,
+                               GeneratorFunc function)
+{
+	int numErrors = 0;
+
+	if (findGenerator(environment, generatorName))
+	{
+		Logf("warning: re-registered generator %s. References will NOT be reevaluated\n",
+		     generatorName);
+		return true;
+	}
+	else
+	{
+		environment.generators[generatorName] = function;
+
+		if (!environment.referencePools.empty())
+			ReevaluateResolveReferences(environment, generatorName, /*warnIfNoReferences=*/false,
+			                            numErrors);
+	}
+	return numErrors = 0;
 }
