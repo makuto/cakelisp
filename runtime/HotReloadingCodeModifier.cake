@@ -81,10 +81,23 @@
   (for-in definition-pair (& ObjectDefinitionPair) (field environment definitions)
           (unless (= (field definition-pair second type) ObjectType_Variable)
             (continue))
-          ;; TODO: Support arrays
-          (when (= 0 (on-call (field definition-pair first) compare "rooms"))
-            (when verbose (printf "SKIPPING %s\n" (on-call (field definition-pair first) c_str)))
-            (continue))
+
+          ;; Check if this variable is reloadable
+          (var variable-start-invocation (* (const Token))
+               (field definition-pair second definitionInvocation))
+          (var variable-type (* (const Token)) (+ variable-start-invocation 3))
+          (when (= TokenType_OpenParen (path variable-type > type))
+            (var top-level-type (* (const Token)) (+ variable-type 1))
+            (cond
+              ;; TODO: Add array support
+              ((= 0 (on-call (path top-level-type > contents) compare "[]"))
+               (NoteAtToken (deref variable-start-invocation) "hot-reloadable arrays not supported yet")
+               (continue))
+              ;; Constants cannot be changed, so do not need to be reloaded
+              ;; What happens when you reload the lib? Do the constants get updated?
+              ((= 0 (on-call (path top-level-type > contents) compare "const"))
+               (continue))))
+
           (when verbose (printf ">>> Variable %s\n" (on-call (field definition-pair first) c_str)))
           (var definition (& ObjectDefinition) (field definition-pair second))
           (var var-to-modify modify-definition)
