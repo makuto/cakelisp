@@ -2692,12 +2692,37 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation bitwiseLeftShift[] = {{Splice, "<<", 1}};
 	const CStatementOperation bitwiseRightShift[] = {{Splice, ">>", 1}};
 
-	const CStatementOperation relationalEquality[] = {{Splice, "==", 1}};
-	const CStatementOperation relationalNotEqual[] = {{Splice, "!=", 1}};
-	const CStatementOperation relationalLessThanEqual[] = {{Splice, "<=", 1}};
-	const CStatementOperation relationalGreaterThanEqual[] = {{Splice, ">=", 1}};
-	const CStatementOperation relationalLessThan[] = {{Splice, "<", 1}};
-	const CStatementOperation relationalGreaterThan[] = {{Splice, ">", 1}};
+	// Need both parens and only accept two parameters, otherwise operator precedence will confuse
+	const CStatementOperation relationalEquality[] = {{OpenParen, nullptr, -1},
+	                                                  {Expression, nullptr, 1},
+	                                                  {Keyword, "==", -1},
+	                                                  {Expression, nullptr, 2},
+	                                                  {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalNotEqual[] = {{OpenParen, nullptr, -1},
+	                                                  {Expression, nullptr, 1},
+	                                                  {Keyword, "!=", -1},
+	                                                  {Expression, nullptr, 2},
+	                                                  {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalLessThanEqual[] = {{OpenParen, nullptr, -1},
+	                                                       {Expression, nullptr, 1},
+	                                                       {Keyword, "<=", -1},
+	                                                       {Expression, nullptr, 2},
+	                                                       {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalGreaterThanEqual[] = {{OpenParen, nullptr, -1},
+	                                                          {Expression, nullptr, 1},
+	                                                          {Keyword, ">=", -1},
+	                                                          {Expression, nullptr, 2},
+	                                                          {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalLessThan[] = {{OpenParen, nullptr, -1},
+	                                                  {Expression, nullptr, 1},
+	                                                  {Keyword, "<", -1},
+	                                                  {Expression, nullptr, 2},
+	                                                  {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalGreaterThan[] = {{OpenParen, nullptr, -1},
+	                                                     {Expression, nullptr, 1},
+	                                                     {Keyword, ">", -1},
+	                                                     {Expression, nullptr, 2},
+	                                                     {CloseParen, nullptr, -1}};
 
 	// Parentheses are especially necessary because the user's expectation will be broken without
 	// For example: (/ (- a b) c)

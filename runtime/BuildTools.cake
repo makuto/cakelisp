@@ -1,3 +1,6 @@
+;; Build Tools - useful macros/functions for compile-time code
+;; These rely on Cakelisp, so don't expect it to work outside comptime
+
 (skip-build)
 
 ;; Returns exit code (0 = success)
@@ -8,7 +11,7 @@
     (Log "error: failed to run process\n")
     (return 1))
 
-  (waitForAllProcessesClosed nullptr)
+  (waitForAllProcessesClosed null)
   (return status))
 
 (defmacro gen-unique-symbol (token-var-name symbol prefix string reference-token any)
@@ -83,7 +86,8 @@
    (unless (resolveExecutablePath (token-splice executable-name)
                                   (token-splice-addr resolved-executable-var)
                                   (sizeof (token-splice-addr resolved-executable-var)))
-     (Logf "error: failed to resolved executable %s. Is it installed?\\n"
+     (Logf "error: failed to resolved executable %s. Is it installed? Is the environment/path " \
+           "configured correctly?\\n"
            (token-splice executable-name))
      (return false))
    (set (field (token-splice arguments-out-name) fileToExecute)
@@ -101,12 +105,26 @@
 (defmacro run-process-sequential-or (command array &rest on-failure array)
   (var my-tokens (<> std::vector Token))
   (tokenize-push
-   ;; output
-   my-tokens
-   (scope (run-process-make-arguments process-command
-                                      ;; +1 because we want the inside of the command
-                                      (token-splice-rest (+ 1 command) tokens))
-          (unless (= 0 (run-process-wait-for-completion (addr process-command)))
-            (token-splice-rest on-failure tokens))))
-  (PushBackAll output my-tokens)
+   output
+   (scope
+    (run-process-make-arguments process-command
+                                ;; +1 because we want the inside of the command
+                                (token-splice-rest (+ 1 command) tokens))
+    (unless (= 0 (run-process-wait-for-completion (addr process-command)))
+      (token-splice-rest on-failure tokens))))
+  (return true))
+
+;; status-int-ptr should be an address to an int variable which can be checked for process exit
+;; code, but only after waitForAllProcessesClosed
+(defmacro run-process-start-or (status-int-ptr any command array &rest on-failure-to-start array)
+  (var my-tokens (<> std::vector Token))
+  (tokenize-push
+   output
+   (scope
+    (run-process-make-arguments process-command
+                                ;; +1 because we want the inside of the command
+                                (token-splice-rest (+ 1 command) tokens))
+    (unless (= 0 (runProcess process-command (token-splice status-int-ptr)))
+     (Log "error: failed to start process\n")
+     (token-splice-rest on-failure-to-start tokens))))
   (return true))

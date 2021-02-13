@@ -905,6 +905,8 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 	int nameTokenIndex = startTokenIndex + 1;
 	// int startArgsIndex = nameTokenIndex + 1;
 	const Token& nameToken = tokens[nameTokenIndex];
+	int numArguments = getNumArguments(tokens, startTokenIndex, endTokenIndex);
+	int numArgumentsHandled = 0;
 	for (int i = 0; i < numOperations; ++i)
 	{
 		switch (operation[i].type)
@@ -944,6 +946,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				                                              startSpliceListIndex, output);
 				if (numErrors)
 					return false;
+				numArgumentsHandled = numArguments;
 				break;
 			}
 			case OpenParen:
@@ -987,6 +990,9 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 					return false;
 
 				PushBackAll(output.source, typeOutput);
+
+				++numArgumentsHandled;
+
 				break;
 			}
 			case ExpressionOptional:
@@ -1008,6 +1014,9 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
 				                               startExpressionIndex, output) != 0)
 					return false;
+
+				++numArgumentsHandled;
+
 				break;
 			}
 			case Expression:
@@ -1027,6 +1036,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
 				                               startExpressionIndex, output) != 0)
 					return false;
+				++numArgumentsHandled;
 				break;
 			}
 			case ExpressionList:
@@ -1050,6 +1060,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				if (EvaluateGenerateAll_Recursive(environment, expressionContext, tokens,
 				                                  startExpressionIndex, output) != 0)
 					return false;
+				numArgumentsHandled += numArguments;
 				break;
 			}
 			case Body:
@@ -1071,12 +1082,24 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				                                              startBodyIndex, output);
 				if (numErrors)
 					return false;
+				numArgumentsHandled += numArguments;
 				break;
 			}
 			default:
 				Log("Output type not handled\n");
 				return false;
 		}
+	}
+
+	if (numArgumentsHandled < (numArguments - 1))
+	{
+		int extraneousArgument =
+		    getArgument(tokens, startTokenIndex, numArgumentsHandled + 1, endTokenIndex);
+		if (extraneousArgument != -1)
+			ErrorAtTokenf(tokens[extraneousArgument],
+			              "unexpected extra argument. This generator only handles %d argumen%s",
+			              numArgumentsHandled, numArgumentsHandled > 1 ? "ts" : "t");
+		return false;
 	}
 
 	return true;
