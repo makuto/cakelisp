@@ -1063,10 +1063,15 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 		return false;
 
 	bool isModuleLocal =
-	    tokens[startTokenIndex + 1].contents.compare("def-function-signature-local") == 0;
+	    tokens[startTokenIndex + 1].contents.compare("def-function-signature-global") != 0;
 
-	if (context.scope != EvaluatorScope_Module && isModuleLocal)
-		NoteAtToken(tokens[startTokenIndex + 1], "no need to specify local if in body scope");
+	if (!isModuleLocal && context.scope != EvaluatorScope_Module)
+	{
+		ErrorAtToken(tokens[startTokenIndex + 1],
+		             "cannot specify global if in body or expression scope. Move it to top-level "
+		             "module scope");
+		return false;
+	}
 
 	std::vector<StringOutput>& outputDest = isModuleLocal ? output.source : output.header;
 
@@ -1153,13 +1158,13 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
 	// Global variables will get extern'd in the header
-	bool isGlobal = funcNameToken.contents.compare("global-var") == 0;
+	bool isGlobal = funcNameToken.contents.compare("var-global") == 0;
 	if (isGlobal && !ExpectEvaluatorScope("global variable declaration", tokens[startTokenIndex],
 	                                      context, EvaluatorScope_Module))
 		return false;
 
 	// Only necessary for static variables declared inside a function
-	bool isStatic = funcNameToken.contents.compare("static-var") == 0;
+	bool isStatic = funcNameToken.contents.compare("var-static") == 0;
 	if (isStatic && !ExpectEvaluatorScope("static variable declaration", tokens[startTokenIndex],
 	                                      context, EvaluatorScope_Body))
 		return false;
@@ -2895,7 +2900,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["defun-comptime"] = DefunGenerator;
 
 	environment.generators["def-function-signature"] = DefFunctionSignatureGenerator;
-	environment.generators["def-function-signature-local"] = DefFunctionSignatureGenerator;
+	environment.generators["def-function-signature-global"] = DefFunctionSignatureGenerator;
 
 	environment.generators["def-type-alias"] = DefTypeAliasGenerator;
 	environment.generators["def-type-alias-global"] = DefTypeAliasGenerator;
@@ -2907,8 +2912,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["defstruct-local"] = DefStructGenerator;
 
 	environment.generators["var"] = VariableDeclarationGenerator;
-	environment.generators["global-var"] = VariableDeclarationGenerator;
-	environment.generators["static-var"] = VariableDeclarationGenerator;
+	environment.generators["var-global"] = VariableDeclarationGenerator;
+	environment.generators["var-static"] = VariableDeclarationGenerator;
 
 	environment.generators["at"] = ArrayAccessGenerator;
 	environment.generators["nth"] = ArrayAccessGenerator;
