@@ -39,7 +39,7 @@
         ((and (= TokenType_Symbol (path current-token > type))
               (isSpecialSymbol (deref current-token)))
          (cond
-           ((= 0 (on-call (path current-token > contents) compare ":in-directory"))
+           ((= 0 (call-on compare (path current-token > contents) ":in-directory"))
             (var next-token (* (const Token)) (+ 1 current-token))
             (unless (< next-token end-token)
               (ErrorAtToken (deref next-token) "expected expression for working directory")
@@ -61,7 +61,7 @@
              ;;  (set (token-splice-addr working-dir-str-var) working-dir-alloc)
              ;;  (free (type-cast working-dir-alloc (* void))))
              (set (field (token-splice arguments-out-name) working-directory)
-                  (on-call (token-splice-addr working-dir-str-var) c_str)))
+                  (call-on c_str (token-splice-addr working-dir-str-var))))
 
             ;; Absorb src for incr
             (set current-token next-token))
@@ -72,7 +72,7 @@
 
         ;; Everything else is a argument to the command
         (true
-         (on-call command-arguments push_back (deref current-token))))
+         (call-on push_back command-arguments (deref current-token))))
       (incr current-token)))
 
   (gen-unique-symbol resolved-executable-var "resolved-executable" (deref executable-name))
@@ -116,6 +116,7 @@
 
 ;; status-int-ptr should be an address to an int variable which can be checked for process exit
 ;; code, but only after waitForAllProcessesClosed
+;; TODO: Make run-process-start-or block based on number of cores?
 (defmacro run-process-start-or (status-int-ptr any command array &rest on-failure-to-start array)
   (var my-tokens (<> std::vector Token))
   (tokenize-push

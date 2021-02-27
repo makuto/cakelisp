@@ -35,7 +35,7 @@
   (for-in connected-room (& (const room)) (path room-to-print > connected-rooms)
           (printf "%d: %s\n" room-index (field connected-room name))
           (incr room-index))
-  (when (on-call (path room-to-print > connected-rooms) empty)
+  (when (call-on empty (path room-to-print > connected-rooms))
     (printf "There are no connected rooms. This must be the end of the game!\n")))
 
 ;; Return true to hot-reload, or false to exit
@@ -66,7 +66,7 @@
        (print-help))
       ((call (in std isdigit) input)
        (var room-request int (atoi (addr input)))
-       (var num-rooms int (on-call (path current-room > connected-rooms) size))
+       (var num-rooms int (call-on size (path current-room > connected-rooms)))
        (unless (and num-rooms (< room-request num-rooms))
          (printf "I don't know where that is. There are %d rooms\n" num-rooms)
          (continue))

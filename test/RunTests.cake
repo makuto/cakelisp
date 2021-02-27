@@ -37,7 +37,7 @@
     (Logf "\n===============\n%s\n\n" test-name)
     (run-process-sequential-or
      (cakelisp-executable "--execute" test-file)
-     (Logf "error: test %s failed" test-name)
+     (Logf "error: test %s failed\n" test-name)
      (return false))
     (Logf "\n%s succeeded\n" test-name)
     (incr i))

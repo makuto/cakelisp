@@ -1,7 +1,7 @@
 (skip-build)
 
 (defmacro std-str-equals (std-string-var any str any)
-  (tokenize-push output (= 0 (on-call (token-splice std-string-var) compare (token-splice str))))
+  (tokenize-push output (= 0 (call-on compare (token-splice std-string-var) (token-splice str))))
   (return true))
 
 ;; This should evaluate its argument, but I'm just hacking it in right now anyways
@@ -75,7 +75,7 @@
             (return false)))
          ;; Type names
          (true
-          (unless (writeStringToBufferErrorToken (on-call (path current-type-token > contents) c_str)
+          (unless (writeStringToBufferErrorToken (call-on c_str (path current-type-token > contents))
                                                  (addr type-name-string-write-head) type-to-name-string-buffer
                                                  (sizeof type-to-name-string-buffer) (deref current-type-token))
             (return false)))))
@@ -96,14 +96,14 @@
   (set (field destroy-var-func-name-symbol type) TokenType_Symbol)
 
   (var destroy-func-name (* (const char))
-       (on-call (field destroy-var-func-name-str contents) c_str))
+       (call-on c_str (field destroy-var-func-name-str contents)))
 
   ;; Define the destructor if one for this type isn't already defined
   (unless (or (findCompileTimeFunction environment destroy-func-name)
               (findObjectDefinition environment destroy-func-name))
     (var destruction-func-def (* (<> std::vector Token)) (new (<> std::vector Token)))
     ;; Need to have the environment delete this once it's safe
-    (on-call (field environment comptimeTokens) push_back destruction-func-def)
+    (call-on push_back (field environment comptimeTokens) destruction-func-def)
     (tokenize-push (deref destruction-func-def)
                    (defun-comptime (token-splice-addr destroy-var-func-name-symbol) (data (* void))
                      (delete (type-cast data (* (token-splice-addr var-type))))))
@@ -119,7 +119,7 @@
     ;; built. This throwaway will essentially only have a splice to that output, so we don't really
     ;; need to keep track of it, except to destroy it once everything is done
     (var throwaway-output (* GeneratorOutput) (new GeneratorOutput))
-    (on-call (field environment orphanedOutputs) push_back throwaway-output)
+    (call-on push_back (field environment orphanedOutputs) throwaway-output)
     (unless (= 0 (EvaluateGenerate_Recursive environment
                                              destruction-func-context
                                              (deref destruction-func-def) 0
@@ -208,7 +208,7 @@
     (when (= TokenType_OpenParen (field current-token type))
       (var invocation-token (& (const Token)) (at (+ 1 current-index) tokens))
       (cond
-        ((= 0 (on-call (field invocation-token contents) compare "namespace"))
+        ((= 0 (call-on compare (field invocation-token contents) "namespace"))
          (unless (< (+ 3 current-index) end-invocation-index)
            (ErrorAtToken invocation-token "missing name or body arguments")
            (return false))
@@ -218,10 +218,10 @@
          (addStringOutput output-dest (field namespace-name-token contents)
                           StringOutMod_None (addr namespace-name-token))
          (addLangTokenOutput output-dest StringOutMod_OpenBlock (addr namespace-name-token))
-         (on-call namespace-stack push_back (FindCloseParenTokenIndex tokens current-index)))
+         (call-on push_back namespace-stack (FindCloseParenTokenIndex tokens current-index)))
 
-        ((or (= 0 (on-call (field invocation-token contents) compare "class"))
-             (= 0 (on-call (field invocation-token contents) compare "struct")))
+        ((or (= 0 (call-on compare (field invocation-token contents) "class"))
+             (= 0 (call-on compare (field invocation-token contents) "struct")))
          (unless (< (+ 2 current-index) end-invocation-index)
            (ErrorAtToken invocation-token "missing name argument")
            (return false))
@@ -249,7 +249,7 @@
   (return true))
 
 (defmacro command-add-string-argument (command any new-argument any)
-  (tokenize-push output (on-call (field (token-splice command) arguments) push_back
+  (tokenize-push output (call-on push_back (field (token-splice command) arguments)
                                  (array ProcessCommandArgumentType_String
                                         (token-splice new-argument))))
   (return true))

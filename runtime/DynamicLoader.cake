@@ -134,15 +134,15 @@
             (dlclose (field libraryPair second handle)))
            ('Windows
             (FreeLibrary (type-cast (field libraryPair second handle) HMODULE)))))
-  (on-call dynamicLibraries clear))
+  (call-on clear dynamicLibraries))
 
 (defun dynamic-library-close (handleToClose DynamicLibHandle)
   (var libHandle DynamicLibHandle null)
-  (var libraryIt (in DynamicLibraryMap iterator) (on-call dynamicLibraries begin))
-  (while (!= libraryIt (on-call dynamicLibraries end))
+  (var libraryIt (in DynamicLibraryMap iterator) (call-on begin dynamicLibraries))
+  (while (!= libraryIt (call-on end dynamicLibraries))
     (when (= handleToClose (path libraryIt > second . handle))
       (set libHandle (path libraryIt > second . handle))
-      (on-call dynamicLibraries erase libraryIt)
+      (call-on erase dynamicLibraries libraryIt)
       (break))
     (incr libraryIt))
 

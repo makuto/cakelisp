@@ -2634,12 +2634,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
 
 	const CStatementOperation memberFunctionInvocation[] = {
-	    {Expression, nullptr, 1},        {KeywordNoSpace, ".", -1},    {Expression, nullptr, 2},
+	    {Expression, nullptr, 2},        {KeywordNoSpace, ".", -1},    {Expression, nullptr, 1},
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
 	    {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation dereferenceMemberFunctionInvocation[] = {
-	    {Expression, nullptr, 1},        {KeywordNoSpace, "->", -1},   {Expression, nullptr, 2},
+	    {Expression, nullptr, 2},        {KeywordNoSpace, "->", -1},   {Expression, nullptr, 1},
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
 	    {SmartEndStatement, nullptr, -1}};
 
@@ -2781,8 +2781,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"deref", dereference, ArraySize(dereference)},
 	    {"addr", addressOf, ArraySize(addressOf)},
 	    {"field", field, ArraySize(field)},
-	    {"on-call", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
-	    {"on-call-ptr", dereferenceMemberFunctionInvocation,
+	    {"call-on", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
+	    {"call-on-ptr", dereferenceMemberFunctionInvocation,
 	     ArraySize(dereferenceMemberFunctionInvocation)},
 	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
 	    {"in", scopeResolution, ArraySize(scopeResolution)},
@@ -2968,7 +2968,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
-	    "on-call", "on-call-ptr", "call", "in", "type-cast", "type",
+	    "call-on", "call-on-ptr", "call", "in", "type-cast", "type",
 	    // Boolean
 	    "or", "and", "not",
 	    // Bitwise

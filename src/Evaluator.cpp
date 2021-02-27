@@ -288,7 +288,8 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// Don't even try to validate the code if the macro wasn't satisfied
 		if (!macroSucceeded)
 		{
-			ErrorAtToken(invocationName, "macro returned failure");
+			ErrorAtTokenf(invocationName, "macro '%s' returned failure",
+			              invocationName.contents.c_str());
 
 			// Deleting these tokens is only safe at this point because we know we have not
 			// evaluated them. As soon as they are evaluated, they must be kept around
