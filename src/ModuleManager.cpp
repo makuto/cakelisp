@@ -353,7 +353,6 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	makeSafeFilename(safePathBuffer, sizeof(safePathBuffer), resolvedPath);
 
 	const char* normalizedFilename = StrDuplicate(safePathBuffer);
-	Logf("'%s' normalized to '%s'\n", filename, normalizedFilename);
 	// Enabling this makes all file:line messages really long. For now, I'll keep it as relative to
 	// current working directory of this executable.
 	// const char* normalizedFilename = makeAbsolutePath_Allocated(".", filename);
