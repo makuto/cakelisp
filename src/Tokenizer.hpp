@@ -39,13 +39,14 @@ CAKELISP_API bool tokenizeLinePrintError(const char* inputLine, const char* sour
 bool validateTokens(const std::vector<Token>& tokens);
 
 void printTokens(const std::vector<Token>& tokens);
-void prettyPrintTokens(const std::vector<Token>& tokens);
+CAKELISP_API void prettyPrintTokens(const std::vector<Token>& tokens);
 void prettyPrintTokensToFile(FILE* file, const std::vector<Token>& tokens);
 
 bool writeCharToBufferErrorToken(char c, char** at, char* bufferStart, int bufferSize,
                                  const Token& token);
-bool writeStringToBufferErrorToken(const char* str, char** at, char* bufferStart, int bufferSize,
-                                   const Token& token);
-bool appendTokenToString(const Token& token, char** at, char* bufferStart, int bufferSize);
+CAKELISP_API bool writeStringToBufferErrorToken(const char* str, char** at, char* bufferStart,
+                                                int bufferSize, const Token& token);
+CAKELISP_API bool appendTokenToString(const Token& token, char** at, char* bufferStart,
+                                      int bufferSize);
 
 extern CAKELISP_API int g_totalLinesTokenized;

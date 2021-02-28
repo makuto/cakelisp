@@ -15,12 +15,19 @@
 #ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
+// TODO: These should change based on compiler, i.e. you should be able to build things via mingw on
+// Windows, using the Unix extensions
 const char* compilerObjectExtension = "obj";
-const char* linkerDynamicLibraryPrefix = "";
+const char* compilerDebugSymbolsExtension = "pdb";
+const char* compilerImportLibraryExtension = "lib";
+const char* linkerDynamicLibraryPrefix = "";  // Not applicable
 const char* linkerDynamicLibraryExtension = "dll";
 const char* defaultExecutableName = "output.exe";
 #else
 const char* compilerObjectExtension = "o";
+const char* compilerDebugSymbolsExtension = "";   // Not applicable
+const char* compilerImportLibraryExtension = "";  // Not applicable
 const char* linkerDynamicLibraryPrefix = "lib";
 const char* linkerDynamicLibraryExtension = "so";
 const char* defaultExecutableName = "a.out";
@@ -43,6 +50,33 @@ void makeObjectOutputArgument(char* buffer, int bufferSize, const char* objectNa
 	SafeSnprintf(buffer, bufferSize, "/Fo\"%s\"", objectName);
 #else
 	SafeSnprintf(buffer, bufferSize, "%s", objectName);
+#endif
+}
+
+void makeImportLibraryPathArgument(char* buffer, int bufferSize, const char* path,
+                                   const char* buildExecutable)
+{
+	if (StrCompareIgnoreCase(buildExecutable, "link.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/LIBPATH:%s", path);
+	}
+	// else if (StrCompareIgnoreCase(buildExecutable, "link.exe") == 0)
+	// {
+	// 	SafeSnprintf(buffer, bufferSize, "/OUT:\"%s\"", path);
+	// }
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", path);
+	}
+}
+
+void makeDebugSymbolsOutputArgument(char* buffer, int bufferSize, const char* debugSymbolsName)
+{
+	// TODO: Make this a setting rather than a define
+#ifdef WINDOWS
+	SafeSnprintf(buffer, bufferSize, "/Fd\"%s\"", debugSymbolsName);
+// #else // No repositioning of debug symbols necessary
+// SafeSnprintf(buffer, bufferSize, "%s", debugSymbolsName);
 #endif
 }
 
@@ -154,6 +188,38 @@ void makeLinkerArgument(char* buffer, int bufferSize, const char* argument,
 	}
 }
 
+void convertBuildArguments(BuildArgumentConverter* argumentsToConvert, int numArgumentsToConvert,
+                           const char* buildExecutable)
+{
+	for (int typeIndex = 0; typeIndex < numArgumentsToConvert; ++typeIndex)
+	{
+		int numStrings = (int)argumentsToConvert[typeIndex].stringsIn->size();
+		argumentsToConvert[typeIndex].argumentsOutMemory.resize(numStrings);
+		argumentsToConvert[typeIndex].argumentsOut->resize(numStrings);
+
+		int currentString = 0;
+		for (const std::string& stringIn : *argumentsToConvert[typeIndex].stringsIn)
+		{
+			if (argumentsToConvert[typeIndex].argumentConversionFunc)
+			{
+				// Give some extra padding for prefixes
+				char argumentOut[MAX_PATH_LENGTH + 15] = {0};
+				argumentsToConvert[typeIndex].argumentConversionFunc(
+				    argumentOut, sizeof(argumentOut), stringIn.c_str(), buildExecutable);
+				argumentsToConvert[typeIndex].argumentsOutMemory[currentString] = argumentOut;
+			}
+			else
+				argumentsToConvert[typeIndex].argumentsOutMemory[currentString] = stringIn;
+
+			++currentString;
+		}
+
+		for (int stringIndex = 0; stringIndex < numStrings; ++stringIndex)
+			(*argumentsToConvert[typeIndex].argumentsOut)[stringIndex] =
+			    argumentsToConvert[typeIndex].argumentsOutMemory[stringIndex].c_str();
+	}
+}
+
 bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
                            int resolvedPathOutSize)
 {
@@ -207,8 +273,6 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 
 		if (variablesFound)
 		{
-			// SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%sHost%s/%s/%s", vcInstallDir,
-			// vcHostArchitecture,
 			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%sbin\\Host%s\\%s\\%s",
 			             vcInstallDir, vcHostArchitecture, vcTargetArchitecture, fileToExecute);
 
@@ -266,6 +330,12 @@ void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCom
 		outputTokens.push_back(crcToken);
 
 		outputTokens.push_back(closeParen);
+	}
+
+	if (outputTokens.empty())
+	{
+		Log("no tokens to write to cache file");
+		return;
 	}
 
 	FILE* file = fileOpen(outputFilename, "w");

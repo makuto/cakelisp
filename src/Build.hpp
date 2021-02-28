@@ -4,17 +4,37 @@
 #include <string>
 #include <vector>
 
+#include "Exporting.hpp"
 #include "FileTypes.hpp"
 
 extern const char* compilerObjectExtension;
+extern const char* compilerDebugSymbolsExtension;
+extern const char* compilerImportLibraryExtension;
 extern const char* linkerDynamicLibraryPrefix;
 extern const char* linkerDynamicLibraryExtension;
 extern const char* defaultExecutableName;
+
+struct BuildArgumentConverter
+{
+	std::vector<std::string>* stringsIn;
+
+	// Use C++ to manage our string memory, pointed to by argumentsOut
+	std::vector<std::string> argumentsOutMemory;
+	std::vector<const char*>* argumentsOut;
+	void (*argumentConversionFunc)(char* buffer, int bufferSize, const char* stringIn,
+	                               const char* executableName);
+};
+
+void convertBuildArguments(BuildArgumentConverter* argumentsToConvert, int numArgumentsToConvert,
+                           const char* buildExecutable);
 
 void makeIncludeArgument(char* buffer, int bufferSize, const char* searchDir);
 
 // On Windows, extra formatting is required to output objects
 void makeObjectOutputArgument(char* buffer, int bufferSize, const char* objectName);
+void makeDebugSymbolsOutputArgument(char* buffer, int bufferSize, const char* debugSymbolsName);
+void makeImportLibraryPathArgument(char* buffer, int bufferSize, const char* path,
+                                   const char* buildExecutable);
 void makeDynamicLibraryOutputArgument(char* buffer, int bufferSize, const char* libraryName,
                                       const char* buildExecutable);
 void makeExecutableOutputArgument(char* buffer, int bufferSize, const char* executableName,
@@ -30,8 +50,8 @@ void makeLinkerArgument(char* buffer, int bufferSize, const char* argument,
 
 // On Windows, extra work is done to find the compiler and linker executables. This function handles
 // looking up those environment variables to determine which executable to use
-bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
-                           int resolvedPathOutSize);
+CAKELISP_API bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
+                                        int resolvedPathOutSize);
 
 typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTable;
 

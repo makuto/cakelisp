@@ -65,6 +65,9 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			} symbolsToCommandTypes[] = {
 			    {"'source-input", ProcessCommandArgumentType_SourceInput},
 			    {"'object-output", ProcessCommandArgumentType_ObjectOutput},
+			    {"'debug-symbols-output", ProcessCommandArgumentType_DebugSymbolsOutput},
+			    {"'import-library-paths", ProcessCommandArgumentType_ImportLibraryPaths},
+			    {"'import-libraries", ProcessCommandArgumentType_ImportLibraries},
 			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
 			    {"'include-search-dirs", ProcessCommandArgumentType_IncludeSearchDirs},
 			    {"'additional-options", ProcessCommandArgumentType_AdditionalOptions},
@@ -958,9 +961,18 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
 		return false;
 
-	// Compile-time functions need to be exposed with C bindings so they can be found
+	if (isCompileTime && environment.isMsvcCompiler)
+	{
+		addStringOutput(functionOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
+		addStringOutput(functionOutput->header, "extern \"C\" __declspec(dllimport)",
+		                StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		// addStringOutput(functionOutput->header, "__declspec(dllimport)", StringOutMod_SpaceAfter,
+		// &tokens[startTokenIndex]);
+	}
+	// Compile-time functions need to be exposed with C bindings so they can be found (true?)
 	// Module-local functions are always marked static, which hides them from linking
-	if (!isModuleLocal && (isCompileTime || environment.useCLinkage))
+	else if (!isModuleLocal && (isCompileTime || environment.useCLinkage))
 	{
 		addStringOutput(functionOutput->header, "extern \"C\"", StringOutMod_SpaceAfter,
 		                &tokens[startTokenIndex]);
@@ -1740,11 +1752,9 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	// Macros will be found without headers thanks to dynamic linking
 	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defmacro-local") == 0;
 
-// TODO Only do this when using MSVC
-#ifdef WINDOWS
-	addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
-	                &tokens[startTokenIndex]);
-#endif
+	if (environment.isMsvcCompiler)
+		addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 
 	// Macros must return success or failure
 	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,
@@ -1839,11 +1849,9 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	// Generators will be found without headers thanks to dynamic linking
 	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defgenerator-local") == 0;
 
-	// TODO Only do this when using MSVC
-#ifdef WINDOWS
-	addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
-	                &tokens[startTokenIndex]);
-#endif
+	if (environment.isMsvcCompiler)
+		addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 
 	// Generators must return success or failure
 	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,
