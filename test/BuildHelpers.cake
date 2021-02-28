@@ -11,7 +11,7 @@
   (var cakelisp-executable (* (const char)) "bin/cakelisp")
   (comptime-cond ('Windows (set cakelisp-executable "bin/cakelisp.exe")))
   ;; Sequential
-  (run-process-sequential-or (cakelisp-executable "--list-built-ins" :in-directory "src")
+  (run-process-sequential-or (cakelisp-executable "--list-built-ins")
                              (Log "failed to run process\n")
                              (return false))
   ;; Parallel
@@ -19,7 +19,7 @@
   (run-process-start-or (addr cakelisp-status) (cakelisp-executable "--list-built-ins")
                         (return false))
   (var cakelisp-2-status int -1)
-  (run-process-start-or (addr cakelisp-2-status) (cakelisp-executable "--list-built-ins" :in-directory "src")
+  (run-process-start-or (addr cakelisp-2-status) (cakelisp-executable "--list-built-ins")
                         (return false))
   (waitForAllProcessesClosed null)
   (return (and (= cakelisp-status 0) (= cakelisp-2-status 0))))
