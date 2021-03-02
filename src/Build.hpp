@@ -13,6 +13,7 @@ extern const char* compilerImportLibraryExtension;
 extern const char* linkerDynamicLibraryPrefix;
 extern const char* linkerDynamicLibraryExtension;
 extern const char* defaultExecutableName;
+extern const char* precompiledHeaderExtension;
 
 struct BuildArgumentConverter
 {
@@ -47,6 +48,11 @@ void makeLinkLibraryRuntimeSearchDirArgument(char* buffer, int bufferSize, const
                                              const char* linkExecutable);
 void makeLinkerArgument(char* buffer, int bufferSize, const char* argument,
                         const char* linkExecutable);
+void makePrecompiledHeaderOutputArgument(char* buffer, int bufferSize, const char* outputName,
+                                         const char* precompilerExecutable);
+void makePrecompiledHeaderIncludeArgument(char* buffer, int bufferSize,
+                                          const char* precompiledHeaderName,
+                                          const char* buildExecutable);
 
 // On Windows, extra work is done to find the compiler and linker executables. This function handles
 // looking up those environment variables to determine which executable to use

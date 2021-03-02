@@ -17,6 +17,7 @@ enum ProcessCommandArgumentType
 	ProcessCommandArgumentType_AdditionalOptions,
 
 	ProcessCommandArgumentType_PrecompiledHeaderOutput,
+	ProcessCommandArgumentType_PrecompiledHeaderInclude,
 
 	ProcessCommandArgumentType_ObjectInput,
 	ProcessCommandArgumentType_DynamicLibraryOutput,

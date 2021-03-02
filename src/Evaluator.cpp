@@ -861,21 +861,25 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 		    environment.cakelispSrcDir.empty() ? "src" : environment.cakelispSrcDir);
 	}
 
-	char combinedHeaderFilename[MAX_PATH_LENGTH] = {0};
-	PrintfBuffer(combinedHeaderFileName, "%s/%s", outputDir, combinedHeaderName);
+	char combinedHeaderRelativePath[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(combinedHeaderRelativePath, "%s/%s", outputDir, combinedHeaderName);
 
 	std::vector<const char*> headersToCombine(ArraySize(g_comptimeDefaultHeaders));
 	for (int i = 0; i < ArraySize(g_comptimeDefaultHeaders); ++i)
 		headersToCombine[i] = g_comptimeDefaultHeaders[i];
 
-	if (!writeCombinedHeader(combinedHeaderFilename, headersToCombine))
+	if (!writeCombinedHeader(combinedHeaderRelativePath, headersToCombine))
 		return false;
 
+	const char* buildExecutable =
+	    environment.compileTimeHeaderPrecompilerCommand.fileToExecute.c_str();
+
 	char precompiledHeaderFilename[MAX_PATH_LENGTH] = {0};
-	if (!outputFilenameFromSourceFilename(outputDir, combinedHeaderFilename,
-	                                      precompiledHeaderExtension))
+	if (!outputFilenameFromSourceFilename(outputDir, combinedHeaderRelativePath,
+	                                      precompiledHeaderExtension, precompiledHeaderFilename,
+	                                      sizeof(precompiledHeaderFilename)))
 	{
-		Logf("error: failed to prepare precompiled header output filename");
+		Log("error: failed to prepare precompiled header output filename");
 		return false;
 	}
 
@@ -883,8 +887,6 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 	makePrecompiledHeaderOutputArgument(precompiledHeaderOutputArgument,
 	                                    sizeof(precompiledHeaderOutputArgument),
 	                                    precompiledHeaderFilename, buildExecutable);
-
-	const char* buildExecutable = environment.comptimePrecompileHeaderBuildCommand.fileToExecute.c_str();
 
 	char headerInclude[MAX_PATH_LENGTH] = {0};
 	if (environment.cakelispSrcDir.empty())
@@ -896,35 +898,60 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 	char precompileHeaderExecutable[MAX_PATH_LENGTH] = {0};
 	if (!resolveExecutablePath(buildExecutable, precompileHeaderExecutable,
 	                           sizeof(precompileHeaderExecutable)))
-		// TODO: Add error message?
-		continue;
+		return false;
 
 	ProcessCommandInput precompileHeaderInputs[] = {
-	    {ProcessCommandArgumentType_SourceInput, {combinedHeaderFilename}},
+	    {ProcessCommandArgumentType_SourceInput, {combinedHeaderRelativePath}},
 	    {ProcessCommandArgumentType_PrecompiledHeaderOutput, {precompiledHeaderOutputArgument}},
 	    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
 	const char** buildArguments = MakeProcessArgumentsFromCommand(
-	    precompileHeaderExecutable, environment.comptimePrecompileHeaderBuildCommand.arguments,
+	    precompileHeaderExecutable, environment.compileTimeHeaderPrecompilerCommand.arguments,
 	    precompileHeaderInputs, ArraySize(precompileHeaderInputs));
 	if (!buildArguments)
 	{
-		// TODO: Abort building if cannot invoke compiler
-		continue;
+		return false;
 	}
 
 	// Can we use the cached version?
-	if (!cppFileNeedsBuild(environment, combinedHeaderFilename, precompiledHeaderFilename,
+	if (!cppFileNeedsBuild(environment, combinedHeaderRelativePath, precompiledHeaderFilename,
 	                       buildArguments, environment.comptimeCachedCommandCrcs,
 	                       environment.comptimeNewCommandCrcs,
 	                       environment.comptimeHeaderModifiedCache, headerSearchDirectories))
 	{
 		if (logging.buildProcess)
-			Logf("Skipping precompiling %s (using cached header)\n", sourceOutputName);
+			Logf("No need to update precompiled header %s\n", precompiledHeaderFilename);
+
+		environment.comptimeHeadersPrepared = true;
+		environment.comptimeCombinedHeaderFilename = combinedHeaderName;
 		return true;
 	}
 
-	environment.comptimeHeadersPrepared = true;
-	return true;
+	if (logging.buildProcess)
+		Logf("Updating precompiled header %s\n", precompiledHeaderFilename);
+
+	RunProcessArguments arguments = {};
+	arguments.fileToExecute = buildExecutable;
+	arguments.arguments = buildArguments;
+	int status = -1;
+	if (runProcess(arguments, &status) != 0)
+	{
+		free(buildArguments);
+		return false;
+	}
+
+	free(buildArguments);
+
+	waitForAllProcessesClosed(OnCompileProcessOutput);
+
+	if (status == 0)
+	{
+		environment.comptimeHeadersPrepared = true;
+		environment.comptimeCombinedHeaderFilename = combinedHeaderName;
+		return true;
+	}
+
+	Logf("Failed to update precompiled header %s\n", precompiledHeaderFilename);
+	return false;
 }
 
 int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
@@ -941,6 +968,44 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			return 0;
 		}
 	}
+
+	char compileTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
+	if (!resolveExecutablePath(environment.compileTimeBuildCommand.fileToExecute.c_str(),
+	                           compileTimeBuildExecutable, sizeof(compileTimeBuildExecutable)))
+	{
+		Logf("error: could not find compile-time compiler %s\n",
+		     environment.compileTimeBuildCommand.fileToExecute.c_str());
+		++numErrorsOut;
+		return 0;
+	}
+
+	bool comptimeCanUsePrecompiledHeaders = environment.comptimeUsePrecompiledHeaders &&
+	                                        environment.comptimeHeadersPrepared &&
+	                                        !environment.comptimeCombinedHeaderFilename.empty();
+	const char* cakelispCombinedHeaderFilename = nullptr;
+	char usePrecompiledHeaderArgument[MAX_PATH_LENGTH] = {0};
+	std::vector<std::string> precompiledHeadersToIncludeStorage;
+	std::vector<const char*> precompiledHeadersToInclude;
+	if (comptimeCanUsePrecompiledHeaders)
+	{
+		cakelispCombinedHeaderFilename = environment.comptimeCombinedHeaderFilename.c_str();
+
+		makePrecompiledHeaderIncludeArgument(
+		    usePrecompiledHeaderArgument, sizeof(usePrecompiledHeaderArgument),
+		    cakelispCombinedHeaderFilename, compileTimeBuildExecutable);
+
+		// TODO: Hard-coded compiler option bad
+		precompiledHeadersToIncludeStorage.push_back("-include");
+		precompiledHeadersToIncludeStorage.push_back(cakelispCombinedHeaderFilename);
+		precompiledHeadersToInclude.reserve(precompiledHeadersToIncludeStorage.size());
+		for (const std::string& arg : precompiledHeadersToIncludeStorage)
+			precompiledHeadersToInclude.push_back(arg.c_str());
+	}
+
+	// TODO: Don't hard-code cakelispWorkingDir
+	char precompiledHeadersInclude[MAX_PATH_LENGTH] = {0};
+	makeIncludeArgument(precompiledHeadersInclude, sizeof(precompiledHeadersInclude),
+	                    "cakelisp_cache/");
 
 	// Spin up as many compile processes as necessary
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
@@ -984,7 +1049,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		GeneratorOutput header;
 		GeneratorOutput footer;
 		GeneratorOutput autoIncludes;
-		makeCompileTimeHeaderFooter(header, footer, &autoIncludes,
+
+		makeCompileTimeHeaderFooter(header, footer, cakelispCombinedHeaderFilename, &autoIncludes,
 		                            definition->definitionInvocation);
 		outputSettings.heading = &header;
 		outputSettings.footer = &footer;
@@ -1112,18 +1178,13 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		makeDebugSymbolsOutputArgument(debugSymbolsArgument, sizeof(debugSymbolsArgument),
 		                               debugSymbolsName);
 
-
-		char compileTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
-		if (!resolveExecutablePath(environment.compileTimeBuildCommand.fileToExecute.c_str(),
-		                           compileTimeBuildExecutable, sizeof(compileTimeBuildExecutable)))
-			// TODO: Add error message?
-			continue;
-
 		ProcessCommandInput compileTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {sourceOutputName}},
 		    {ProcessCommandArgumentType_ObjectOutput, {buildObjectArgument}},
-			{ProcessCommandArgumentType_DebugSymbolsOutput, {debugSymbolsArgument}},
-		    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
+		    {ProcessCommandArgumentType_DebugSymbolsOutput, {debugSymbolsArgument}},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude,
+		     {headerInclude, precompiledHeadersInclude}},
+			{ProcessCommandArgumentType_PrecompiledHeaderInclude, precompiledHeadersToInclude}};
 		const char** buildArguments = MakeProcessArgumentsFromCommand(
 		    compileTimeBuildExecutable, environment.compileTimeBuildCommand.arguments,
 		    compileTimeInputs, ArraySize(compileTimeInputs));

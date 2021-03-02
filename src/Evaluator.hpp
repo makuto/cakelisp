@@ -330,6 +330,12 @@ struct EvaluatorEnvironment
 	// the source file hasn't been modified more recently)
 	bool useCachedFiles;
 
+	// Save a huge amount of time by precompiling Cakelisp headers
+	bool comptimeUsePrecompiledHeaders;
+	bool comptimeHeadersPrepared;
+	// Note that this is the header without the precompilation extension
+	std::string comptimeCombinedHeaderFilename;
+
 	// Added as a search directory for compile time code execution
 	std::string cakelispSrcDir;
 
@@ -359,6 +365,7 @@ struct EvaluatorEnvironment
 	ProcessCommand compileTimeLinkCommand;
 	ProcessCommand buildTimeBuildCommand;
 	ProcessCommand buildTimeLinkCommand;
+	ProcessCommand compileTimeHeaderPrecompilerCommand;
 
 	// At this point, all known references are resolved. This is the best time to let the user do
 	// arbitrary code generation and modification. These changes will need to be evaluated and their

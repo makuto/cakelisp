@@ -502,7 +502,9 @@ bool writeCombinedHeader(const char* combinedHeaderFilename,
 		return false;
 	}
 
-	fprint(combinedHeaderFile, "#pragma once\n");
+	// G++ complains if there's one of these in the "main" file. When we precompile, the header is
+	// always the main file
+	// fprintf(combinedHeaderFile, "#pragma once\n");
 
 	for (const char* sourceHeader : headersToInclude)
 	{

@@ -10,14 +10,25 @@ const char* g_comptimeDefaultHeaders[10] = {
     "Build.hpp",     "FileUtilities.hpp"};
 
 void makeCompileTimeHeaderFooter(GeneratorOutput& headerOut, GeneratorOutput& footerOut,
+                                 const char* comptimeCombinedHeaderFilename,
                                  GeneratorOutput* spliceAfterHeaders, const Token* blameToken)
 {
-	for (unsigned int i = 0; i < ArraySize(g_comptimeDefaultHeaders); ++i)
+	if (comptimeCombinedHeaderFilename)
 	{
 		addStringOutput(headerOut.source, "#include", StringOutMod_SpaceAfter, blameToken);
-		addStringOutput(headerOut.source, g_comptimeDefaultHeaders[i],
+		addStringOutput(headerOut.source, comptimeCombinedHeaderFilename,
 		                StringOutMod_SurroundWithQuotes, blameToken);
 		addLangTokenOutput(headerOut.source, StringOutMod_NewlineAfter, blameToken);
+	}
+	else
+	{
+		for (unsigned int i = 0; i < ArraySize(g_comptimeDefaultHeaders); ++i)
+		{
+			addStringOutput(headerOut.source, "#include", StringOutMod_SpaceAfter, blameToken);
+			addStringOutput(headerOut.source, g_comptimeDefaultHeaders[i],
+			                StringOutMod_SurroundWithQuotes, blameToken);
+			addLangTokenOutput(headerOut.source, StringOutMod_NewlineAfter, blameToken);
+		}
 	}
 
 	addLangTokenOutput(headerOut.source, StringOutMod_NewlineAfter, blameToken);

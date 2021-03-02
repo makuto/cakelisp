@@ -43,7 +43,7 @@
     (var test-file (* (const char)) (field (at i tests) test-file))
     (Logf "\n===============\n%s\n\n" test-name)
     (run-process-sequential-or
-     (cakelisp-executable "--execute" platform-config test-file)
+     (cakelisp-executable "--execute" "--verbose-build-process" platform-config test-file)
      (Logf "error: test %s failed\n" test-name)
      (return false))
     (Logf "\n%s succeeded\n" test-name)

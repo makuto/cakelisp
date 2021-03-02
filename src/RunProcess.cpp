@@ -508,6 +508,8 @@ static const char* ProcessCommandArgumentTypeToString(ProcessCommandArgumentType
 			return "AdditionalOptions";
 		case ProcessCommandArgumentType_PrecompiledHeaderOutput:
 			return "PrecompiledHeaderOutput";
+		case ProcessCommandArgumentType_PrecompiledHeaderInclude:
+			return "PrecompiledHeaderInclude";
 		case ProcessCommandArgumentType_ObjectInput:
 			return "ObjectInput";
 		case ProcessCommandArgumentType_DynamicLibraryOutput:
@@ -548,7 +550,18 @@ const char** MakeProcessArgumentsFromCommand(const char* fileToExecute,
 				if (inputs[input].type == argument.type)
 				{
 					for (const char* value : inputs[input].value)
+					{
+						if (!value || !value[0])
+						{
+							Logf(
+							    "warning: attempted to pass null string to '%s' under argument "
+							    "type %s. It will be ignored\n",
+							    fileToExecute, ProcessCommandArgumentTypeToString(argument.type));
+							continue;
+						}
+
 						argumentsAccumulate.push_back(value);
+					}
 					found = true;
 					break;
 				}

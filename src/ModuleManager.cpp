@@ -116,6 +116,21 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
 
+		// TODO Precompiled headers on windows. See
+		// https://docs.microsoft.com/en-us/cpp/build/creating-precompiled-header-files?view=msvc-160
+		// https://docs.microsoft.com/en-us/cpp/build/reference/yc-create-precompiled-header-file?view=msvc-160
+		// https://docs.microsoft.com/en-us/cpp/build/reference/yu-use-precompiled-header-file?view=msvc-160
+		manager.environment.compileTimeHeaderPrecompilerCommand.fileToExecute = "cl.exe";
+		manager.environment.compileTimeHeaderPrecompilerCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "/nologo"},
+		    {ProcessCommandArgumentType_String, "/EHsc"},
+		    {ProcessCommandArgumentType_String, "/c"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
+		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
 		manager.environment.buildTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "/nologo"},
@@ -138,15 +153,19 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
 #else
+		// manager.environment.comptimeUsePrecompiledHeaders = false; // 13.2 seconds Debug; 10.25 no debug
+		manager.environment.comptimeUsePrecompiledHeaders = true; // 7.37 seconds (including building pch, 6.21 w/o); 3.728s no debug (excluding pch; if build pch, 4.62s)
+
 		// G++ by default
 		manager.environment.compileTimeBuildCommand.fileToExecute = "g++";
 		manager.environment.compileTimeBuildCommand.arguments = {
-		    {ProcessCommandArgumentType_String, "-g"},
-		    {ProcessCommandArgumentType_String, "-c"},
+		    // {ProcessCommandArgumentType_String, "-g"},
+			{ProcessCommandArgumentType_String, "-c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
-		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+			{ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+			{ProcessCommandArgumentType_PrecompiledHeaderInclude, EmptyString},
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "g++";
@@ -155,6 +174,19 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+
+		// Note that this command must match the compilation command to be compatible, see
+		// https://gcc.gnu.org/onlinedocs/gcc/Precompiled-Headers.html
+		manager.environment.compileTimeHeaderPrecompilerCommand.fileToExecute = "g++";
+		manager.environment.compileTimeHeaderPrecompilerCommand.arguments = {
+		    // {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-x"},
+		    {ProcessCommandArgumentType_String, "c++-header"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_PrecompiledHeaderOutput, EmptyString},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "g++";
 		manager.environment.buildTimeBuildCommand.arguments = {

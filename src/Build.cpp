@@ -24,6 +24,7 @@ const char* compilerImportLibraryExtension = "lib";
 const char* linkerDynamicLibraryPrefix = "";  // Not applicable
 const char* linkerDynamicLibraryExtension = "dll";
 const char* defaultExecutableName = "output.exe";
+const char* precompiledHeaderExtension = "pch";
 #else
 const char* compilerObjectExtension = "o";
 const char* compilerDebugSymbolsExtension = "";   // Not applicable
@@ -31,9 +32,8 @@ const char* compilerImportLibraryExtension = "";  // Not applicable
 const char* linkerDynamicLibraryPrefix = "lib";
 const char* linkerDynamicLibraryExtension = "so";
 const char* defaultExecutableName = "a.out";
+const char* precompiledHeaderExtension = "gch";
 #endif
-
-const char* precompiledHeaderExtension = "pch";
 
 void makeIncludeArgument(char* buffer, int bufferSize, const char* searchDir)
 {
@@ -119,24 +119,6 @@ void makeExecutableOutputArgument(char* buffer, int bufferSize, const char* exec
 	}
 }
 
-void makePrecompiledHeaderOutputArgument(char* buffer, int bufferSize, const char* executableName,
-                                         const char* linkExecutable)
-{
-	// Annoying exception for MSVC not having spaces between some arguments
-	if (StrCompareIgnoreCase(linkExecutable, "cl.exe") == 0)
-	{
-		SafeSnprintf(buffer, bufferSize, "/Fe\"%s\"", executableName);
-	}
-	else if (StrCompareIgnoreCase(linkExecutable, "link.exe") == 0)
-	{
-		SafeSnprintf(buffer, bufferSize, "/out:\"%s\"", executableName);
-	}
-	else
-	{
-		SafeSnprintf(buffer, bufferSize, "%s", executableName);
-	}
-}
-
 void makeLinkLibraryArgument(char* buffer, int bufferSize, const char* libraryName,
                              const char* linkExecutable)
 {
@@ -205,6 +187,33 @@ void makeLinkerArgument(char* buffer, int bufferSize, const char* argument,
 	else
 	{
 		SafeSnprintf(buffer, bufferSize, "-Wl,%s", argument);
+	}
+}
+
+void makePrecompiledHeaderOutputArgument(char* buffer, int bufferSize, const char* outputName,
+                                         const char* precompilerExecutable)
+{
+	if (StrCompareIgnoreCase(precompilerExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/Yc%s", outputName);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", outputName);
+	}
+}
+
+void makePrecompiledHeaderIncludeArgument(char* buffer, int bufferSize,
+                                          const char* precompiledHeaderName,
+                                          const char* buildExecutable)
+{
+	if (StrCompareIgnoreCase(buildExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/Yu%s", precompiledHeaderName);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", precompiledHeaderName);
 	}
 }
 

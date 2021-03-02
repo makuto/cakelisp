@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "ConverterEnums.hpp"
 #include "EvaluatorEnums.hpp"
 #include "WriterEnums.hpp"
