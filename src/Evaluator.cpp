@@ -288,7 +288,8 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// Don't even try to validate the code if the macro wasn't satisfied
 		if (!macroSucceeded)
 		{
-			ErrorAtToken(invocationName, "macro returned failure");
+			ErrorAtTokenf(invocationName, "macro '%s' returned failure",
+			              invocationName.contents.c_str());
 
 			// Deleting these tokens is only safe at this point because we know we have not
 			// evaluated them. As soon as they are evaluated, they must be kept around
@@ -382,19 +383,22 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		if (findIt->second.type == ObjectType_CompileTimeFunction &&
 		    findCompileTimeFunction(environment, invocationName.contents.c_str()))
 		{
-			ObjectReference newReference = {};
-			newReference.type = ObjectReferenceResolutionType_AlreadyLoaded;
-			newReference.tokens = &tokens;
-			newReference.startIndex = invocationStartIndex;
-			newReference.context = context;
-
-			const ObjectReferenceStatus* referenceStatus =
-			    addObjectReference(environment, invocationName, newReference);
-			if (!referenceStatus)
+			if (context.resolvingReference != &invocationName)
 			{
-				ErrorAtToken(tokens[invocationStartIndex],
-				             "failed to create reference status (internal error)");
-				return false;
+				ObjectReference newReference = {};
+				newReference.type = ObjectReferenceResolutionType_AlreadyLoaded;
+				newReference.tokens = &tokens;
+				newReference.startIndex = invocationStartIndex;
+				newReference.context = context;
+
+				const ObjectReferenceStatus* referenceStatus =
+				    addObjectReference(environment, invocationName, newReference);
+				if (!referenceStatus)
+				{
+					ErrorAtToken(tokens[invocationStartIndex],
+					             "failed to create reference status (internal error)");
+					return false;
+				}
 			}
 			return FunctionInvocationGenerator(environment, context, tokens, invocationStartIndex,
 			                                   output);
@@ -736,6 +740,7 @@ struct ComptimeBuildObject
 	std::string artifactsName;
 	std::string dynamicLibraryPath;
 	std::string buildObjectName;
+	std::vector<std::string> importLibraries;
 	ObjectDefinition* definition = nullptr;
 };
 
@@ -796,6 +801,11 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 			if (logging.buildProcess)
 				NoteAtToken((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
 				            "resolving reference");
+
+			// Make sure we don't create additional references for this same reference, as we are
+			// resolving it
+			referenceValidPreEval->context.resolvingReference =
+			    &(*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex + 1];
 
 			// Evaluate from that reference
 			int result = EvaluateGenerate_Recursive(
@@ -979,8 +989,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		outputSettings.heading = &header;
 		outputSettings.footer = &footer;
 
-		// Automatically include referenced compile-time function headers
-		bool foundHeaders = true;
+		// Add referenced compile-time function headers and import libraries
+		bool foundRequiredComptimeFunctions = true;
 		for (ObjectReferenceStatusPair& reference : definition->references)
 		{
 			ObjectReferenceStatus& referenceStatus = reference.second;
@@ -1003,7 +1013,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				ErrorAtToken(*referenceStatus.name,
 				             "could not find generated header for referenced compile-time "
 				             "function. Internal code error?\n");
-				foundHeaders = false;
+				foundRequiredComptimeFunctions = false;
 				continue;
 			}
 
@@ -1013,8 +1023,24 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			                StringOutMod_SurroundWithQuotes, referenceStatus.name);
 			addLangTokenOutput(autoIncludes.source, StringOutMod_NewlineAfter,
 			                   referenceStatus.name);
+
+			if (environment.isMsvcCompiler)
+			{
+				if (requiredDefinition->compileTimeImportLibraryName.empty())
+				{
+					ErrorAtToken(*referenceStatus.name,
+					             "could not find import library name for referenced compile-time "
+					             "function. Internal code error?\n");
+					foundRequiredComptimeFunctions = false;
+					continue;
+				}
+
+				buildObject.importLibraries.push_back(
+				    requiredDefinition->compileTimeImportLibraryName);
+			}
 		}
-		if (!foundHeaders)
+		// Skip the object: Not all required definitions had headers (will error)
+		if (!foundRequiredComptimeFunctions)
 			continue;
 
 		outputSettings.sourceCakelispFilename = fileOutputName;
@@ -1035,7 +1061,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (!writeGeneratorOutput(*definition->output, nameSettings, formatSettings,
 		                          outputSettings))
 		{
-			ErrorAtToken(*buildObject.definition->definitionInvocation,
+			ErrorAtToken(*definition->definitionInvocation,
 			             "Failed to write to compile-time source file");
 			continue;
 		}
@@ -1059,6 +1085,15 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		             linkerDynamicLibraryExtension);
 		buildObject.dynamicLibraryPath = dynamicLibraryOut;
 
+		// Save our import library name for other functions to use
+		if (environment.isMsvcCompiler && definition->type == ObjectType_CompileTimeFunction)
+		{
+			char importLibraryName[MAX_PATH_LENGTH] = {0};
+			PrintfBuffer(importLibraryName, "%s.%s", buildObject.artifactsName.c_str(),
+			             compilerImportLibraryExtension);
+			definition->compileTimeImportLibraryName = importLibraryName;
+		}
+
 		char headerInclude[MAX_PATH_LENGTH] = {0};
 		if (environment.cakelispSrcDir.empty())
 			makeIncludeArgument(headerInclude, sizeof(headerInclude), "src/");
@@ -1070,6 +1105,14 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument),
 		                         buildObject.buildObjectName.c_str());
 
+		char debugSymbolsName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(debugSymbolsName, "%s/%s.%s", cakelispWorkingDir,
+		             buildObject.artifactsName.c_str(), compilerDebugSymbolsExtension);
+		char debugSymbolsArgument[MAX_PATH_LENGTH] = {0};
+		makeDebugSymbolsOutputArgument(debugSymbolsArgument, sizeof(debugSymbolsArgument),
+		                               debugSymbolsName);
+
+
 		char compileTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
 		if (!resolveExecutablePath(environment.compileTimeBuildCommand.fileToExecute.c_str(),
 		                           compileTimeBuildExecutable, sizeof(compileTimeBuildExecutable)))
@@ -1079,6 +1122,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		ProcessCommandInput compileTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {sourceOutputName}},
 		    {ProcessCommandArgumentType_ObjectOutput, {buildObjectArgument}},
+			{ProcessCommandArgumentType_DebugSymbolsOutput, {debugSymbolsArgument}},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
 		const char** buildArguments = MakeProcessArgumentsFromCommand(
 		    compileTimeBuildExecutable, environment.compileTimeBuildCommand.arguments,
@@ -1116,6 +1160,11 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				continue;
 			}
 		}
+
+		// Annoying Windows workaround: delete PDB to fix fatal error C1052
+		// Technically we only need to do this for /DEBUG:fastlink
+		if (debugSymbolsArgument[0] && fileExists(debugSymbolsName))
+			remove(debugSymbolsName);
 
 		RunProcessArguments compileArguments = {};
 		compileArguments.fileToExecute = compileTimeBuildExecutable;
@@ -1173,6 +1222,18 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (logging.buildProcess)
 			Logf("Compiled %s successfully\n", buildObject.definition->name.c_str());
 
+		std::vector<std::string> importLibraryPaths;
+		// Need to be able to find imported dll import libraries
+		importLibraryPaths.push_back(cakelispWorkingDir);
+
+		std::vector<const char*> importLibraryPathsArgs;
+		std::vector<const char*> importLibrariesArgs;
+		BuildArgumentConverter convertedArguments[] = {
+		    {&importLibraryPaths, {}, &importLibraryPathsArgs, makeImportLibraryPathArgument},
+		    {&buildObject.importLibraries, {}, &importLibrariesArgs, nullptr}};
+		convertBuildArguments(convertedArguments, ArraySize(convertedArguments),
+		                      environment.compileTimeLinkCommand.fileToExecute.c_str());
+
 		char dynamicLibraryOutArgument[MAX_PATH_LENGTH] = {0};
 		makeDynamicLibraryOutputArgument(dynamicLibraryOutArgument,
 		                                 sizeof(dynamicLibraryOutArgument),
@@ -1186,7 +1247,9 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		ProcessCommandInput linkTimeInputs[] = {
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, {dynamicLibraryOutArgument}},
-		    {ProcessCommandArgumentType_ObjectInput, {buildObject.buildObjectName.c_str()}}};
+		    {ProcessCommandArgumentType_ObjectInput, {buildObject.buildObjectName.c_str()}},
+		    {ProcessCommandArgumentType_ImportLibraryPaths, importLibraryPathsArgs},
+		    {ProcessCommandArgumentType_ImportLibraries, importLibrariesArgs}};
 		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
 		    compileTimeLinkExecutable, environment.compileTimeLinkCommand.arguments, linkTimeInputs,
 		    ArraySize(linkTimeInputs));
@@ -1655,8 +1718,11 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		}
 	}
 
-	buildWriteCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
-	                    environment.comptimeNewCommandCrcs);
+	// Only write CRCs if we did some comptime compilation. Otherwise, the tokenizer will complain
+	// about loading a completely empty file
+	if (!environment.comptimeNewCommandCrcs.empty())
+		buildWriteCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
+		                    environment.comptimeNewCommandCrcs);
 
 	return errors == 0 && numBuildResolveErrors == 0;
 }

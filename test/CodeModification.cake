@@ -45,21 +45,21 @@
                                                    was-code-modified (& bool)
                                                    &return bool)
   (get-or-create-comptime-var test-var std::string)
-  (printf "%s is the message\n" (on-call-ptr test-var c_str))
+  (printf "%s is the message\n" (call-on-ptr c_str test-var))
   (var old-definition-tags (<> std::vector std::string))
   ;; Scope to ensure that definition-it and definition are not referred to after
   ;; ReplaceAndEvaluateDefinition is called, because they will be invalid
   (scope
    (var definition-it (in ObjectDefinitionMap iterator)
-        (on-call (field environment definitions) find "main"))
-   (when (= definition-it (on-call (field environment definitions) end))
+        (call-on find (field environment definitions) "main"))
+   (when (= definition-it (call-on end (field environment definitions)))
      (printf "sabotage-main-printfs: could not find main!\n")
      (return false))
 
    (printf "sabotage-main-printfs: found main\n")
    (var definition (& ObjectDefinition) (path definition-it > second))
    (when (!= (FindInContainer (field definition tags) "sabotage-main-printfs-done")
-             (on-call (field definition tags) end))
+             (call-on end (field definition tags)))
      (printf "sabotage-main-printfs: already modified\n")
      (return true))
 
@@ -72,7 +72,7 @@
      (return false))
 
    ;; Environment will handle freeing tokens for us
-   (on-call (field environment comptimeTokens) push_back modified-main-tokens)
+   (call-on push_back (field environment comptimeTokens) modified-main-tokens)
 
    ;; Before
    (prettyPrintTokens (deref modified-main-tokens))
@@ -80,7 +80,7 @@
    (var prev-token (* Token) null)
    (for-in token (& Token) (deref modified-main-tokens)
            (when (and prev-token
-                      (= 0 (on-call (path prev-token > contents) compare "printf"))
+                      (= 0 (call-on compare (path prev-token > contents) "printf"))
                       (ExpectTokenType "sabotage-main-printfs" token TokenType_String))
              (set (field token contents) "I changed your print! Mwahahaha!\\n"))
            (set prev-token (addr token)))
@@ -100,12 +100,12 @@
   ;; Find the new (replacement) definition and add a tag saying it is done replacement
   ;; Note that I also push the tags of the old definition
   (var definition-it (in ObjectDefinitionMap iterator)
-        (on-call (field environment definitions) find "main"))
-  (when (= definition-it (on-call (field environment definitions) end))
+        (call-on find (field environment definitions) "main"))
+  (when (= definition-it (call-on end (field environment definitions)))
     (printf "sabotage-main-printfs: could not find main after replacement!\n")
     (return false))
   (PushBackAll (path definitionIt > second . tags) old-definition-tags)
-  (on-call (path definitionIt > second . tags) push_back "sabotage-main-printfs-done")
+  (call-on push_back (path definitionIt > second . tags) "sabotage-main-printfs-done")
   (return true))
 
 (add-compile-time-hook post-references-resolved sabotage-main-printfs)

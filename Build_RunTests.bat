@@ -58,9 +58,19 @@ CL.exe src/Tokenizer.cpp ^
 "bin\cakelisp_bootstrap.exe" Bootstrap_MSVC.cake
 @if %ERRORLEVEL% == 0 (
   echo Success! Use bin\cakelisp.exe to build your programs
-  goto success
+  goto build_user
 ) else (
   echo Error while bootstrapping cakelisp
+  goto fail
+)
+
+:build_user
+"bin\cakelisp.exe" --verbose-processes --execute runtime/Config_Windows.cake test/RunTests.cake
+@if %ERRORLEVEL% == 0 (
+  echo Success!
+  goto success
+) else (
+  echo Error while building user program
   goto fail
 )
 
@@ -71,4 +81,4 @@ goto end
 goto end
 
 :end
-pause
+echo Done

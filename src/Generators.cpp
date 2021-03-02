@@ -65,6 +65,9 @@ bool SetProcessCommandArguments(EvaluatorEnvironment& environment, const std::ve
 			} symbolsToCommandTypes[] = {
 			    {"'source-input", ProcessCommandArgumentType_SourceInput},
 			    {"'object-output", ProcessCommandArgumentType_ObjectOutput},
+			    {"'debug-symbols-output", ProcessCommandArgumentType_DebugSymbolsOutput},
+			    {"'import-library-paths", ProcessCommandArgumentType_ImportLibraryPaths},
+			    {"'import-libraries", ProcessCommandArgumentType_ImportLibraries},
 			    {"'cakelisp-headers-include", ProcessCommandArgumentType_CakelispHeadersInclude},
 			    {"'include-search-dirs", ProcessCommandArgumentType_IncludeSearchDirs},
 			    {"'additional-options", ProcessCommandArgumentType_AdditionalOptions},
@@ -959,9 +962,18 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
 		return false;
 
-	// Compile-time functions need to be exposed with C bindings so they can be found
+	if (isCompileTime && environment.isMsvcCompiler)
+	{
+		addStringOutput(functionOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
+		addStringOutput(functionOutput->header, "extern \"C\" __declspec(dllimport)",
+		                StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+		// addStringOutput(functionOutput->header, "__declspec(dllimport)", StringOutMod_SpaceAfter,
+		// &tokens[startTokenIndex]);
+	}
+	// Compile-time functions need to be exposed with C bindings so they can be found (true?)
 	// Module-local functions are always marked static, which hides them from linking
-	if (!isModuleLocal && (isCompileTime || environment.useCLinkage))
+	else if (!isModuleLocal && (isCompileTime || environment.useCLinkage))
 	{
 		addStringOutput(functionOutput->header, "extern \"C\"", StringOutMod_SpaceAfter,
 		                &tokens[startTokenIndex]);
@@ -1064,10 +1076,15 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 		return false;
 
 	bool isModuleLocal =
-	    tokens[startTokenIndex + 1].contents.compare("def-function-signature-local") == 0;
+	    tokens[startTokenIndex + 1].contents.compare("def-function-signature-global") != 0;
 
-	if (context.scope != EvaluatorScope_Module && isModuleLocal)
-		NoteAtToken(tokens[startTokenIndex + 1], "no need to specify local if in body scope");
+	if (!isModuleLocal && context.scope != EvaluatorScope_Module)
+	{
+		ErrorAtToken(tokens[startTokenIndex + 1],
+		             "cannot specify global if in body or expression scope. Move it to top-level "
+		             "module scope");
+		return false;
+	}
 
 	std::vector<StringOutput>& outputDest = isModuleLocal ? output.source : output.header;
 
@@ -1154,13 +1171,13 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
 	// Global variables will get extern'd in the header
-	bool isGlobal = funcNameToken.contents.compare("global-var") == 0;
+	bool isGlobal = funcNameToken.contents.compare("var-global") == 0;
 	if (isGlobal && !ExpectEvaluatorScope("global variable declaration", tokens[startTokenIndex],
 	                                      context, EvaluatorScope_Module))
 		return false;
 
 	// Only necessary for static variables declared inside a function
-	bool isStatic = funcNameToken.contents.compare("static-var") == 0;
+	bool isStatic = funcNameToken.contents.compare("var-static") == 0;
 	if (isStatic && !ExpectEvaluatorScope("static variable declaration", tokens[startTokenIndex],
 	                                      context, EvaluatorScope_Body))
 		return false;
@@ -1736,11 +1753,9 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	// Macros will be found without headers thanks to dynamic linking
 	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defmacro-local") == 0;
 
-// TODO Only do this when using MSVC
-#ifdef WINDOWS
-	addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
-	                &tokens[startTokenIndex]);
-#endif
+	if (environment.isMsvcCompiler)
+		addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 
 	// Macros must return success or failure
 	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,
@@ -1835,11 +1850,9 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	// Generators will be found without headers thanks to dynamic linking
 	// bool isModuleLocal = tokens[startTokenIndex + 1].contents.compare("defgenerator-local") == 0;
 
-	// TODO Only do this when using MSVC
-#ifdef WINDOWS
-	addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
-	                &tokens[startTokenIndex]);
-#endif
+	if (environment.isMsvcCompiler)
+		addStringOutput(compTimeOutput->source, "__declspec(dllexport)", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex]);
 
 	// Generators must return success or failure
 	addStringOutput(compTimeOutput->source, "bool", StringOutMod_SpaceAfter,
@@ -2630,12 +2643,12 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
 
 	const CStatementOperation memberFunctionInvocation[] = {
-	    {Expression, nullptr, 1},        {KeywordNoSpace, ".", -1},    {Expression, nullptr, 2},
+	    {Expression, nullptr, 2},        {KeywordNoSpace, ".", -1},    {Expression, nullptr, 1},
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
 	    {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation dereferenceMemberFunctionInvocation[] = {
-	    {Expression, nullptr, 1},        {KeywordNoSpace, "->", -1},   {Expression, nullptr, 2},
+	    {Expression, nullptr, 2},        {KeywordNoSpace, "->", -1},   {Expression, nullptr, 1},
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
 	    {SmartEndStatement, nullptr, -1}};
 
@@ -2693,12 +2706,37 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	const CStatementOperation bitwiseLeftShift[] = {{Splice, "<<", 1}};
 	const CStatementOperation bitwiseRightShift[] = {{Splice, ">>", 1}};
 
-	const CStatementOperation relationalEquality[] = {{Splice, "==", 1}};
-	const CStatementOperation relationalNotEqual[] = {{Splice, "!=", 1}};
-	const CStatementOperation relationalLessThanEqual[] = {{Splice, "<=", 1}};
-	const CStatementOperation relationalGreaterThanEqual[] = {{Splice, ">=", 1}};
-	const CStatementOperation relationalLessThan[] = {{Splice, "<", 1}};
-	const CStatementOperation relationalGreaterThan[] = {{Splice, ">", 1}};
+	// Need both parens and only accept two parameters, otherwise operator precedence will confuse
+	const CStatementOperation relationalEquality[] = {{OpenParen, nullptr, -1},
+	                                                  {Expression, nullptr, 1},
+	                                                  {Keyword, "==", -1},
+	                                                  {Expression, nullptr, 2},
+	                                                  {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalNotEqual[] = {{OpenParen, nullptr, -1},
+	                                                  {Expression, nullptr, 1},
+	                                                  {Keyword, "!=", -1},
+	                                                  {Expression, nullptr, 2},
+	                                                  {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalLessThanEqual[] = {{OpenParen, nullptr, -1},
+	                                                       {Expression, nullptr, 1},
+	                                                       {Keyword, "<=", -1},
+	                                                       {Expression, nullptr, 2},
+	                                                       {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalGreaterThanEqual[] = {{OpenParen, nullptr, -1},
+	                                                          {Expression, nullptr, 1},
+	                                                          {Keyword, ">=", -1},
+	                                                          {Expression, nullptr, 2},
+	                                                          {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalLessThan[] = {{OpenParen, nullptr, -1},
+	                                                  {Expression, nullptr, 1},
+	                                                  {Keyword, "<", -1},
+	                                                  {Expression, nullptr, 2},
+	                                                  {CloseParen, nullptr, -1}};
+	const CStatementOperation relationalGreaterThan[] = {{OpenParen, nullptr, -1},
+	                                                     {Expression, nullptr, 1},
+	                                                     {Keyword, ">", -1},
+	                                                     {Expression, nullptr, 2},
+	                                                     {CloseParen, nullptr, -1}};
 
 	// Parentheses are especially necessary because the user's expectation will be broken without
 	// For example: (/ (- a b) c)
@@ -2752,8 +2790,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"deref", dereference, ArraySize(dereference)},
 	    {"addr", addressOf, ArraySize(addressOf)},
 	    {"field", field, ArraySize(field)},
-	    {"on-call", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
-	    {"on-call-ptr", dereferenceMemberFunctionInvocation,
+	    {"call-on", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
+	    {"call-on-ptr", dereferenceMemberFunctionInvocation,
 	     ArraySize(dereferenceMemberFunctionInvocation)},
 	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
 	    {"in", scopeResolution, ArraySize(scopeResolution)},
@@ -2871,7 +2909,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["defun-comptime"] = DefunGenerator;
 
 	environment.generators["def-function-signature"] = DefFunctionSignatureGenerator;
-	environment.generators["def-function-signature-local"] = DefFunctionSignatureGenerator;
+	environment.generators["def-function-signature-global"] = DefFunctionSignatureGenerator;
 
 	environment.generators["def-type-alias"] = DefTypeAliasGenerator;
 	environment.generators["def-type-alias-global"] = DefTypeAliasGenerator;
@@ -2883,8 +2921,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["defstruct-local"] = DefStructGenerator;
 
 	environment.generators["var"] = VariableDeclarationGenerator;
-	environment.generators["global-var"] = VariableDeclarationGenerator;
-	environment.generators["static-var"] = VariableDeclarationGenerator;
+	environment.generators["var-global"] = VariableDeclarationGenerator;
+	environment.generators["var-static"] = VariableDeclarationGenerator;
 
 	environment.generators["at"] = ArrayAccessGenerator;
 	environment.generators["nth"] = ArrayAccessGenerator;
@@ -2939,7 +2977,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
-	    "on-call", "on-call-ptr", "call", "in", "type-cast", "type",
+	    "call-on", "call-on-ptr", "call", "in", "type-cast", "type",
 	    // Boolean
 	    "or", "and", "not",
 	    // Bitwise

@@ -36,16 +36,16 @@
 (defun register-function-pointer (function-pointer (* (* void))
                                   function-name (* (const char)))
   (var findIt FunctionReferenceMapIterator
-       (on-call registered-functions find function-name))
-  (if (= findIt (on-call registered-functions end))
+       (call-on find registered-functions function-name))
+  (if (= findIt (call-on end registered-functions))
       (block
           (var new-function-pointer-array FunctionReferenceArray)
-        (on-call new-function-pointer-array push_back function-pointer)
+        (call-on push_back new-function-pointer-array function-pointer)
         (set (at function-name registered-functions)
              ;; This could also be written as (std::move new-function-pointer-array)
              ;; I'm not sure how I want it to work
              (call (in std move) new-function-pointer-array)))
-      (on-call (path findIt > second) push_back function-pointer)))
+      (call-on push_back (path findIt > second) function-pointer)))
 
 (defun-local copy-binary-file-to (srcFilename (* (const char))
                                   destFilename (* (const char)) &return bool)
@@ -119,7 +119,7 @@
   (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions
           (var loaded-symbol (* void)
                (dynamic-library-get-symbol current-lib
-                                           (on-call (path function-referent-it . first) c_str)))
+                                           (call-on c_str (path function-referent-it . first))))
           (unless loaded-symbol
             (return false))
           ;; TODO: What will happen once modules are unloaded? We can't store pointers to their static memory
@@ -141,8 +141,8 @@
 (var verbose-variables bool false)
 
 (defun hot-reload-find-variable (name (* (const char)) variable-address-out (* (* void)) &return bool)
-  (var find-it StateVariableMapIterator (on-call registered-state-variables find name))
-  (unless (!= find-it (on-call registered-state-variables end))
+  (var find-it StateVariableMapIterator (call-on find registered-state-variables name))
+  (unless (!= find-it (call-on end registered-state-variables))
     (set variable-address-out nullptr)
     (when verbose-variables
       (printf "Did not find variable %s\n" name))

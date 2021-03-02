@@ -1,3 +1,6 @@
+;; Build Tools - useful macros/functions for compile-time code
+;; These rely on Cakelisp, so don't expect it to work outside comptime
+
 (skip-build)
 
 ;; Returns exit code (0 = success)
@@ -8,7 +11,7 @@
     (Log "error: failed to run process\n")
     (return 1))
 
-  (waitForAllProcessesClosed nullptr)
+  (waitForAllProcessesClosed null)
   (return status))
 
 (defmacro gen-unique-symbol (token-var-name symbol prefix string reference-token any)
@@ -36,7 +39,7 @@
         ((and (= TokenType_Symbol (path current-token > type))
               (isSpecialSymbol (deref current-token)))
          (cond
-           ((= 0 (on-call (path current-token > contents) compare ":in-directory"))
+           ((= 0 (call-on compare (path current-token > contents) ":in-directory"))
             (var next-token (* (const Token)) (+ 1 current-token))
             (unless (< next-token end-token)
               (ErrorAtToken (deref next-token) "expected expression for working directory")
@@ -58,7 +61,7 @@
              ;;  (set (token-splice-addr working-dir-str-var) working-dir-alloc)
              ;;  (free (type-cast working-dir-alloc (* void))))
              (set (field (token-splice arguments-out-name) working-directory)
-                  (on-call (token-splice-addr working-dir-str-var) c_str)))
+                  (call-on c_str (token-splice-addr working-dir-str-var))))
 
             ;; Absorb src for incr
             (set current-token next-token))
@@ -69,7 +72,7 @@
 
         ;; Everything else is a argument to the command
         (true
-         (on-call command-arguments push_back (deref current-token))))
+         (call-on push_back command-arguments (deref current-token))))
       (incr current-token)))
 
   (gen-unique-symbol resolved-executable-var "resolved-executable" (deref executable-name))
@@ -83,7 +86,8 @@
    (unless (resolveExecutablePath (token-splice executable-name)
                                   (token-splice-addr resolved-executable-var)
                                   (sizeof (token-splice-addr resolved-executable-var)))
-     (Logf "error: failed to resolved executable %s. Is it installed?\\n"
+     (Logf "error: failed to resolved executable %s. Is it installed? Is the environment/path " \
+           "configured correctly?\\n"
            (token-splice executable-name))
      (return false))
    (set (field (token-splice arguments-out-name) fileToExecute)
@@ -101,12 +105,27 @@
 (defmacro run-process-sequential-or (command array &rest on-failure array)
   (var my-tokens (<> std::vector Token))
   (tokenize-push
-   ;; output
-   my-tokens
-   (scope (run-process-make-arguments process-command
-                                      ;; +1 because we want the inside of the command
-                                      (token-splice-rest (+ 1 command) tokens))
-          (unless (= 0 (run-process-wait-for-completion (addr process-command)))
-            (token-splice-rest on-failure tokens))))
-  (PushBackAll output my-tokens)
+   output
+   (scope
+    (run-process-make-arguments process-command
+                                ;; +1 because we want the inside of the command
+                                (token-splice-rest (+ 1 command) tokens))
+    (unless (= 0 (run-process-wait-for-completion (addr process-command)))
+      (token-splice-rest on-failure tokens))))
+  (return true))
+
+;; status-int-ptr should be an address to an int variable which can be checked for process exit
+;; code, but only after waitForAllProcessesClosed
+;; TODO: Make run-process-start-or block based on number of cores?
+(defmacro run-process-start-or (status-int-ptr any command array &rest on-failure-to-start array)
+  (var my-tokens (<> std::vector Token))
+  (tokenize-push
+   output
+   (scope
+    (run-process-make-arguments process-command
+                                ;; +1 because we want the inside of the command
+                                (token-splice-rest (+ 1 command) tokens))
+    (unless (= 0 (runProcess process-command (token-splice status-int-ptr)))
+     (Log "error: failed to start process\n")
+     (token-splice-rest on-failure-to-start tokens))))
   (return true))

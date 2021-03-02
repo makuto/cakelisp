@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "EvaluatorEnums.hpp"
 #include "Exporting.hpp"
@@ -30,15 +30,15 @@ bool ExpectInInvocation(const char* message, const std::vector<Token>& tokens, i
 
 // Returns true if the symbol starts with :, &, or '
 // TODO: Come up with better name
-bool isSpecialSymbol(const Token& token);
+CAKELISP_API bool isSpecialSymbol(const Token& token);
 
 // startTokenIndex should be the opening parenthesis of the array you want to retrieve arguments
 // from. For example, you should pass in the opening paren of a function invocation to get its name
 // as argument 0 and first arg as argument 1 This function would be simpler and faster if there was
 // an actual syntax tree, because we wouldn't be repeatedly traversing all the arguments
 // Returns -1 if argument is not within range
-int getArgument(const std::vector<Token>& tokens, int startTokenIndex, int desiredArgumentIndex,
-                int endTokenIndex);
+CAKELISP_API int getArgument(const std::vector<Token>& tokens, int startTokenIndex,
+                             int desiredArgumentIndex, int endTokenIndex);
 CAKELISP_API int getExpectedArgument(const char* message, const std::vector<Token>& tokens,
                                      int startTokenIndex, int desiredArgumentIndex,
                                      int endTokenIndex);
@@ -57,11 +57,11 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
 // block, so it knows the scope comes from the generator invocation
 int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex);
 
-const Token* FindTokenExpressionEnd(const Token* startToken);
+CAKELISP_API const Token* FindTokenExpressionEnd(const Token* startToken);
 
 // This is useful for copying a definition, with macros expanded, for e.g. code modification
-bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
-                                       std::vector<Token>& tokensOut);
+CAKELISP_API bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
+                                                    std::vector<Token>& tokensOut);
 
 // Similar to Lisp's gensym, make a globally unique symbol for e.g. macro variables. Use prefix so
 // it is still documented as to what it represents. Make sure your generated tokenToChange is
@@ -73,8 +73,9 @@ void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
                           Token* tokenToChange);
 // This should be stable as long as the context is managed properly. Code modification may make it
 // unstable unless they reset the context on reevaluate, etc.
-void MakeContextUniqueSymbolName(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                                 const char* prefix, Token* tokenToChange);
+CAKELISP_API void MakeContextUniqueSymbolName(EvaluatorEnvironment& environment,
+                                              const EvaluatorContext& context, const char* prefix,
+                                              Token* tokenToChange);
 
 CAKELISP_API void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken);
 

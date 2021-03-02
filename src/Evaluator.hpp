@@ -7,6 +7,7 @@
 
 #include "Build.hpp"
 #include "EvaluatorEnums.hpp"
+#include "Exporting.hpp"
 #include "FileTypes.hpp"
 #include "RunProcess.hpp"
 
@@ -84,6 +85,9 @@ struct EvaluatorContext
 	bool isRequired;
 	// Associate all unknown references with this definition
 	const Token* definitionName;
+	// When resolving references, have the context keep track of which reference is being resolved,
+	// to avoid creating additional references unnecessarily
+	const Token* resolvingReference;
 	Module* module;
 	// Insert delimiterTemplate between each expression/statement. Only recognized in
 	// EvaluateGenerateAll_Recursive()
@@ -189,6 +193,8 @@ struct ObjectDefinition
 	bool isLoaded;
 	// Used by other compile-time functions to include this function's already output header
 	std::string compileTimeHeaderName;
+	// Only necessary for Windows builds; holds the import library for calling comptime functions
+	std::string compileTimeImportLibraryName;
 
 	// Arbitrary tags user may add for compile-time reference
 	std::vector<std::string> tags;
@@ -317,6 +323,9 @@ struct EvaluatorEnvironment
 	// Generate code so that objects defined in Cakelisp can be loaded at runtime
 	bool useCLinkage;
 
+	// Whether to enable MSVC-specific hacks/conversions
+	bool isMsvcCompiler;
+
 	// Whether it is okay to skip an operation if the resultant file is already in the cache (and
 	// the source file hasn't been modified more recently)
 	bool useCachedFiles;
@@ -369,9 +378,10 @@ struct EvaluatorEnvironment
 // tokens. Essentially, call this as late as possible
 void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment);
 
-int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                               const std::vector<Token>& tokens, int startTokenIndex,
-                               GeneratorOutput& output);
+CAKELISP_API int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment,
+                                            const EvaluatorContext& context,
+                                            const std::vector<Token>& tokens, int startTokenIndex,
+                                            GeneratorOutput& output);
 
 // Delimiter template will be inserted between the outputs. Pass nullptr for no delimiter
 int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
@@ -380,9 +390,9 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 
 // For compile-time code modification.
 // This destroys the old definition. Don't hold on to references to it for that reason
-bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
-                                  const char* definitionToReplaceName,
-                                  const std::vector<Token>& newDefinitionTokens);
+CAKELISP_API bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
+                                               const char* definitionToReplaceName,
+                                               const std::vector<Token>& newDefinitionTokens);
 
 // Returns whether all references were resolved successfully
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment);
@@ -400,17 +410,19 @@ bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* ge
                                GeneratorFunc function);
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName);
-void* findCompileTimeFunction(EvaluatorEnvironment& environment, const char* functionName);
+CAKELISP_API void* findCompileTimeFunction(EvaluatorEnvironment& environment,
+                                           const char* functionName);
 bool findCompileTimeSymbol(EvaluatorEnvironment& environment, const char* symbolName);
-ObjectDefinition* findObjectDefinition(EvaluatorEnvironment& environment, const char* name);
+CAKELISP_API ObjectDefinition* findObjectDefinition(EvaluatorEnvironment& environment,
+                                                    const char* name);
 
 // These must take type as string in order to be address agnostic, making caching possible
 // destroyFunc is necessary for any C++ type with a destructor. If nullptr, free() is used
-bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
-                               const char* typeExpression, void* data,
-                               const char* destroyCompileTimeFuncName);
-bool GetCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
-                            const char* typeExpression, void** dataOut);
+CAKELISP_API bool CreateCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
+                                            const char* typeExpression, void* data,
+                                            const char* destroyCompileTimeFuncName);
+CAKELISP_API bool GetCompileTimeVariable(EvaluatorEnvironment& environment, const char* name,
+                                         const char* typeExpression, void** dataOut);
 
 // Whether the (reference) cached file is more recent than the filename, meaning whatever operation
 // which made the cached file can be skipped. Basically fileIsMoreRecentlyModified(), but respects

@@ -80,7 +80,7 @@ Here are some example imports:
 #+BEGIN_SRC lisp
 (c-import "<vector>") ;; now just e.g. (var my-vec (<> std::vector int) (array 1 2 3))
 (c-import "<cstdio.h>") ;; (printf "Hello %s!\n" "Cakelisp")
-(c-import "MyHeader.hpp") ;; (on-call myGlobalVar updateState 0.016)
+(c-import "MyHeader.hpp") ;; (call-on updateState myGlobalVar 0.016)
 
 ;; Multiple imports are allowed per call:
 (c-import "<vector>" "<map>")
@@ -231,9 +231,9 @@ Use the argument ~--list-built-ins~ to see an up-to-date list of all possible ex
 - ~deref~: Return the value at the pointer's address
 - ~addr~: Take the address of a variable/member
 - ~field~: Access a struct/class member. For example, with struct ~(defstruct my-struct num int)~, and variable ~(var my-thing my-struct)~, access ~num~: ~(field my-thing num)~
-- ~on-call~: Call a member function. For example, if I have a variable ~my-bar~ of type ~Bar~ with member function ~do-thing~, I can call it like so: ~(on-call my-bar do-thing arg-1 arg-2)~
-- ~on-call-ptr~: Like ~on-call~, only it works on pointers, e.g. ~(var my-pointer-to-bar (* Bar) (addr a-bar))~, call its member: ~(on-call-ptr my-pointer-to-bar do-thing arg-1 arg-2)~. These can be nested as necessary
-- ~call~: Call the first argument as a function. For example, to call a static member function: ~(call (in my-class do-static-thing) arg-1 arg-2)~
+- ~call-on~: Call a member function. For example, if I have a variable ~my-bar~ of type ~Bar~ with member function ~do-thing~, I can call it like so: ~(call-on do-thing my-bar arg-1 arg-2)~
+- ~call-on-ptr~: Like ~call-on~, only it works on pointers, e.g. ~(var my-pointer-to-bar (* Bar) (addr a-bar))~, call its member: ~(call-on-ptr do-thing my-pointer-to-bar arg-1 arg-2)~. These can be nested as necessary
+- ~call~: Call the first argument as a function. This is necessary when you can't type the function's name directly, e.g. it is a function pointer. For example, to call a static member function: ~(call (in my-class do-static-thing) arg-1 arg-2)~
 - ~in~: Scope resolution operator (~::~). Used for both namespaces and static member access. For e.g. ~(in SuperSpace SubSpace Thing)~ would generate ~SuperSpace::SubSpace::Thing~. ~in~ may be used within type signatures
 - ~type-cast~: Cast the variable to given type, e.g. ~(var actually-int (* void) (get-stored-var-pointer "my-int"))~ could become an int via ~(type-cast actually-int (* int))~
 - ~type~: Parse the first argument as a type. Types are a domain-specific language, so the evaluator needs to know when it should use that special evaluation mode
@@ -487,11 +487,11 @@ There may be cases when you need to do complex logic or modifications of the lin
                                     &return bool)
   (Log "Cakelisp: Adding link arguments\n")
   ;; Dynamic loading
-  (on-call (field linkCommand arguments) push_back
+  (call-on push_back (field linkCommand arguments)
            (array ProcessCommandArgumentType_String
                   "-ldl"))
   ;; Expose Cakelisp symbols for compile-time function symbol resolution
-  (on-call (field linkCommand arguments) push_back
+  (call-on push_back (field linkCommand arguments)
            (array ProcessCommandArgumentType_String
                   "-Wl,--export-dynamic"))
   (return true))
@@ -578,3 +578,14 @@ It does have some nice properties: if you update a 3rd-party library, Cakelisp w
 If you want to test a clean build, i.e. one which does not use any existing artifacts, you can do either of the following:
 - Delete the ~cakelisp_cache~ directory in the same working directory you have been executing ~cakelisp~
 - Pass the ~--ignore-cache~ argument, which will cause all artifacts to be marked stale and invalid
+* External tools
+** Counting lines of code
+Use the following setup to [[https://github.com/AlDanial/cloc][cloc]]:
+#+BEGIN_SRC sh
+cloc --force-lang="Lisp",cake [dirs]
+#+END_SRC
+** Github syntax highlighting
+Create a ~.gitattributes~ file in the project root, then add the following:
+#+BEGIN_SRC sh
+*.cake linguist-language=lisp
+#+END_SRC

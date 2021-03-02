@@ -9,6 +9,9 @@ enum ProcessCommandArgumentType
 
 	ProcessCommandArgumentType_SourceInput,
 	ProcessCommandArgumentType_ObjectOutput,
+	ProcessCommandArgumentType_ImportLibraryPaths,
+	ProcessCommandArgumentType_ImportLibraries,
+	ProcessCommandArgumentType_DebugSymbolsOutput,
 	ProcessCommandArgumentType_CakelispHeadersInclude,
 	ProcessCommandArgumentType_IncludeSearchDirs,
 	ProcessCommandArgumentType_AdditionalOptions,

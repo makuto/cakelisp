@@ -318,7 +318,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 	ZeroMemory(processInfo, sizeof(PROCESS_INFORMATION));
 
 	// Start the child process.
-	if (!CreateProcess(fileToExecute,               // No module name (use command line)
+	if (!CreateProcess(fileToExecute,
 	                   commandLineString,           // Command line
 	                   nullptr,                     // No security attributes
 	                   nullptr,                     // Thread handle not inheritable
@@ -494,6 +494,12 @@ static const char* ProcessCommandArgumentTypeToString(ProcessCommandArgumentType
 			return "SourceInput";
 		case ProcessCommandArgumentType_ObjectOutput:
 			return "ObjectOutput";
+		case ProcessCommandArgumentType_DebugSymbolsOutput:
+			return "DebugSymbolsOutput";
+		case ProcessCommandArgumentType_ImportLibraryPaths:
+			return "ImportLibraryPaths";
+		case ProcessCommandArgumentType_ImportLibraries:
+			return "ImportLibraries";
 		case ProcessCommandArgumentType_CakelispHeadersInclude:
 			return "CakelispHeadersInclude";
 		case ProcessCommandArgumentType_IncludeSearchDirs:

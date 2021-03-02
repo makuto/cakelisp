@@ -75,6 +75,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 	// Command defaults
 	{
 #ifdef WINDOWS
+		manager.environment.isMsvcCompiler = true;
+
 		// MSVC by default
 		// Our lives could be easier by using Clang or MinGW, but it wouldn't be the ideal for
 		// hardcore Windows users, who we should support
@@ -95,7 +97,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "/Zi"},
 		    {ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+			{ProcessCommandArgumentType_ObjectOutput, EmptyString},
+			{ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
@@ -106,6 +109,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    // unresolved externals
 		    {ProcessCommandArgumentType_String, "/LIBPATH:bin"},
 		    {ProcessCommandArgumentType_String, "cakelisp.lib"},
+			{ProcessCommandArgumentType_ImportLibraryPaths, EmptyString},
+			{ProcessCommandArgumentType_ImportLibraries, EmptyString},
 		    // Debug only
 		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
@@ -118,7 +123,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
-		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
+			{ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
+			{ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "link.exe";
@@ -277,7 +283,9 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 
 	if (tokens->empty())
 	{
-		Log("error: empty file. Please remove from system, or add (ignore)\n");
+		Logf("error: empty file or tokenization error with '%s'. Please remove from system, or add "
+			 "(ignore)\n",
+			 filename);
 		delete tokens;
 		return false;
 	}
@@ -870,6 +878,13 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 			objectOutput = &objectOutputOverride;
 		}
 
+		char debugSymbolsName[MAX_PATH_LENGTH] = {0};
+		PrintfBuffer(debugSymbolsName, "%s.%s", objectOutput->c_str(),
+		             compilerDebugSymbolsExtension);
+		char debugSymbolsArgument[MAX_PATH_LENGTH] = {0};
+		makeDebugSymbolsOutputArgument(debugSymbolsArgument, sizeof(debugSymbolsArgument),
+		                               debugSymbolsName);
+
 		char buildTimeBuildExecutable[MAX_PATH_LENGTH] = {0};
 		if (!resolveExecutablePath(buildCommand.fileToExecute.c_str(), buildTimeBuildExecutable,
 		                           sizeof(buildTimeBuildExecutable)))
@@ -881,7 +896,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 		ProcessCommandInput buildTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
 		    {ProcessCommandArgumentType_ObjectOutput, {objectOutput->c_str()}},
-		    {ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
+			{ProcessCommandArgumentType_DebugSymbolsOutput, {debugSymbolsArgument}},
+			{ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
 		    {ProcessCommandArgumentType_AdditionalOptions, std::move(additionalOptions)}};
 		const char** buildArguments =
 		    MakeProcessArgumentsFromCommand(buildTimeBuildExecutable, buildCommand.arguments,
@@ -914,6 +930,11 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 				continue;
 			}
 		}
+
+		// Annoying Windows workaround: delete PDB to fix fatal error C1052
+		// Technically we only need to do this for /DEBUG:fastlink
+		if (debugSymbolsArgument[0] && fileExists(debugSymbolsName))
+			remove(debugSymbolsName);
 
 		// Go through with the build
 		RunProcessArguments compileArguments = {};
@@ -1027,28 +1048,19 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 		// Copy it so hooks can modify it
 		ProcessCommand linkCommand = *buildOptions.linkCommand;
 
-		char executableOutput[MAX_PATH_LENGTH + 5] = {0};
-		makeExecutableOutputArgument(executableOutput, sizeof(executableOutput),
-		                             outputExecutableName.c_str(),
-		                             linkCommand.fileToExecute.c_str());
+		std::vector<std::string> executableOutputString;
+		executableOutputString.push_back(outputExecutableName);
 
-		// Various library and linker arguments need prefixes added. Do that here
+		// Various arguments need prefixes added. Do that here
+		std::vector<const char*> executableToArgs;
 		std::vector<const char*> librariesArgs;
 		std::vector<const char*> librarySearchDirsArgs;
 		std::vector<const char*> libraryRuntimeSearchDirsArgs;
 		std::vector<const char*> convertedLinkerArgs;
 		std::vector<const char*> compilerLinkArgs;
-		struct
-		{
-			std::vector<std::string>* stringsIn;
-
-			// Use C++ to manage our string memory, pointed to by argumentsOut
-			std::vector<std::string> argumentsOutMemory;
-			std::vector<const char*>* argumentsOut;
-			void (*argumentConversionFunc)(char* buffer, int bufferSize, const char* stringIn,
-			                               const char* linkExecutable);
-		} libraryArguments[] = {
-		    {&buildOptions.linkLibraries, {}, &librariesArgs, makeLinkLibraryArgument},
+		BuildArgumentConverter convertedArguments[] = {
+			{&executableOutputString, {}, &executableToArgs, makeExecutableOutputArgument},
+			{&buildOptions.linkLibraries, {}, &librariesArgs, makeLinkLibraryArgument},
 		    {&buildOptions.librarySearchDirs,
 		     {},
 		     &librarySearchDirsArgs,
@@ -1060,37 +1072,11 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 		    {&buildOptions.toLinkerOptions, {}, &convertedLinkerArgs, makeLinkerArgument},
 		    // We can't know how to auto-convert these because they could be anything
 		    {&buildOptions.compilerLinkOptions, {}, &compilerLinkArgs, nullptr}};
-		for (int inputIndex = 0; inputIndex < ArraySize(libraryArguments); ++inputIndex)
-		{
-			int numStrings = (int)libraryArguments[inputIndex].stringsIn->size();
-			libraryArguments[inputIndex].argumentsOutMemory.resize(numStrings);
-			libraryArguments[inputIndex].argumentsOut->resize(numStrings);
-
-			int currentString = 0;
-			for (const std::string& stringIn : *libraryArguments[inputIndex].stringsIn)
-			{
-				if (libraryArguments[inputIndex].argumentConversionFunc)
-				{
-					// Give some extra padding for prefixes
-					char argumentOut[MAX_PATH_LENGTH + 15] = {0};
-					libraryArguments[inputIndex].argumentConversionFunc(
-					    argumentOut, sizeof(argumentOut), stringIn.c_str(),
-					    linkCommand.fileToExecute.c_str());
-					libraryArguments[inputIndex].argumentsOutMemory[currentString] = argumentOut;
-				}
-				else
-					libraryArguments[inputIndex].argumentsOutMemory[currentString] = stringIn;
-
-				++currentString;
-			}
-
-			for (int stringIndex = 0; stringIndex < numStrings; ++stringIndex)
-				(*libraryArguments[inputIndex].argumentsOut)[stringIndex] =
-				    libraryArguments[inputIndex].argumentsOutMemory[stringIndex].c_str();
-		}
+		convertBuildArguments(convertedArguments, ArraySize(convertedArguments),
+		                      linkCommand.fileToExecute.c_str());
 
 		ProcessCommandInput linkTimeInputs[] = {
-		    {ProcessCommandArgumentType_ExecutableOutput, {executableOutput}},
+		    {ProcessCommandArgumentType_ExecutableOutput, executableToArgs},
 		    {ProcessCommandArgumentType_ObjectInput, objectsToLink},
 		    {ProcessCommandArgumentType_AdditionalOptions, compilerLinkArgs},
 		    {ProcessCommandArgumentType_LibrarySearchDirs, librarySearchDirsArgs},
