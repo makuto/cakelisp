@@ -159,7 +159,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		// G++ by default
 		manager.environment.compileTimeBuildCommand.fileToExecute = "g++";
 		manager.environment.compileTimeBuildCommand.arguments = {
-		    // {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-g"},
 			{ProcessCommandArgumentType_String, "-c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_String, "-o"},
@@ -179,7 +179,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		// https://gcc.gnu.org/onlinedocs/gcc/Precompiled-Headers.html
 		manager.environment.compileTimeHeaderPrecompilerCommand.fileToExecute = "g++";
 		manager.environment.compileTimeHeaderPrecompilerCommand.arguments = {
-		    // {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-g"},
 		    {ProcessCommandArgumentType_String, "-x"},
 		    {ProcessCommandArgumentType_String, "c++-header"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
