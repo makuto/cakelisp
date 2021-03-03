@@ -630,8 +630,11 @@ bool cppFileNeedsBuild(EvaluatorEnvironment& environment, const char* sourceFile
 	if (logging.buildReasons)
 	{
 		Logf("Build %s reason(s):\n", artifactFilename);
-		if (!canUseCache)
+		if (!fileExists(artifactFilename))
+			Log("\tfile does not exist\n");
+		else if (!canUseCache)
 			Log("\tobject files updated\n");
+
 		if (!commandEqualsCached)
 			Log("\tcommand changed since last run\n");
 		if (headersModified)
