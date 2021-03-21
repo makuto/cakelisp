@@ -2256,9 +2256,14 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 
 	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
 
+	NameStyleSettings nameStyle;
+	char convertedName[MAX_NAME_LENGTH] = {0};
+	lispNameStyleToCNameStyle(nameStyle.typeNameMode, tokens[nameIndex].contents.c_str(),
+	                          convertedName, sizeof(convertedName), tokens[nameIndex]);
+
 	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &invocationToken);
 	PushBackAll(outputDest, typeOutput);
-	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_None, &tokens[nameIndex]);
+	addStringOutput(outputDest, convertedName, StringOutMod_None, &tokens[nameIndex]);
 	PushBackAll(outputDest, typeAfterNameOutput);
 	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &invocationToken);
 	return true;

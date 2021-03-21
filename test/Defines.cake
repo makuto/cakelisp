@@ -11,6 +11,11 @@
 
 (c-preprocessor-define MAX_PATH_LENGTH 255)
 
+
 (defun main (&return int)
   (printf "Path length: %d\n" MAX_PATH_LENGTH)
+
+  (def-type-alias my-type int)
+  (var a-thing my-type 0)
+  (printf "Thing: %d\n" a-thing)
   (return 0))
