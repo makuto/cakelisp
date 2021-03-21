@@ -97,8 +97,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "/Zi"},
 		    {ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
-			{ProcessCommandArgumentType_ObjectOutput, EmptyString},
-			{ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
@@ -109,8 +109,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    // unresolved externals
 		    {ProcessCommandArgumentType_String, "/LIBPATH:bin"},
 		    {ProcessCommandArgumentType_String, "cakelisp.lib"},
-			{ProcessCommandArgumentType_ImportLibraryPaths, EmptyString},
-			{ProcessCommandArgumentType_ImportLibraries, EmptyString},
+		    {ProcessCommandArgumentType_ImportLibraryPaths, EmptyString},
+		    {ProcessCommandArgumentType_ImportLibraries, EmptyString},
 		    // Debug only
 		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
@@ -138,8 +138,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
-			{ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
-			{ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
+		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "link.exe";
@@ -153,22 +153,28 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
 #else
-		// manager.environment.comptimeUsePrecompiledHeaders = false; // 13.2 seconds Debug; 10.25 no debug
-		manager.environment.comptimeUsePrecompiledHeaders = true; // 7.37 seconds (including building pch, 6.21 w/o); 3.728s no debug (excluding pch; if build pch, 4.62s)
+		// 13.2 seconds Debug; 10.25 no debug
+		// manager.environment.comptimeUsePrecompiledHeaders = false;
+		// 7.37 seconds (including building pch, 6.21 w/o); 3.728s no debug (excluding pch; if build
+		// pch, 4.62s)
+		manager.environment.comptimeUsePrecompiledHeaders = true;
 
-		// G++ by default
-		manager.environment.compileTimeBuildCommand.fileToExecute = "g++";
+		// G++ by default, because most distros seem to have it over clang
+		const char* defaultCompilerLinker = "g++";  // 9s
+		// const char* defaultCompilerLinker = "clang++"; // 11.9s
+
+		manager.environment.compileTimeBuildCommand.fileToExecute = defaultCompilerLinker;
 		manager.environment.compileTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
-			{ProcessCommandArgumentType_String, "-c"},
+		    {ProcessCommandArgumentType_String, "-c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
-			{ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
-			{ProcessCommandArgumentType_PrecompiledHeaderInclude, EmptyString},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+		    {ProcessCommandArgumentType_PrecompiledHeaderInclude, EmptyString},
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
-		manager.environment.compileTimeLinkCommand.fileToExecute = "g++";
+		manager.environment.compileTimeLinkCommand.fileToExecute = defaultCompilerLinker;
 		manager.environment.compileTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-shared"},
 		    {ProcessCommandArgumentType_String, "-o"},
@@ -177,7 +183,8 @@ void moduleManagerInitialize(ModuleManager& manager)
 
 		// Note that this command must match the compilation command to be compatible, see
 		// https://gcc.gnu.org/onlinedocs/gcc/Precompiled-Headers.html
-		manager.environment.compileTimeHeaderPrecompilerCommand.fileToExecute = "g++";
+		manager.environment.compileTimeHeaderPrecompilerCommand.fileToExecute =
+		    defaultCompilerLinker;
 		manager.environment.compileTimeHeaderPrecompilerCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
 		    {ProcessCommandArgumentType_String, "-x"},
@@ -188,7 +195,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
-		manager.environment.buildTimeBuildCommand.fileToExecute = "g++";
+		manager.environment.buildTimeBuildCommand.fileToExecute = defaultCompilerLinker;
 		manager.environment.buildTimeBuildCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "-g"},
 		    {ProcessCommandArgumentType_String, "-c"},
@@ -201,7 +208,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
 
-		manager.environment.buildTimeLinkCommand.fileToExecute = "g++";
+		manager.environment.buildTimeLinkCommand.fileToExecute = defaultCompilerLinker;
 		manager.environment.buildTimeLinkCommand.arguments = {
 		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
 		    {ProcessCommandArgumentType_String, "-o"},
@@ -315,9 +322,10 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 
 	if (tokens->empty())
 	{
-		Logf("error: empty file or tokenization error with '%s'. Please remove from system, or add "
-			 "(ignore)\n",
-			 filename);
+		Logf(
+		    "error: empty file or tokenization error with '%s'. Please remove from system, or add "
+		    "(ignore)\n",
+		    filename);
 		delete tokens;
 		return false;
 	}
@@ -928,8 +936,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 		ProcessCommandInput buildTimeInputs[] = {
 		    {ProcessCommandArgumentType_SourceInput, {object->sourceFilename.c_str()}},
 		    {ProcessCommandArgumentType_ObjectOutput, {objectOutput->c_str()}},
-			{ProcessCommandArgumentType_DebugSymbolsOutput, {debugSymbolsArgument}},
-			{ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
+		    {ProcessCommandArgumentType_DebugSymbolsOutput, {debugSymbolsArgument}},
+		    {ProcessCommandArgumentType_IncludeSearchDirs, std::move(searchDirArgs)},
 		    {ProcessCommandArgumentType_AdditionalOptions, std::move(additionalOptions)}};
 		const char** buildArguments =
 		    MakeProcessArgumentsFromCommand(buildTimeBuildExecutable, buildCommand.arguments,
@@ -1091,8 +1099,8 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 		std::vector<const char*> convertedLinkerArgs;
 		std::vector<const char*> compilerLinkArgs;
 		BuildArgumentConverter convertedArguments[] = {
-			{&executableOutputString, {}, &executableToArgs, makeExecutableOutputArgument},
-			{&buildOptions.linkLibraries, {}, &librariesArgs, makeLinkLibraryArgument},
+		    {&executableOutputString, {}, &executableToArgs, makeExecutableOutputArgument},
+		    {&buildOptions.linkLibraries, {}, &librariesArgs, makeLinkLibraryArgument},
 		    {&buildOptions.librarySearchDirs,
 		     {},
 		     &librarySearchDirsArgs,
