@@ -983,8 +983,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		                &tokens[startTokenIndex]);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
-	if (!outputFunctionReturnType(tokens, *functionOutput, returnTypeStart, startTokenIndex,
-	                              endArgsIndex,
+	if (!outputFunctionReturnType(environment, context, tokens, *functionOutput, returnTypeStart,
+	                              startTokenIndex, endArgsIndex,
 	                              /*outputSource=*/true, /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -998,7 +998,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!isModuleLocal)
 		addLangTokenOutput(functionOutput->header, StringOutMod_OpenParen, &argsStart);
 
-	if (!outputFunctionArguments(tokens, *functionOutput, arguments, /*outputSource=*/true,
+	if (!outputFunctionArguments(environment, context, tokens, *functionOutput, arguments,
+	                             /*outputSource=*/true,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -1095,7 +1096,8 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
-	if (!outputFunctionReturnType(tokens, output, returnTypeStart, startTokenIndex, endArgsIndex,
+	if (!outputFunctionReturnType(environment, context, tokens, output, returnTypeStart,
+	                              startTokenIndex, endArgsIndex,
 	                              /*outputSource=*/isModuleLocal, /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -1107,7 +1109,8 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 
 	addLangTokenOutput(outputDest, StringOutMod_OpenParen, &argsStart);
 
-	if (!outputFunctionArguments(tokens, output, arguments, /*outputSource=*/isModuleLocal,
+	if (!outputFunctionArguments(environment, context, tokens, output, arguments,
+	                             /*outputSource=*/isModuleLocal,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -1194,7 +1197,7 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	std::vector<StringOutput> typeOutput;
 	std::vector<StringOutput> typeAfterNameOutput;
 	// Arrays cannot be return types, they must be * instead
-	if (!tokenizedCTypeToString_Recursive(tokens, typeIndex,
+	if (!tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
 	                                      /*allowArray=*/true, typeOutput, typeAfterNameOutput))
 		return false;
 
@@ -1952,9 +1955,9 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 			std::vector<StringOutput> typeOutput;
 			std::vector<StringOutput> typeAfterNameOutput;
 			// Arrays cannot be return types, they must be * instead
-			if (!tokenizedCTypeToString_Recursive(tokens, currentMember.typeStart,
-			                                      /*allowArray=*/true, typeOutput,
-			                                      typeAfterNameOutput))
+			if (!tokenizedCTypeToString_Recursive(
+			        environment, context, tokens, currentMember.typeStart,
+			        /*allowArray=*/true, typeOutput, typeAfterNameOutput))
 				return false;
 
 			// At this point, we probably have a valid variable. Start outputting
@@ -2247,8 +2250,8 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 
 	std::vector<StringOutput> typeOutput;
 	std::vector<StringOutput> typeAfterNameOutput;
-	if (!(tokenizedCTypeToString_Recursive(tokens, typeIndex, true, typeOutput,
-	                                       typeAfterNameOutput)))
+	if (!(tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex, true,
+	                                       typeOutput, typeAfterNameOutput)))
 	{
 		return false;
 	}

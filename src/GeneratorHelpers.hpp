@@ -105,14 +105,18 @@ struct FunctionArgumentTokens
 bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
                             std::vector<FunctionArgumentTokens>& arguments, int& returnTypeStart);
 // startInvocationIndex is used for blaming on implicit return type
-bool outputFunctionReturnType(const std::vector<Token>& tokens, GeneratorOutput& output,
+bool outputFunctionReturnType(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                              const std::vector<Token>& tokens, GeneratorOutput& output,
                               int returnTypeStart, int startInvocationIndex, int endArgsIndex,
                               bool outputSource, bool outputHeader);
-bool outputFunctionArguments(const std::vector<Token>& tokens, GeneratorOutput& output,
+bool outputFunctionArguments(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                             const std::vector<Token>& tokens, GeneratorOutput& output,
                              const std::vector<FunctionArgumentTokens>& arguments,
                              bool outputSource, bool outputHeader);
 
-bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
+bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
+                                      const EvaluatorContext& context,
+                                      const std::vector<Token>& tokens, int startTokenIndex,
                                       bool allowArray, std::vector<StringOutput>& typeOutput,
                                       std::vector<StringOutput>& afterNameOutput);
 

@@ -1,6 +1,6 @@
 #include "GeneratorHelpers.hpp"
 
-#include <cctype> // isdigit
+#include <cctype>  // isdigit
 
 #include "Evaluator.hpp"
 #include "Tokenizer.hpp"
@@ -526,7 +526,8 @@ bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
 }
 
 // startInvocationIndex is used for blaming on implicit return type
-bool outputFunctionReturnType(const std::vector<Token>& tokens, GeneratorOutput& output,
+bool outputFunctionReturnType(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                              const std::vector<Token>& tokens, GeneratorOutput& output,
                               int returnTypeStart, int startInvocationIndex, int endArgsIndex,
                               bool outputSource, bool outputHeader)
 {
@@ -561,7 +562,7 @@ bool outputFunctionReturnType(const std::vector<Token>& tokens, GeneratorOutput&
 		std::vector<StringOutput> typeOutput;
 		std::vector<StringOutput> afterNameOutput;
 		// Arrays cannot be return types, they must be * instead
-		if (!tokenizedCTypeToString_Recursive(tokens, returnTypeStart,
+		if (!tokenizedCTypeToString_Recursive(environment, context, tokens, returnTypeStart,
 		                                      /*allowArray=*/false, typeOutput, afterNameOutput))
 			return false;
 
@@ -586,7 +587,8 @@ bool outputFunctionReturnType(const std::vector<Token>& tokens, GeneratorOutput&
 	return true;
 }
 
-bool outputFunctionArguments(const std::vector<Token>& tokens, GeneratorOutput& output,
+bool outputFunctionArguments(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                             const std::vector<Token>& tokens, GeneratorOutput& output,
                              const std::vector<FunctionArgumentTokens>& arguments,
                              bool outputSource, bool outputHeader)
 {
@@ -597,7 +599,7 @@ bool outputFunctionArguments(const std::vector<Token>& tokens, GeneratorOutput& 
 		std::vector<StringOutput> typeOutput;
 		std::vector<StringOutput> afterNameOutput;
 		bool typeValid =
-		    tokenizedCTypeToString_Recursive(tokens, arg.startTypeIndex,
+		    tokenizedCTypeToString_Recursive(environment, context, tokens, arg.startTypeIndex,
 		                                     /*allowArray=*/true, typeOutput, afterNameOutput);
 		if (!typeValid)
 			return false;
@@ -640,7 +642,9 @@ bool outputFunctionArguments(const std::vector<Token>& tokens, GeneratorOutput& 
 
 // afterNameOutput must be a separate buffer because some C type specifiers (e.g. array []) need to
 // come after the type. Returns whether parsing was successful
-bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int startTokenIndex,
+bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
+                                      const EvaluatorContext& context,
+                                      const std::vector<Token>& tokens, int startTokenIndex,
                                       bool allowArray, std::vector<StringOutput>& typeOutput,
                                       std::vector<StringOutput>& afterNameOutput)
 {
@@ -695,8 +699,8 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			if (typeIndex == -1)
 				return false;
 
-			return tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
-			                                        afterNameOutput);
+			return tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
+			                                        allowArray, typeOutput, afterNameOutput);
 		}
 		else if (typeInvocation.contents.compare("*") == 0 ||
 		         typeInvocation.contents.compare("&") == 0)
@@ -710,8 +714,8 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			if (typeIndex == -1)
 				return false;
 
-			if (!tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
-			                                      afterNameOutput))
+			if (!tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
+			                                      allowArray, typeOutput, afterNameOutput))
 				return false;
 
 			addStringOutput(typeOutput, typeInvocation.contents.c_str(), StringOutMod_None,
@@ -728,8 +732,8 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			if (typeIndex == -1)
 				return false;
 
-			if (!tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
-			                                      afterNameOutput))
+			if (!tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
+			                                      allowArray, typeOutput, afterNameOutput))
 				return false;
 
 			addStringOutput(typeOutput, "&&", StringOutMod_None, &typeInvocation);
@@ -741,31 +745,27 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 			if (typeIndex == -1)
 				return false;
 
-			if (!tokenizedCTypeToString_Recursive(tokens, typeIndex, allowArray, typeOutput,
-			                                      afterNameOutput))
+			if (!tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
+			                                      allowArray, typeOutput, afterNameOutput))
 				return false;
 
 			addStringOutput(typeOutput, "<", StringOutMod_None, &typeInvocation);
-			for (int startTemplateParameter = typeIndex + 1; startTemplateParameter < endTokenIndex;
-			     ++startTemplateParameter)
+			for (int startTemplateParameter = getNextArgument(tokens, typeIndex, endTokenIndex);
+			     startTemplateParameter < endTokenIndex;
+			     startTemplateParameter =
+			         getNextArgument(tokens, startTemplateParameter, endTokenIndex))
 			{
 				// Override allowArray for subsequent parsing, because otherwise, the array args
 				// will be appended to the wrong buffer, and you cannot declare arrays in template
 				// parameters anyways (as far as I can tell)
-				if (!tokenizedCTypeToString_Recursive(tokens, startTemplateParameter,
-				                                      /*allowArray=*/false, typeOutput,
-				                                      afterNameOutput))
+				if (!tokenizedCTypeToString_Recursive(
+				        environment, context, tokens, startTemplateParameter,
+				        /*allowArray=*/false, typeOutput, afterNameOutput))
 					return false;
 
 				if (!isLastArgument(tokens, startTemplateParameter, endTokenIndex))
 					addLangTokenOutput(typeOutput, StringOutMod_ListSeparator,
 					                   &tokens[startTemplateParameter]);
-
-				// Skip over tokens of the type we just parsed (the for loop increment will move us
-				// off the end paren)
-				if (tokens[startTemplateParameter].type == TokenType_OpenParen)
-					startTemplateParameter =
-					    FindCloseParenTokenIndex(tokens, startTemplateParameter);
 			}
 			addStringOutput(typeOutput, ">", StringOutMod_None, &typeInvocation);
 		}
@@ -797,8 +797,26 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 
 				// Array size specified as first argument
 				addStringOutput(afterNameOutput, "[", StringOutMod_None, &typeInvocation);
-				addStringOutput(afterNameOutput, tokens[firstArgIndex].contents.c_str(),
-				                StringOutMod_None, &tokens[firstArgIndex]);
+
+				// You can't actually dynamically resize arrays with expressions, but we should
+				// support constant expressions for array size, because C/C++ does
+				EvaluatorContext expressionContext = context;
+				GeneratorOutput arrayOutput;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+				                               firstArgIndex, arrayOutput) != 0)
+					return false;
+
+				if (!arrayOutput.header.empty())
+				{
+					ErrorAtToken(tokens[firstArgIndex],
+					             "array size expression cannot invoke generators which output to "
+					             "the header");
+					return false;
+				}
+
+				PushBackAll(afterNameOutput, arrayOutput.source);
+
 				addStringOutput(afterNameOutput, "]", StringOutMod_None, &typeInvocation);
 			}
 			else
@@ -806,11 +824,9 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 
 			// Type parsing happens after the [] have already been appended because the array's type
 			// may include another array dimension, which must be specified after the current array
-			return tokenizedCTypeToString_Recursive(tokens, typeIndex,
-			                                        allowArray, typeOutput,
-			                                        afterNameOutput);
+			return tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
+			                                        allowArray, typeOutput, afterNameOutput);
 		}
-		// else if (typeInvocation.contents.compare("::") == 0)
 		else if (typeInvocation.contents.compare("in") == 0)
 		{
 			int firstScopeIndex =
@@ -824,7 +840,7 @@ bool tokenizedCTypeToString_Recursive(const std::vector<Token>& tokens, int star
 				// Override allowArray for subsequent parsing, because otherwise, the array args
 				// will be appended to the wrong buffer, and you cannot declare arrays in scope
 				// parameters anyways (as far as I can tell)
-				if (!tokenizedCTypeToString_Recursive(tokens, startScopeIndex,
+				if (!tokenizedCTypeToString_Recursive(environment, context, tokens, startScopeIndex,
 				                                      /*allowArray=*/false, typeOutput,
 				                                      afterNameOutput))
 					return false;
@@ -984,7 +1000,7 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 					return false;
 				std::vector<StringOutput> typeOutput;
 				std::vector<StringOutput> typeAfterNameOutput;
-				if (!tokenizedCTypeToString_Recursive(tokens, startTypeIndex,
+				if (!tokenizedCTypeToString_Recursive(environment, context, tokens, startTypeIndex,
 				                                      /*allowArray=*/false, typeOutput,
 				                                      typeAfterNameOutput))
 					return false;
