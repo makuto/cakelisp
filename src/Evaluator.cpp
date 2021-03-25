@@ -1530,10 +1530,10 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		// generation and modification. These changes will need to be evaluated and their references
 		// resolved, so we need to repeat the whole process until no more changes are made
 		codeModified = false;
-		for (PostReferencesResolvedHook& hook : environment.postReferencesResolvedHooks)
+		for (const CompileTimeHook& hook : environment.postReferencesResolvedHooks)
 		{
 			bool codeModifiedByHook = false;
-			if (!hook(environment, codeModifiedByHook))
+			if (!((PostReferencesResolvedHook)hook.function)(environment, codeModifiedByHook))
 			{
 				Log("error: hook returned failure\n");
 				numBuildResolveErrors += 1;
@@ -1875,4 +1875,45 @@ bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* ge
 			                            numErrors);
 	}
 	return numErrors == 0;
+}
+
+bool AddCompileTimeHook(EvaluatorEnvironment& environment, std::vector<CompileTimeHook>* hookList,
+                        const char* expectedSignature, const char* compileTimeFunctionName,
+                        void* hookFunction, int userPriority, const Token* blameToken)
+{
+	for (const CompileTimeHook& hook : *hookList)
+	{
+		// Already added, which means its signature is also already verified good
+		if (hook.function == hookFunction)
+			return true;
+	}
+
+	// Check the signature so we can call it safely
+	std::vector<Token> expectedSignatureTokens;
+	if (!tokenizeLinePrintError(expectedSignature, "Evaluator.cpp", __LINE__,
+	                            expectedSignatureTokens))
+		return false;
+
+	if (!CompileTimeFunctionSignatureMatches(environment, *blameToken, compileTimeFunctionName,
+	                                         expectedSignatureTokens))
+		return false;
+
+	CompileTimeHook newHook = {hookFunction, userPriority, environment.nextHookPriority};
+	if (logging.compileTimeHooks)
+		Logf("added hook %s with user priority %d, environment priority %d\n",
+		     compileTimeFunctionName, newHook.userPriority, newHook.environmentPriority);
+	hookList->push_back(newHook);
+	++environment.nextHookPriority;
+
+	std::sort(hookList->begin(), hookList->end(),
+	          [](const CompileTimeHook& a, const CompileTimeHook& b) {
+		          if (a.userPriority == b.userPriority)
+		          {
+					  // environmentPriority shouldn't be relied on; it's for a stable sort
+			          return a.environmentPriority > b.environmentPriority;
+		          }
+		          return a.userPriority > b.userPriority;
+	          });
+
+	return true;
 }

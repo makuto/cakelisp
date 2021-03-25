@@ -672,7 +672,7 @@ struct SharedBuildOptions
 	// Cached directory, not necessarily the final artifacts directory (e.g. executable-output
 	// option sets different location for the final executable)
 	std::string* buildOutputDir;
-	std::vector<PreLinkHook>* preLinkHooks;
+	std::vector<CompileTimeHook>* preLinkHooks;
 
 	// Link options
 	std::vector<std::string> linkLibraries;
@@ -698,9 +698,9 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 	{
 		Module* module = manager.modules[moduleIndex];
 
-		for (ModulePreBuildHook hook : module->preBuildHooks)
+		for (const CompileTimeHook& hook : module->preBuildHooks)
 		{
-			if (!hook(manager, module))
+			if (!((ModulePreBuildHook)hook.function)(manager, module))
 			{
 				Log("error: hook returned failure. Aborting build\n");
 				buildObjectsFree(buildObjects);
@@ -1085,9 +1085,10 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 		    {ProcessCommandArgumentType_LinkerArguments, convertedLinkerArgs}};
 
 		// Hooks should cooperate with eachother, i.e. try to only add things
-		for (PreLinkHook preLinkHook : *buildOptions.preLinkHooks)
+		for (const CompileTimeHook& preLinkHook : *buildOptions.preLinkHooks)
 		{
-			if (!preLinkHook(manager, linkCommand, linkTimeInputs, ArraySize(linkTimeInputs)))
+			if (!((PreLinkHook)preLinkHook.function)(manager, linkCommand, linkTimeInputs,
+			                                         ArraySize(linkTimeInputs)))
 			{
 				Log("error: hook returned failure. Aborting build\n");
 				buildObjectsFree(buildObjects);

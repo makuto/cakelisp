@@ -56,7 +56,7 @@ struct Module
 	// This doesn't really make sense
 	// ProcessCommand buildTimeLinkCommand;
 
-	std::vector<ModulePreBuildHook> preBuildHooks;
+	std::vector<CompileTimeHook> preBuildHooks;
 };
 
 struct ModuleManager

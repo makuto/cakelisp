@@ -318,6 +318,42 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	    !ExpectTokenType("compile-time hook", tokens[functionNameIndex], TokenType_Symbol))
 		return false;
 
+	int userPriority = 0;
+	int priorityIndex = getArgument(tokens, startTokenIndex, 3, endInvocationIndex);
+	if (priorityIndex != -1)
+	{
+		bool isPriorityIncrease = tokens[priorityIndex].contents.compare(":priority-increase") == 0;
+		bool isPriorityDecrease = !isPriorityIncrease &&
+		                          tokens[priorityIndex].contents.compare(":priority-decrease") == 0;
+		if (!isPriorityIncrease && !isPriorityDecrease)
+		{
+			ErrorAtToken(tokens[priorityIndex],
+			             "expected optional :priority-decrease or :priority-increase keyword, got "
+			             "unknown symbol");
+			return false;
+		}
+
+		int priorityValueIndex = getExpectedArgument("expected integer priority", tokens,
+		                                             startTokenIndex, 4, endInvocationIndex);
+		if (priorityValueIndex == -1 ||
+		    !ExpectTokenType("compile-time hook priority", tokens[priorityValueIndex],
+		                     TokenType_Symbol))
+			return false;
+
+		userPriority = atoi(tokens[priorityValueIndex].contents.c_str());
+		if (userPriority < 0)
+		{
+			ErrorAtTokenf(tokens[priorityValueIndex],
+			              "only positive integers are allowed. If you want to decrease priority, "
+			              "use :priority-decrease %d instead",
+			              userPriority);
+			return false;
+		}
+
+		if (isPriorityDecrease)
+			userPriority = -userPriority;
+	}
+
 	void* hookFunction =
 	    findCompileTimeFunction(environment, tokens[functionNameIndex].contents.c_str());
 	if (hookFunction)
@@ -333,81 +369,26 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 				return false;
 			}
 
-			// Insert only if not already hooked
-			if (FindInContainer(context.module->preBuildHooks, hookFunction) ==
-			    context.module->preBuildHooks.end())
-			{
-				// Finally, check the signature so we can call it safely
-				static std::vector<Token> expectedSignature;
-				if (expectedSignature.empty())
-				{
-					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, "Generators.cpp",
-					                            __LINE__, expectedSignature))
-						return false;
-				}
-
-				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
-				                                         tokens[functionNameIndex].contents.c_str(),
-				                                         expectedSignature))
-					return false;
-
-				context.module->preBuildHooks.push_back((ModulePreBuildHook)hookFunction);
-			}
-
-			return true;
+			return AddCompileTimeHook(environment, &context.module->preBuildHooks,
+			                          g_modulePreBuildHookSignature,
+			                          tokens[functionNameIndex].contents.c_str(), hookFunction,
+			                          userPriority, &tokens[functionNameIndex]);
 		}
 
 		if (!isModuleHook && hookName.contents.compare("pre-link") == 0)
 		{
-			// Insert only if not already hooked
-			if (FindInContainer(environment.preLinkHooks, hookFunction) ==
-			    environment.preLinkHooks.end())
-			{
-				// Finally, check the signature so we can call it safely
-				static std::vector<Token> expectedSignature;
-				if (expectedSignature.empty())
-				{
-					if (!tokenizeLinePrintError(g_environmentPreLinkHookSignature, "Generators.cpp",
-					                            __LINE__, expectedSignature))
-						return false;
-				}
-
-				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
-				                                         tokens[functionNameIndex].contents.c_str(),
-				                                         expectedSignature))
-					return false;
-
-				environment.preLinkHooks.push_back((PreLinkHook)hookFunction);
-			}
-
-			return true;
+			return AddCompileTimeHook(environment, &environment.preLinkHooks,
+			                          g_environmentPreLinkHookSignature,
+			                          tokens[functionNameIndex].contents.c_str(), hookFunction,
+			                          userPriority, &tokens[functionNameIndex]);
 		}
 
 		if (!isModuleHook && hookName.contents.compare("post-references-resolved") == 0)
 		{
-			// Insert only if not already hooked
-			if (FindInContainer(environment.postReferencesResolvedHooks, hookFunction) ==
-			    environment.postReferencesResolvedHooks.end())
-			{
-				// Finally, check the signature so we can call it safely
-				static std::vector<Token> expectedSignature;
-				if (expectedSignature.empty())
-				{
-					if (!tokenizeLinePrintError(g_environmentPostReferencesResolvedHookSignature,
-					                            "Generators.cpp", __LINE__, expectedSignature))
-						return false;
-				}
-
-				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
-				                                         tokens[functionNameIndex].contents.c_str(),
-				                                         expectedSignature))
-					return false;
-
-				environment.postReferencesResolvedHooks.push_back(
-				    (PostReferencesResolvedHook)hookFunction);
-			}
-
-			return true;
+			return AddCompileTimeHook(environment, &environment.postReferencesResolvedHooks,
+			                          g_environmentPostReferencesResolvedHookSignature,
+			                          tokens[functionNameIndex].contents.c_str(), hookFunction,
+			                          userPriority, &tokens[functionNameIndex]);
 		}
 	}
 	else

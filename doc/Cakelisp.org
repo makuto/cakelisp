@@ -500,6 +500,14 @@ There may be cases when you need to do complex logic or modifications of the lin
 #+END_SRC
 
 ~(add-compile-time-hook pre-link cakelisp-link-hook)~ adds the hook, then ~cakelisp-link-hook~ is invoked before link time.
+
+Hook order of execution can be changed via the optional argument ~:priority-increase <int>~ or ~:priority-decrease <int>~. For example:
+#+BEGIN_SRC lisp
+(add-compile-time-hook-module pre-build second-hook)
+(add-compile-time-hook-module pre-build third-hook :priority-decrease 3)
+(add-compile-time-hook-module pre-build first-hook :priority-increase 1)
+#+END_SRC
+Will run First, Second, then Third, because Second starts at default priority (0), Third is decreased in priority (runs /later/), and First is increased in priority, so runs earlier.
 ** Build commands
 The environment comes with default commands (defined in ~src/ModuleManager.cpp~). Build commands can be overridden to whatever process you choose, with the structure you choose. For example, the linker can be changed like so:
 

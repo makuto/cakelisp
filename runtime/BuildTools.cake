@@ -86,7 +86,7 @@
    (unless (resolveExecutablePath (token-splice executable-name)
                                   (token-splice-addr resolved-executable-var)
                                   (sizeof (token-splice-addr resolved-executable-var)))
-     (Logf "error: failed to resolved executable %s. Is it installed? Is the environment/path " \
+     (Logf "error: failed to resolve executable %s. Is it installed? Is the environment/path " \
            "configured correctly?\\n"
            (token-splice executable-name))
      (return false))
