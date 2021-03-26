@@ -1,4 +1,4 @@
-#+TITLE:Cakelisp
+#+title: Cakelisp
 
 [[file:images/CakeLisp_gradient_128.png]]
 
