@@ -1101,6 +1101,26 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				numArgumentsHandled += numArguments;
 				break;
 			}
+			case Statement:
+			{
+				if (operation[i].argumentIndex < 0)
+				{
+					Log("Error: Expected valid argument index for statement\n");
+					return false;
+				}
+				int startStatementIndex =
+				    getExpectedArgument("expected statement", tokens, startTokenIndex,
+				                        operation[i].argumentIndex, endTokenIndex);
+				if (startStatementIndex == -1)
+					return false;
+				EvaluatorContext statementContext = context;
+				statementContext.scope = EvaluatorScope_Body;
+				if (EvaluateGenerate_Recursive(environment, statementContext, tokens,
+				                               startStatementIndex, output) != 0)
+					return false;
+				++numArgumentsHandled;
+				break;
+			}
 			default:
 				Log("Output type not handled\n");
 				return false;
