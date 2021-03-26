@@ -1066,6 +1066,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				// Skip straight to linking, which immediately becomes loading
 				buildObject.stage = BuildStage_Linking;
 				buildObject.status = 0;
+				free(buildArguments);
 				continue;
 			}
 		}
@@ -1081,8 +1082,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		if (runProcess(compileArguments, &buildObject.status) != 0)
 		{
 			// TODO: Abort building if cannot invoke compiler?
-			// free(buildArguments);
-			// return 0;
+			free(buildArguments);
+			continue;
 		}
 
 		free(buildArguments);
