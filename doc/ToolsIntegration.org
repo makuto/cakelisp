@@ -1,0 +1,43 @@
+#+title: Tools Integration
+This document covers how to add Cakelisp support to various different tools/editors.
+* Counting lines of code
+Use the following setup to [[https://github.com/AlDanial/cloc][cloc]]:
+#+BEGIN_SRC sh
+cloc --force-lang="Lisp",cake [dirs]
+#+END_SRC
+* Github syntax highlighting
+Create a ~.gitattributes~ file in the project root, then add the following:
+#+BEGIN_SRC sh
+*.cake linguist-language=lisp
+#+END_SRC
+* Emacs
+** Open ~.cake~ files in ~lisp-mode~
+#+BEGIN_SRC lisp
+(add-to-list 'auto-mode-alist '("\\.cake?\\'" . lisp-mode))
+#+END_SRC
+
+** Specify indentation of various new forms
+The number represents how many arguments are expected to the function.
+
+#+BEGIN_SRC lisp
+  (put 'defun-local 'lisp-indent-function 2)
+  (put 'defun-comptime 'lisp-indent-function 2)
+  (put 'defgenerator 'lisp-indent-function 2)
+
+  (put 'defstruct-local 'lisp-indent-function 1)
+  (put 'defstruct 'lisp-indent-function 1)
+
+  (put 'var 'lisp-indent-function 2)
+  ;;(put 'block 'lisp-indent-function 3) ;; Doesn't work because block is special (always expects 1)
+
+  (put 'tokenize-push 'lisp-indent-function 1)
+
+  ;; Macros
+  (put 'each-in-range 'lisp-indent-function 2)
+  (put 'each-in-array 'lisp-indent-function 2)
+  (put 'c-for 'lisp-indent-function 3)
+
+  (put 'run-process-sequential-or 'lisp-indent-function 1)
+#+END_SRC
+
+You will need to add these for your custom macros because I haven't written an Emacs parser to automatically determine indentation from macro/generator signatures.

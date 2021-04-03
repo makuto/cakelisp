@@ -587,13 +587,4 @@ If you want to test a clean build, i.e. one which does not use any existing arti
 - Delete the ~cakelisp_cache~ directory in the same working directory you have been executing ~cakelisp~
 - Pass the ~--ignore-cache~ argument, which will cause all artifacts to be marked stale and invalid
 * External tools
-** Counting lines of code
-Use the following setup to [[https://github.com/AlDanial/cloc][cloc]]:
-#+BEGIN_SRC sh
-cloc --force-lang="Lisp",cake [dirs]
-#+END_SRC
-** Github syntax highlighting
-Create a ~.gitattributes~ file in the project root, then add the following:
-#+BEGIN_SRC sh
-*.cake linguist-language=lisp
-#+END_SRC
+See [[file:ToolsIntegration.org][ToolsIntegration.org]].

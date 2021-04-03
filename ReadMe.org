@@ -168,11 +168,8 @@ Check out [[file:doc/Cakelisp.org][doc/Cakelisp.org]] for a detailed explanation
 
 Explore ~test/~ and ~runtime/~ for examples of Cakelisp code. [[https://macoy.me/code/macoy/gamelib][GameLib]] is a collection of modules built for making games in Cakelisp. Check both ~src/~ and ~test/~ in GameLib for more extensive code examples.
 * Tooling support
-** Emacs
-Open ~.cake~ files in ~lisp-mode~:
-#+BEGIN_SRC lisp
-(add-to-list 'auto-mode-alist '("\\.cake?\\'" . lisp-mode))
-#+END_SRC
+See [[file:doc/ToolsIntegration.org][doc/ToolsIntegration.org]] for e.g. editor integrations.
+
 ** Build systems
 A build system may work with Cakelisp, because Cakelisp outputs C/C++ source/header files. Cakelisp must run before your regular build system runs, or in a stage where Cakelisp can create and add files to the build. This is because Cakelisp handles its own modules such that adding support to an existing build system would be challenging.
 
