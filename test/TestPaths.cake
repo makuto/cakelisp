@@ -2,7 +2,7 @@
         ;; realpath
         "<stdlib.h>")
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "Macros.cake")
+(import &comptime-only "ComptimeHelpers.cake")
 
 (defun main (&return int)
   (var path-tests ([] (* (const char))) (array
@@ -10,8 +10,8 @@
                                          "./runtime/TestPaths.cake"
                                          "/home/macoy/Development/code/repositories/cakelisp"
                                          "../cakelisp/runtime/TestPaths.cake"
-                                         "runtime/Macros.cake"
-                                         "src/Macros.cake"))
+                                         "runtime/ComptimeHelpers.cake"
+                                         "src/ComptimeHelpers.cake"))
   (var i int 0)
   (while (< i (array-size path-tests))
     (var result (* (const char)) (realpath (at i path-tests) null))

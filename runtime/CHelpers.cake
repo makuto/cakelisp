@@ -1,6 +1,6 @@
 (skip-build)
 
-(import &comptime-only "Macros.cake")
+(import &comptime-only "ComptimeHelpers.cake")
 
 ;; This should evaluate its argument, but I'm just hacking it in right now anyways
 (defmacro array-size (array-token symbol)

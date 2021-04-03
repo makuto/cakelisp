@@ -36,7 +36,7 @@
 ;; TODO: Make a context variable for preventing environment changes during &decls-only?
 (comptime-define-symbol 'No-Hot-Reload-Options)
 
-(import &comptime-only "Macros.cake")
+(import &comptime-only "ComptimeHelpers.cake")
 
 ;; This is redefined by make-code-hot-reloadable
 (defun hot-reload-initialize-state ())

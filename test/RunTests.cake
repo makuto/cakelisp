@@ -1,7 +1,7 @@
 ;; (skip-build)
 
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "BuildTools.cake" "Macros.cake" "CHelpers.cake")
+(import &comptime-only "BuildTools.cake" "ComptimeHelpers.cake" "CHelpers.cake")
 
 ;; We don't actually test anything here; we use comptime to run the tests
 (defun main (&return int)

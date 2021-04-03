@@ -1,4 +1,4 @@
-(import &comptime-only "runtime/Macros.cake")
+(import &comptime-only "runtime/ComptimeHelpers.cake")
 (c-import "stdio.h")
 
 (defun secret-print ()

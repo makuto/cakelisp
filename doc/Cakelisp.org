@@ -63,7 +63,7 @@ The ~import~ function adds the specified file to the environment:
 
 ;; Do not include in any generated code. This is essential for comptime-only modules, which won't
 ;; even generate headers
-(import &comptime-only "Macros.cake")
+(import &comptime-only "ComptimeHelpers.cake")
 #+END_SRC
 
 By default, ~&with-defs~ is specified, meaning the generated header will be included in the generated source file only.

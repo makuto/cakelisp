@@ -157,11 +157,11 @@
 ;;   (while (< current-arg-index end-invocation-index)
 ;;     (var current-arg (* (const Token)) (addr (at current-arg-index tokens)))
 ;;     (var num-destructured-args-token Token (array TokenType_Symbol (std::to_string num-destructured-args)
-;;                                                   "test/Macros.cake" 1 1 1))
+;;                                                   "test/ComptimeHelpers.cake" 1 1 1))
 ;;     (unless (ExpectTokenType "destructure-arguments" (at current-arg-index tokens) TokenType_Symbol)
 ;;       (return false))
 ;;     (var destructured-arg-name-token Token (array TokenType_String (field (at current-arg-index tokens) contents)
-;;                                                   "test/Macros.cake" 1 1 1))
+;;                                                   "test/ComptimeHelpers.cake" 1 1 1))
 ;;     (tokenize-push output
 ;;                    (var (token-splice current-arg) int
 ;;                         (getExpectedArgument
