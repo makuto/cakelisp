@@ -128,18 +128,19 @@
   ;; Yes: Auto-generate construction function and call it instead of copy-pasting
   (tokenize-push output
     (var (token-splice-addr bound-var-name) (* (token-splice-addr var-type)) null)
-    (scope (unless (GetCompileTimeVariable environment
-                                           (token-splice-addr var-name) (token-splice-addr var-type-str)
-                                           (type-cast (addr (token-splice-addr bound-var-name)) (* (* void))))
-             (set (token-splice-addr bound-var-name) (new (token-splice-addr var-type)))
-             (token-splice-array initializer)
-             (var destroy-func-name (* (const char)) (token-splice-addr destroy-var-func-name-str))
-             (unless (CreateCompileTimeVariable environment
-                                                (token-splice-addr var-name) (token-splice-addr var-type-str)
-                                                (type-cast (token-splice-addr bound-var-name) (* void))
-                                                destroy-func-name)
-               (delete (token-splice-addr bound-var-name))
-               (return false)))))
+    (scope
+     (unless (GetCompileTimeVariable environment
+                                     (token-splice-addr var-name) (token-splice-addr var-type-str)
+                                     (type-cast (addr (token-splice-addr bound-var-name)) (* (* void))))
+       (set (token-splice-addr bound-var-name) (new (token-splice-addr var-type)))
+       (token-splice-array initializer)
+       (var destroy-func-name (* (const char)) (token-splice-addr destroy-var-func-name-str))
+       (unless (CreateCompileTimeVariable environment
+                                          (token-splice-addr var-name) (token-splice-addr var-type-str)
+                                          (type-cast (token-splice-addr bound-var-name) (* void))
+                                          destroy-func-name)
+         (delete (token-splice-addr bound-var-name))
+         (return false)))))
   (return true))
 
 ;; TODO: This is now built in, but it would still be useful to bind to arbitrary tokens
@@ -178,7 +179,7 @@
 ;; Assumes tokens is the array of tokens
 (defmacro quick-token-at (name symbol index any)
   (tokenize-push output (var (token-splice name) (& (const Token))
-                             (at (token-splice index) tokens)))
+                          (at (token-splice index) tokens)))
   (return true))
 
 (defmacro command-add-string-argument (command any new-argument any)
