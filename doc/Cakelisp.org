@@ -387,6 +387,14 @@ See [[file:../src/GeneratorHelpers.hpp][GeneratorHelpers.hpp]]. All of these fun
 Additionally, the ~Expect~ functions are quick ways to validate your inputs. They will write an error if the expectation isn't met.
 
 [[file:../src/Generators.cpp][Generators.cpp]] serves as a good reference to how generators are written. However, they are rather verbose because they don't use any macros and have extensive validation. Generators written in Cakelisp can be much more compact thanks to macros.
+*** Why use generators instead of macros?
+~defgenerator~ opens the door to any C/C++ feature, even non-built-in features like custom code generation annotations or documentation comment strings. If you encounter a feature not in Cakelisp but in C/C++, you can write a generator to gain access to it.
+
+A big advantage of this is that you now get to decide how you want the syntax to work - if you don't like ~switch~ implicitly falling through, you can make your generator automatically insert ~break~.
+
+Macros can only output code which eventually calls generators. Generators output arbitrary text directly to C/C++ source and header files. Generators are primarily for gaining access to features missing in Cakelisp's built-ins.
+
+In practice, you should try to write macros when possible in order to leverage Cakelisp maximally. If you wrote a generator which lets you input arbitrary C/C++, you would lose all the power gained by features like code modification, because generator output cannot be trivially parsed like macro output can.
 * Build system
 Cakelisp's build system is powerful enough at this point to serve as a general-purpose C/C++ build system, even if you aren't using Cakelisp for any runtime code.
 
@@ -586,5 +594,15 @@ It does have some nice properties: if you update a 3rd-party library, Cakelisp w
 If you want to test a clean build, i.e. one which does not use any existing artifacts, you can do either of the following:
 - Delete the ~cakelisp_cache~ directory in the same working directory you have been executing ~cakelisp~
 - Pass the ~--ignore-cache~ argument, which will cause all artifacts to be marked stale and invalid
+* Runtime
+The ~runtime/~ folder offers a variety of ~.cake~ modules which may be useful to you.
+** C and C++ helpers
+It is intended to keep the C++ part of the language (i.e., code in ~src/~) small. ~runtime/~ has "missing" C constructs like ~for~ implemented in Cakelisp. ~CHelpers.cake~ may be used on C++ projects, because all C is compatible. As a result, only things that are C++-specific are implemented in ~CppHelpers.cake~.
+
+The idea is that language features like ~for~ or ~switch~ can be replaced with ~while~ and ~if~ to keep the core small. Any of those additional language features can be implemented in new generators using the more minimal core.
+** Hot-reloading
+Hot-reloading is implemented entirely in user-space, i.e. outside the core of Cakelisp. This shows the power of compile-time code execution - major language features can be added without touching the language itself.
+** Compile-time functions
+Various other files in ~runtime/~ assist in writing macros and generators faster. There are also utilities for accessing Cakelisp's process execution system during compile-time, which is useful for inserting custom pre-build steps (etc.).
 * External tools
 See [[file:ToolsIntegration.org][ToolsIntegration.org]].
