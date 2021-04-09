@@ -237,6 +237,18 @@ extern const char* g_environmentPostReferencesResolvedHookSignature;
 typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment,
                                            bool& wasCodeModifiedOut);
 
+struct CompileTimeHook
+{
+	void* function;
+	// Sorted by greatest priority to least, priority 2 comes before 1, -1 comes after 0 and 1
+	// See comment above AddCompileTimeHook for priority rationale
+	int userPriority;
+	// When userPriority is unset or matches, environment priority will decide. Set by order
+	// encountered during reference resolution. Not predictable; any necessary priority should be
+	// explicit via userPriority
+	int environmentPriority;
+};
+
 // Update g_environmentCompileTimeVariableDestroySignature if you change this signature
 typedef void (*CompileTimeVariableDestroyFunc)(void* data);
 
@@ -309,6 +321,8 @@ struct EvaluatorEnvironment
 	int nextFreeBuildId;
 	// Ensure unique macro variable names, for example
 	int nextFreeUniqueSymbolNum;
+	// Resolve hook priorities via first resolved, first called priority, unless userPriority is set
+	int nextHookPriority;
 
 	// Used to load other files into the environment
 	// If this is null, it means other Cakelisp files will not be imported (which could be desired)
@@ -370,10 +384,10 @@ struct EvaluatorEnvironment
 	// At this point, all known references are resolved. This is the best time to let the user do
 	// arbitrary code generation and modification. These changes will need to be evaluated and their
 	// references resolved, so we need to repeat the whole process until no more changes are made
-	std::vector<PostReferencesResolvedHook> postReferencesResolvedHooks;
+	std::vector<CompileTimeHook> postReferencesResolvedHooks;
 
 	// Gives the user the chance to change the link command
-	std::vector<PreLinkHook> preLinkHooks;
+	std::vector<CompileTimeHook> preLinkHooks;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
 	~EvaluatorEnvironment();
@@ -449,6 +463,16 @@ bool searchForFileInPathsWithError(const char* shortPath, const char* encountere
                                    const std::vector<std::string>& searchPaths,
                                    char* foundFilePathOut, int foundFilePathOutSize,
                                    const Token& blameToken);
+
+// Returns whether the hook's signature matches the expected signature. Hook is only added if it
+// hasn't already been added.
+// Hooks are sorted by priority, where userPriority trumps "environment priority". The latter should
+// be considered arbitrary, since it depends on order of references being resolved, which isn't
+// predictable (though is deterministic). Larger priority numbers mean hook is executed earlier than
+// default (0). Negative priority numbers mean hook is executed later than default.
+bool AddCompileTimeHook(EvaluatorEnvironment& environment, std::vector<CompileTimeHook>* hookList,
+                        const char* expectedSignature, const char* compileTimeFunctionName,
+                        void* hookFunction, int userPriority, const Token* blameToken);
 
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;

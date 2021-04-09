@@ -386,7 +386,7 @@ bool appendTokenToString(const Token& token, char** at, char* bufferStart, int b
 	return false;
 }
 
-static void printFormattedToken(FILE* fileOut, const Token& token)
+void printFormattedToken(FILE* fileOut, const Token& token)
 {
 	switch (token.type)
 	{

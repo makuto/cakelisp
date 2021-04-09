@@ -27,4 +27,8 @@ enum CStatementOperationType
 	ExpressionList,
 	// Body will read the remaining arguments; argumentIndex will tell it where to start
 	Body,
+	// Similar to body, though doesn't evaluate more than one argument. Users can still use
+	// invocations which open scopes in order to provide multiple statements in a single Statement.
+	// Statements are in Body scope
+	Statement,
 };

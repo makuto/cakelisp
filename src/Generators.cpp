@@ -325,6 +325,42 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 	    !ExpectTokenType("compile-time hook", tokens[functionNameIndex], TokenType_Symbol))
 		return false;
 
+	int userPriority = 0;
+	int priorityIndex = getArgument(tokens, startTokenIndex, 3, endInvocationIndex);
+	if (priorityIndex != -1)
+	{
+		bool isPriorityIncrease = tokens[priorityIndex].contents.compare(":priority-increase") == 0;
+		bool isPriorityDecrease = !isPriorityIncrease &&
+		                          tokens[priorityIndex].contents.compare(":priority-decrease") == 0;
+		if (!isPriorityIncrease && !isPriorityDecrease)
+		{
+			ErrorAtToken(tokens[priorityIndex],
+			             "expected optional :priority-decrease or :priority-increase keyword, got "
+			             "unknown symbol");
+			return false;
+		}
+
+		int priorityValueIndex = getExpectedArgument("expected integer priority", tokens,
+		                                             startTokenIndex, 4, endInvocationIndex);
+		if (priorityValueIndex == -1 ||
+		    !ExpectTokenType("compile-time hook priority", tokens[priorityValueIndex],
+		                     TokenType_Symbol))
+			return false;
+
+		userPriority = atoi(tokens[priorityValueIndex].contents.c_str());
+		if (userPriority < 0)
+		{
+			ErrorAtTokenf(tokens[priorityValueIndex],
+			              "only positive integers are allowed. If you want to decrease priority, "
+			              "use :priority-decrease %d instead",
+			              userPriority);
+			return false;
+		}
+
+		if (isPriorityDecrease)
+			userPriority = -userPriority;
+	}
+
 	void* hookFunction =
 	    findCompileTimeFunction(environment, tokens[functionNameIndex].contents.c_str());
 	if (hookFunction)
@@ -340,81 +376,26 @@ bool AddCompileTimeHookGenerator(EvaluatorEnvironment& environment, const Evalua
 				return false;
 			}
 
-			// Insert only if not already hooked
-			if (FindInContainer(context.module->preBuildHooks, hookFunction) ==
-			    context.module->preBuildHooks.end())
-			{
-				// Finally, check the signature so we can call it safely
-				static std::vector<Token> expectedSignature;
-				if (expectedSignature.empty())
-				{
-					if (!tokenizeLinePrintError(g_modulePreBuildHookSignature, "Generators.cpp",
-					                            __LINE__, expectedSignature))
-						return false;
-				}
-
-				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
-				                                         tokens[functionNameIndex].contents.c_str(),
-				                                         expectedSignature))
-					return false;
-
-				context.module->preBuildHooks.push_back((ModulePreBuildHook)hookFunction);
-			}
-
-			return true;
+			return AddCompileTimeHook(environment, &context.module->preBuildHooks,
+			                          g_modulePreBuildHookSignature,
+			                          tokens[functionNameIndex].contents.c_str(), hookFunction,
+			                          userPriority, &tokens[functionNameIndex]);
 		}
 
 		if (!isModuleHook && hookName.contents.compare("pre-link") == 0)
 		{
-			// Insert only if not already hooked
-			if (FindInContainer(environment.preLinkHooks, hookFunction) ==
-			    environment.preLinkHooks.end())
-			{
-				// Finally, check the signature so we can call it safely
-				static std::vector<Token> expectedSignature;
-				if (expectedSignature.empty())
-				{
-					if (!tokenizeLinePrintError(g_environmentPreLinkHookSignature, "Generators.cpp",
-					                            __LINE__, expectedSignature))
-						return false;
-				}
-
-				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
-				                                         tokens[functionNameIndex].contents.c_str(),
-				                                         expectedSignature))
-					return false;
-
-				environment.preLinkHooks.push_back((PreLinkHook)hookFunction);
-			}
-
-			return true;
+			return AddCompileTimeHook(environment, &environment.preLinkHooks,
+			                          g_environmentPreLinkHookSignature,
+			                          tokens[functionNameIndex].contents.c_str(), hookFunction,
+			                          userPriority, &tokens[functionNameIndex]);
 		}
 
 		if (!isModuleHook && hookName.contents.compare("post-references-resolved") == 0)
 		{
-			// Insert only if not already hooked
-			if (FindInContainer(environment.postReferencesResolvedHooks, hookFunction) ==
-			    environment.postReferencesResolvedHooks.end())
-			{
-				// Finally, check the signature so we can call it safely
-				static std::vector<Token> expectedSignature;
-				if (expectedSignature.empty())
-				{
-					if (!tokenizeLinePrintError(g_environmentPostReferencesResolvedHookSignature,
-					                            "Generators.cpp", __LINE__, expectedSignature))
-						return false;
-				}
-
-				if (!CompileTimeFunctionSignatureMatches(environment, tokens[functionNameIndex],
-				                                         tokens[functionNameIndex].contents.c_str(),
-				                                         expectedSignature))
-					return false;
-
-				environment.postReferencesResolvedHooks.push_back(
-				    (PostReferencesResolvedHook)hookFunction);
-			}
-
-			return true;
+			return AddCompileTimeHook(environment, &environment.postReferencesResolvedHooks,
+			                          g_environmentPostReferencesResolvedHookSignature,
+			                          tokens[functionNameIndex].contents.c_str(), hookFunction,
+			                          userPriority, &tokens[functionNameIndex]);
 		}
 	}
 	else
@@ -990,8 +971,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		                &tokens[startTokenIndex]);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
-	if (!outputFunctionReturnType(tokens, *functionOutput, returnTypeStart, startTokenIndex,
-	                              endArgsIndex,
+	if (!outputFunctionReturnType(environment, context, tokens, *functionOutput, returnTypeStart,
+	                              startTokenIndex, endArgsIndex,
 	                              /*outputSource=*/true, /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -1005,7 +986,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	if (!isModuleLocal)
 		addLangTokenOutput(functionOutput->header, StringOutMod_OpenParen, &argsStart);
 
-	if (!outputFunctionArguments(tokens, *functionOutput, arguments, /*outputSource=*/true,
+	if (!outputFunctionArguments(environment, context, tokens, *functionOutput, arguments,
+	                             /*outputSource=*/true,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -1102,7 +1084,8 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
-	if (!outputFunctionReturnType(tokens, output, returnTypeStart, startTokenIndex, endArgsIndex,
+	if (!outputFunctionReturnType(environment, context, tokens, output, returnTypeStart,
+	                              startTokenIndex, endArgsIndex,
 	                              /*outputSource=*/isModuleLocal, /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -1114,7 +1097,8 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 
 	addLangTokenOutput(outputDest, StringOutMod_OpenParen, &argsStart);
 
-	if (!outputFunctionArguments(tokens, output, arguments, /*outputSource=*/isModuleLocal,
+	if (!outputFunctionArguments(environment, context, tokens, output, arguments,
+	                             /*outputSource=*/isModuleLocal,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;
 
@@ -1201,7 +1185,7 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 	std::vector<StringOutput> typeOutput;
 	std::vector<StringOutput> typeAfterNameOutput;
 	// Arrays cannot be return types, they must be * instead
-	if (!tokenizedCTypeToString_Recursive(tokens, typeIndex,
+	if (!tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
 	                                      /*allowArray=*/true, typeOutput, typeAfterNameOutput))
 		return false;
 
@@ -1959,9 +1943,9 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 			std::vector<StringOutput> typeOutput;
 			std::vector<StringOutput> typeAfterNameOutput;
 			// Arrays cannot be return types, they must be * instead
-			if (!tokenizedCTypeToString_Recursive(tokens, currentMember.typeStart,
-			                                      /*allowArray=*/true, typeOutput,
-			                                      typeAfterNameOutput))
+			if (!tokenizedCTypeToString_Recursive(
+			        environment, context, tokens, currentMember.typeStart,
+			        /*allowArray=*/true, typeOutput, typeAfterNameOutput))
 				return false;
 
 			// At this point, we probably have a valid variable. Start outputting
@@ -2254,8 +2238,8 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 
 	std::vector<StringOutput> typeOutput;
 	std::vector<StringOutput> typeAfterNameOutput;
-	if (!(tokenizedCTypeToString_Recursive(tokens, typeIndex, true, typeOutput,
-	                                       typeAfterNameOutput)))
+	if (!(tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex, true,
+	                                       typeOutput, typeAfterNameOutput)))
 	{
 		return false;
 	}
@@ -2263,9 +2247,14 @@ static bool DefTypeAliasGenerator(EvaluatorEnvironment& environment,
 
 	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
 
+	NameStyleSettings nameStyle;
+	char convertedName[MAX_NAME_LENGTH] = {0};
+	lispNameStyleToCNameStyle(nameStyle.typeNameMode, tokens[nameIndex].contents.c_str(),
+	                          convertedName, sizeof(convertedName), tokens[nameIndex]);
+
 	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &invocationToken);
 	PushBackAll(outputDest, typeOutput);
-	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_None, &tokens[nameIndex]);
+	addStringOutput(outputDest, convertedName, StringOutMod_None, &tokens[nameIndex]);
 	PushBackAll(outputDest, typeAfterNameOutput);
 	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &invocationToken);
 	return true;
