@@ -288,9 +288,10 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 	}
 	else
 	{
-		// Resolved path is above working dir
-		// Could still make this relative with ../ up to differing directory, if I find it's desired
-		SafeSnprintf(bufferOut, bufferSize, "%s", filePathAbsolute);
+		// Resolved path is above working dir. I could still make this relative with ../ up to
+		// differing directory, if I find it's desired. For now, keep it relative, even if
+		// concatenated relative paths start to get hard to read
+		SafeSnprintf(bufferOut, bufferSize, "%s", filePath);
 	}
 
 	free((void*)workingDirAbsolute);
@@ -333,9 +334,10 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 		}
 		else
 		{
-			// Resolved path is above working dir. Could still make this relative with ../ up to
-			// differing directory, if I find it's desired
-			SafeSnprintf(bufferOut, bufferSize, "%s", filePathAbsolute);
+			// Resolved path is above working dir. I could still make this relative with ../ up to
+		// differing directory, if I find it's desired. For now, keep it relative, even if
+		// concatenated relative paths start to get hard to read
+			SafeSnprintf(bufferOut, bufferSize, "%s", filePath);
 		}
 		free((void*)filePathAbsolute);
 	}
