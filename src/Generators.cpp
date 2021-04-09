@@ -1411,7 +1411,7 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 		const Token* name;
 	};
 
-	TokenArgument argument;
+	TokenArgument argument = {0};
 	bool isOptional = false;
 	bool checkArgCount = true;
 	int runtimeArgumentIndex = 1;  // Invocation = 0
