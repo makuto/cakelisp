@@ -20,7 +20,7 @@
  "Build.cpp"
  "Main.cpp")
 
-(add-build-options "-DUNIX")
+(add-build-options "-DUNIX" "-Wall" "-Werror" "-std=c++11")
 
 ;; Cakelisp dynamically loads compile-time code
 (add-library-dependency "dl")

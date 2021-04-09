@@ -782,7 +782,7 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 			    {&module->librarySearchDirectories, &sharedBuildOptions.librarySearchDirs},
 			    {&module->libraryRuntimeSearchDirectories,
 			     &sharedBuildOptions.libraryRuntimeSearchDirs}};
-			for (int linkArgumentSet = 0; linkArgumentSet < ArraySize(linkArgumentsToAdd);
+			for (size_t linkArgumentSet = 0; linkArgumentSet < ArraySize(linkArgumentsToAdd);
 			     ++linkArgumentSet)
 			{
 				for (const std::string& str : *(linkArgumentsToAdd[linkArgumentSet].inputs))
