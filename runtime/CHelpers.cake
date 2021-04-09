@@ -24,7 +24,47 @@
      (array Keyword "' '" -1)))
   (return (c-statement-out statement)))
 
-;; Creates forward declarations in header files.
+;;
+;; Declarations
+;;
+
+;; Given
+;; (declare-extern-function my-func (i int &return bool))
+;; Output
+;; bool myFunc(int i);
+;; This is useful for forward declarations of functions or declaring functions linked dynamically
+(defgenerator declare-extern-function (name-token (ref symbol) signature-index (index array))
+  (quick-token-at signature-token signature-index)
+  (var return-type-start int -1)
+  (var arguments (<> std::vector FunctionArgumentTokens))
+  (unless (parseFunctionSignature tokens signature-index arguments return-type-start)
+	(return false))
+
+  (var end-signature-index int (FindCloseParenTokenIndex tokens signature-index))
+  (unless (outputFunctionReturnType environment context tokens output return-type-start
+                                    startTokenIndex
+	                                end-signature-index
+	                                true ;; Output to source
+                                    false) ;; Output to header
+    (return false))
+
+  (addStringOutput (path output . source) (field name-token contents)
+                   StringOutMod_ConvertFunctionName
+	               (addr name-token))
+
+  (addLangTokenOutput (field output source) StringOutMod_OpenParen (addr signature-token))
+
+  (unless (outputFunctionArguments environment context tokens output arguments
+                                   true ;; Output to source
+                                   false) ;; Output to header
+	(return false))
+
+  (addLangTokenOutput (field output source) StringOutMod_CloseParen (addr signature-token))
+
+  (addLangTokenOutput (field output source) StringOutMod_EndStatement (addr signature-token))
+  (return true))
+
+;; Creates struct/class forward declarations in header files.
 ;; Example usage:
 ;; (forward-declare (namespace Ogre (class item) (struct my-struct)))
 ;; Outputs namespace Ogre { class item; struct my-struct;}

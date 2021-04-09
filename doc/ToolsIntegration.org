@@ -31,6 +31,7 @@ The number represents how many arguments are expected to the function.
   ;;(put 'block 'lisp-indent-function 3) ;; Doesn't work because block is special (always expects 1)
 
   (put 'tokenize-push 'lisp-indent-function 1)
+  (put 'for-in 'lisp-indent-function 3)
 
   ;; Macros
   (put 'each-in-range 'lisp-indent-function 2)
