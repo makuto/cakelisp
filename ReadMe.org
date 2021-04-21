@@ -8,7 +8,7 @@ The goal is a metaprogrammable, hot-reloadable, non-garbage-collected language i
 
 It is a transpiler which generates C/C++ from an S-expression syntax. Cakelisp takes some inspiration from Lisp, but is not compatible and does not aspire to become "a Lisp".
 
-You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction to Cakelisp]] and check out the [[https://news.ycombinator.com/item?id=25491568][Hacker News announcement thread]].
+You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction to Cakelisp]] and check out the [[https://news.ycombinator.com/item?id=25491568][Hacker News announcement thread]]. Cakelisp is also a part of [[https://cakelisp.handmade.network/][Handmade Network]].
 
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation

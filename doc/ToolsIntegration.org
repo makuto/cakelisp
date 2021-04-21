@@ -20,9 +20,9 @@ Create a ~.gitattributes~ file in the project root, then add the following:
 The number represents how many arguments are expected to the function.
 
 #+BEGIN_SRC lisp
-  (put 'defun-local 'lisp-indent-function 2)
-  (put 'defun-comptime 'lisp-indent-function 2)
-  (put 'defgenerator 'lisp-indent-function 2)
+  (put 'defun-local 'lisp-indent-function 'defun)
+  (put 'defun-comptime 'lisp-indent-function 'defun)
+  (put 'defgenerator 'lisp-indent-function 'defun)
 
   (put 'defstruct-local 'lisp-indent-function 1)
   (put 'defstruct 'lisp-indent-function 1)
