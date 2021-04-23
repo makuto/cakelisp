@@ -733,6 +733,15 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 
 		if (logging.buildProcess)
 			Logf("Build module %s\n", module->sourceOutputName.c_str());
+
+		std::vector<std::string> dependencyResolveDirectories;
+		{
+			dependencyResolveDirectories.reserve(manager.environment.cSearchDirectories.size() +
+			                                     module->cSearchDirectories.size());
+			PushBackAll(dependencyResolveDirectories, module->cSearchDirectories);
+			PushBackAll(dependencyResolveDirectories, manager.environment.cSearchDirectories);
+		}
+
 		for (ModuleDependency& dependency : module->dependencies)
 		{
 			if (logging.buildProcess)
@@ -745,9 +754,17 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 
 			if (dependency.type == ModuleDependency_CFile)
 			{
+				char resolvedDependencyFilename[MAX_PATH_LENGTH] = {0};
+				if (!searchForFileInPathsWithError(
+				        dependency.name.c_str(),
+				        /*encounteredInFile=*/module->filename, dependencyResolveDirectories,
+				        resolvedDependencyFilename, ArraySize(resolvedDependencyFilename),
+				        *dependency.blameToken))
+					return false;
+
 				BuildObject* newBuildObject = new BuildObject;
 				newBuildObject->buildStatus = 0;
-				newBuildObject->sourceFilename = dependency.name;
+				newBuildObject->sourceFilename = resolvedDependencyFilename;
 
 				char buildObjectName[MAX_PATH_LENGTH] = {0};
 				if (!outputFilenameFromSourceFilename(

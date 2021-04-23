@@ -787,7 +787,7 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
                             GeneratorOutput& output)
 {
 	// Don't let the user think this function can be called during comptime
-	if (!ExpectEvaluatorScope("add-cpp-build-dependency", tokens[startTokenIndex], context,
+	if (!ExpectEvaluatorScope("add-c/cpp-build-dependency", tokens[startTokenIndex], context,
 	                          EvaluatorScope_Module))
 		return false;
 
@@ -805,14 +805,6 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 	if (firstNameIndex == -1)
 		return false;
 
-	std::vector<std::string> searchDirectories;
-	{
-		searchDirectories.reserve(environment.cSearchDirectories.size() +
-		                          context.module->cSearchDirectories.size());
-		PushBackAll(searchDirectories, context.module->cSearchDirectories);
-		PushBackAll(searchDirectories, environment.cSearchDirectories);
-	}
-
 	for (int i = firstNameIndex; i < endInvocationIndex;
 	     i = getNextArgument(tokens, i, endInvocationIndex))
 	{
@@ -820,16 +812,11 @@ bool AddDependencyGenerator(EvaluatorEnvironment& environment, const EvaluatorCo
 		if (!ExpectTokenType("add dependency", currentDependencyName, TokenType_String))
 			return false;
 
-		char resolvedPathBuffer[MAX_PATH_LENGTH] = {0};
-		if (!searchForFileInPathsWithError(currentDependencyName.contents.c_str(),
-		                                   /*encounteredInFile=*/currentDependencyName.source,
-		                                   searchDirectories, resolvedPathBuffer,
-		                                   ArraySize(resolvedPathBuffer), currentDependencyName))
-			return false;
-
 		ModuleDependency newDependency = {};
 		newDependency.type = ModuleDependency_CFile;
-		newDependency.name = resolvedPathBuffer;
+		// The full name will be resolved at build time
+		newDependency.name = currentDependencyName.contents;
+		newDependency.blameToken = &currentDependencyName;
 		context.module->dependencies.push_back(newDependency);
 	}
 
