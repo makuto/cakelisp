@@ -865,7 +865,7 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 	PrintfBuffer(combinedHeaderRelativePath, "%s/%s", outputDir, combinedHeaderName);
 
 	std::vector<const char*> headersToCombine(ArraySize(g_comptimeDefaultHeaders));
-	for (int i = 0; i < ArraySize(g_comptimeDefaultHeaders); ++i)
+	for (size_t i = 0; i < ArraySize(g_comptimeDefaultHeaders); ++i)
 		headersToCombine[i] = g_comptimeDefaultHeaders[i];
 
 	if (!writeCombinedHeader(combinedHeaderRelativePath, headersToCombine))
