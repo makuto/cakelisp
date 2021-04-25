@@ -425,7 +425,6 @@ bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedComm
 					return false;
 				}
 
-				char* endPtr;
 				cachedCommandCrcs[(*tokens)[artifactIndex].contents] =
 				    static_cast<uint32_t>(std::stoul((*tokens)[crcIndex].contents));
 			}

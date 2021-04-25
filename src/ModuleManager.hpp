@@ -13,6 +13,7 @@ struct ModuleDependency
 {
 	ModuleDependencyType type;
 	std::string name;
+	const Token* blameToken;
 };
 
 // Always update both of these. Signature helps validate call

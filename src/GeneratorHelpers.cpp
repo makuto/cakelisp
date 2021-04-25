@@ -190,6 +190,8 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex, int
 		nextArgStart = FindCloseParenTokenIndex(tokens, currentTokenIndex);
 
 	++nextArgStart;
+	if (nextArgStart > endArrayTokenIndex)
+		nextArgStart = endArrayTokenIndex;
 	return nextArgStart;
 }
 
