@@ -12,6 +12,7 @@ extern const char* compilerDebugSymbolsExtension;
 extern const char* compilerImportLibraryExtension;
 extern const char* linkerDynamicLibraryPrefix;
 extern const char* linkerDynamicLibraryExtension;
+extern const char* linkerExecutableExtension;
 extern const char* defaultExecutableName;
 extern const char* precompiledHeaderExtension;
 
@@ -48,6 +49,8 @@ void makeLinkLibraryRuntimeSearchDirArgument(char* buffer, int bufferSize, const
                                              const char* linkExecutable);
 void makeLinkerArgument(char* buffer, int bufferSize, const char* argument,
                         const char* linkExecutable);
+void makePrecompiledHeaderInputArgument(char* buffer, int bufferSize, const char* inputName,
+                                        const char* precompilerExecutable);
 void makePrecompiledHeaderOutputArgument(char* buffer, int bufferSize, const char* outputName,
                                          const char* precompilerExecutable);
 void makePrecompiledHeaderIncludeArgument(char* buffer, int bufferSize,

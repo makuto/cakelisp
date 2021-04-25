@@ -338,6 +338,7 @@ struct EvaluatorEnvironment
 	bool useCLinkage;
 
 	// Whether to enable MSVC-specific hacks/conversions
+	// TODO: Separate comptime vs build time
 	bool isMsvcCompiler;
 
 	// Whether it is okay to skip an operation if the resultant file is already in the cache (and

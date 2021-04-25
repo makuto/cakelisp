@@ -871,15 +871,46 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 	if (!writeCombinedHeader(combinedHeaderRelativePath, headersToCombine))
 		return false;
 
+	// MSVC requires a source file to precompile
+	char precompilationSourceFile[MAX_PATH_LENGTH] = {0};
+	PrintfBuffer(precompilationSourceFile, "%s/CakelispComptime.cpp", outputDir);
+	if (environment.isMsvcCompiler)
+	{
+		FILE* newFile = fopen(precompilationSourceFile, "w");
+		if (!newFile)
+		{
+			Log("error: failed to write precompilation source file\n");
+			return false;
+		}
+		// We don't care what's in this file, only what's in the header we want to precompile
+		fprintf(newFile, "#include \"%s\"\n", combinedHeaderName);
+		// Unnecessary if /Yc has a filename specified, but doesn't hurt to include anyways
+		fprintf(newFile, "#pragma hdrstop\n");
+		fclose(newFile);
+	}
+
 	const char* buildExecutable =
 	    environment.compileTimeHeaderPrecompilerCommand.fileToExecute.c_str();
+
+	char precompilationSourceObjectOutput[MAX_PATH_LENGTH] = {0};
+	if (!outputFilenameFromSourceFilename(outputDir, precompilationSourceFile,
+	                                      compilerObjectExtension, precompilationSourceObjectOutput,
+	                                      sizeof(precompilationSourceObjectOutput)))
+	{
+		Log("error: failed to prepare precompiled header object output filename\n");
+		return false;
+	}
+	char precompilationSourceObjectOutputArg[MAX_PATH_LENGTH] = {0};
+	makeObjectOutputArgument(precompilationSourceObjectOutputArg,
+	                         sizeof(precompilationSourceObjectOutputArg),
+	                         precompilationSourceObjectOutput);
 
 	char precompiledHeaderFilename[MAX_PATH_LENGTH] = {0};
 	if (!outputFilenameFromSourceFilename(outputDir, combinedHeaderRelativePath,
 	                                      precompiledHeaderExtension, precompiledHeaderFilename,
 	                                      sizeof(precompiledHeaderFilename)))
 	{
-		Log("error: failed to prepare precompiled header output filename");
+		Log("error: failed to prepare precompiled header output filename\n");
 		return false;
 	}
 
@@ -895,14 +926,29 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 		makeIncludeArgument(headerInclude, sizeof(headerInclude),
 		                    environment.cakelispSrcDir.c_str());
 
+	char cacheInclude[MAX_PATH_LENGTH] = {0};
+	makeIncludeArgument(cacheInclude, sizeof(cacheInclude), cakelispWorkingDir);
+
 	char precompileHeaderExecutable[MAX_PATH_LENGTH] = {0};
 	if (!resolveExecutablePath(buildExecutable, precompileHeaderExecutable,
 	                           sizeof(precompileHeaderExecutable)))
 		return false;
 
+	char precompiledHeaderInputArgument[MAX_PATH_LENGTH + 3] = {0};
+	makePrecompiledHeaderInputArgument(precompiledHeaderInputArgument,
+	                                   sizeof(precompiledHeaderInputArgument),
+	                                   combinedHeaderName, buildExecutable);
+
 	ProcessCommandInput precompileHeaderInputs[] = {
-	    {ProcessCommandArgumentType_SourceInput, {combinedHeaderRelativePath}},
+	    // TODO This should be a different input type!
+	    // TODO precompilationSourceFile should be in a separate input! (it's not needed on
+	    // GCC/clang)
+	    {ProcessCommandArgumentType_SourceInput,
+	     {precompiledHeaderInputArgument, precompilationSourceFile}},
+	    // TODO Remove on gcc/clang (only necessary because MSVC always expects a compilation unit
+	    {ProcessCommandArgumentType_ObjectOutput, {precompilationSourceObjectOutputArg}},
 	    {ProcessCommandArgumentType_PrecompiledHeaderOutput, {precompiledHeaderOutputArgument}},
+	    {ProcessCommandArgumentType_IncludeSearchDirs, {cacheInclude}},
 	    {ProcessCommandArgumentType_CakelispHeadersInclude, {headerInclude}}};
 	const char** buildArguments = MakeProcessArgumentsFromCommand(
 	    precompileHeaderExecutable, environment.compileTimeHeaderPrecompilerCommand.arguments,
@@ -931,7 +977,7 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 		Logf("Updating precompiled header %s\n", precompiledHeaderFilename);
 
 	RunProcessArguments arguments = {};
-	arguments.fileToExecute = buildExecutable;
+	arguments.fileToExecute = precompileHeaderExecutable;
 	arguments.arguments = buildArguments;
 	int status = -1;
 	if (runProcess(arguments, &status) != 0)
@@ -993,14 +1039,24 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		makePrecompiledHeaderIncludeArgument(
 		    usePrecompiledHeaderArgument, sizeof(usePrecompiledHeaderArgument),
-		    cakelispCombinedHeaderFilename, compileTimeBuildExecutable);
+		    cakelispCombinedHeaderFilename,
+		    environment.compileTimeBuildCommand.fileToExecute.c_str());
 
 		// TODO: Hard-coded compiler option bad
-		precompiledHeadersToIncludeStorage.push_back("-include");
-		precompiledHeadersToIncludeStorage.push_back(cakelispCombinedHeaderFilename);
-		precompiledHeadersToInclude.reserve(precompiledHeadersToIncludeStorage.size());
-		for (const std::string& arg : precompiledHeadersToIncludeStorage)
-			precompiledHeadersToInclude.push_back(arg.c_str());
+		if (environment.isMsvcCompiler)
+		{
+			precompiledHeadersToInclude.push_back(usePrecompiledHeaderArgument);
+			// TODO HARD CODED
+			precompiledHeadersToInclude.push_back("/Fpcakelisp_cache/CakelispComptime.hpp.pch");
+		}
+		else
+		{
+			precompiledHeadersToIncludeStorage.push_back("-include");
+			precompiledHeadersToIncludeStorage.push_back(cakelispCombinedHeaderFilename);
+			precompiledHeadersToInclude.reserve(precompiledHeadersToIncludeStorage.size());
+			for (const std::string& arg : precompiledHeadersToIncludeStorage)
+				precompiledHeadersToInclude.push_back(arg.c_str());
+		}
 	}
 
 	char precompiledHeadersInclude[MAX_PATH_LENGTH] = {0};
@@ -1312,6 +1368,14 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		    {ProcessCommandArgumentType_ObjectInput, {buildObject.buildObjectName.c_str()}},
 		    {ProcessCommandArgumentType_ImportLibraryPaths, importLibraryPathsArgs},
 		    {ProcessCommandArgumentType_ImportLibraries, importLibrariesArgs}};
+
+		if (comptimeCanUsePrecompiledHeaders)
+		{
+			// TODO REMOVE HARD CODED
+			// Required because the pch is actually compiled into the obj
+			linkTimeInputs[1].value.push_back("cakelisp_cache/CakelispComptime.cpp.obj");
+		}
+
 		const char** linkArgumentList = MakeProcessArgumentsFromCommand(
 		    compileTimeLinkExecutable, environment.compileTimeLinkCommand.arguments, linkTimeInputs,
 		    ArraySize(linkTimeInputs));

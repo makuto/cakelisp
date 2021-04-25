@@ -65,7 +65,17 @@ CL.exe src/Tokenizer.cpp ^
 )
 
 :build_user
-"bin\cakelisp.exe" --verbose-processes --execute runtime/Config_Windows.cake test/RunTests.cake
+del /s /q cakelisp_cache
+
+echo %time%
+"bin\cakelisp.exe" --execute runtime/Config_Windows.cake test/RunTests.cake
+echo %time%
+
+del /s /q cakelisp_cache
+
+echo %time%
+"bin\cakelisp.exe" --execute --enable-pch runtime/Config_Windows.cake test/RunTests.cake
+echo %time%
 @if %ERRORLEVEL% == 0 (
   echo Success!
   goto success

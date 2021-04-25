@@ -23,6 +23,7 @@ const char* compilerDebugSymbolsExtension = "pdb";
 const char* compilerImportLibraryExtension = "lib";
 const char* linkerDynamicLibraryPrefix = "";  // Not applicable
 const char* linkerDynamicLibraryExtension = "dll";
+const char* linkerExecutableExtension = "exe";
 const char* defaultExecutableName = "output.exe";
 const char* precompiledHeaderExtension = "pch";
 #else
@@ -31,6 +32,7 @@ const char* compilerDebugSymbolsExtension = "";   // Not applicable
 const char* compilerImportLibraryExtension = "";  // Not applicable
 const char* linkerDynamicLibraryPrefix = "lib";
 const char* linkerDynamicLibraryExtension = "so";
+const char* linkerExecutableExtension = nullptr;
 const char* defaultExecutableName = "a.out";
 const char* precompiledHeaderExtension = "gch";
 #endif
@@ -190,12 +192,25 @@ void makeLinkerArgument(char* buffer, int bufferSize, const char* argument,
 	}
 }
 
+void makePrecompiledHeaderInputArgument(char* buffer, int bufferSize, const char* inputName,
+                                        const char* precompilerExecutable)
+{
+	if (StrCompareIgnoreCase(precompilerExecutable, "cl.exe") == 0)
+	{
+		SafeSnprintf(buffer, bufferSize, "/Yc%s", inputName);
+	}
+	else
+	{
+		SafeSnprintf(buffer, bufferSize, "%s", inputName);
+	}
+}
+
 void makePrecompiledHeaderOutputArgument(char* buffer, int bufferSize, const char* outputName,
                                          const char* precompilerExecutable)
 {
 	if (StrCompareIgnoreCase(precompilerExecutable, "cl.exe") == 0)
 	{
-		SafeSnprintf(buffer, bufferSize, "/Yc%s", outputName);
+		SafeSnprintf(buffer, bufferSize, "/Fp%s", outputName);
 	}
 	else
 	{

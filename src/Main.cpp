@@ -52,6 +52,8 @@ int main(int numArguments, char* arguments[])
 	bool listBuiltInGeneratorsThenQuit = false;
 	bool waitForDebugger = false;
 
+	bool enablePch = false;
+
 	const CommandLineOption options[] = {
 	    {"--ignore-cache", &ignoreCachedFiles,
 	     "Prohibit skipping an operation if the resultant file is already in the cache (and the "
@@ -116,6 +118,8 @@ int main(int numArguments, char* arguments[])
 	    {"--verbose-option-adding", &logging.optionAdding,
 	     "Output where options are added, such as search directories, additional build options, "
 	     "etc."},
+	    // TODO REMOVE
+	    {"--enable-pch", &enablePch, "Use precompiled headers"},
 	};
 
 	if (numArguments == 1)
@@ -217,6 +221,11 @@ int main(int numArguments, char* arguments[])
 			    "(--ignore-cache)\n");
 			moduleManager.environment.useCachedFiles = false;
 		}
+
+		if (enablePch)
+			moduleManager.environment.comptimeUsePrecompiledHeaders = true;
+		else
+			moduleManager.environment.comptimeUsePrecompiledHeaders = false;
 	}
 
 	for (const char* filename : filesToEvaluate)

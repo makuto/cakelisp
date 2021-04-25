@@ -94,8 +94,9 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "/MDd"},
 		    // Debug only
 		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
-		    {ProcessCommandArgumentType_String, "/Zi"},
-		    {ProcessCommandArgumentType_String, "/c"},
+		    {ProcessCommandArgumentType_String, "/Z7"},
+		    {ProcessCommandArgumentType_PrecompiledHeaderInclude, EmptyString},
+			{ProcessCommandArgumentType_String, "/c"},
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
@@ -120,16 +121,26 @@ void moduleManagerInitialize(ModuleManager& manager)
 		// https://docs.microsoft.com/en-us/cpp/build/creating-precompiled-header-files?view=msvc-160
 		// https://docs.microsoft.com/en-us/cpp/build/reference/yc-create-precompiled-header-file?view=msvc-160
 		// https://docs.microsoft.com/en-us/cpp/build/reference/yu-use-precompiled-header-file?view=msvc-160
+		manager.environment.comptimeUsePrecompiledHeaders = true; // 18s, 22s
+		// manager.environment.comptimeUsePrecompiledHeaders = false;
+
 		manager.environment.compileTimeHeaderPrecompilerCommand.fileToExecute = "cl.exe";
 		manager.environment.compileTimeHeaderPrecompilerCommand.arguments = {
 		    {ProcessCommandArgumentType_String, "/nologo"},
 		    {ProcessCommandArgumentType_String, "/EHsc"},
+		    {ProcessCommandArgumentType_String, "/DWINDOWS"},
+		    // Why Z7? To get around problems trying to share PCH files when the PDB doesn't match
+		    // the file you want to re-use the PCH with
+		    {ProcessCommandArgumentType_String, "/Z7"},
 		    {ProcessCommandArgumentType_String, "/c"},
-		    {ProcessCommandArgumentType_SourceInput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
-		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
+		    {ProcessCommandArgumentType_String, "/MDd"},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
-		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    // Only necessary on MSVC to give gcc/clang-like building, where in msvc we must compile
+		    // /something/ along with creating the pch
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_PrecompiledHeaderOutput, EmptyString},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
 		manager.environment.buildTimeBuildCommand.arguments = {
@@ -193,6 +204,7 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "-o"},
 		    {ProcessCommandArgumentType_PrecompiledHeaderOutput, EmptyString},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+			{ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_String, "-fPIC"}};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = defaultCompilerLinker;
