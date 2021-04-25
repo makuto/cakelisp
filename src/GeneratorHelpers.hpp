@@ -88,10 +88,10 @@ CAKELISP_API void PushBackAllTokenExpressions(std::vector<Token>& output, const 
 
 void addModifierToStringOutput(StringOutput& operation, StringOutputModifierFlags flag);
 
-void addStringOutput(std::vector<StringOutput>& output, const std::string& symbol,
-                     StringOutputModifierFlags modifiers, const Token* startToken);
-void addLangTokenOutput(std::vector<StringOutput>& output, StringOutputModifierFlags modifiers,
-                        const Token* startToken);
+CAKELISP_API void addStringOutput(std::vector<StringOutput>& output, const std::string& symbol,
+                                  StringOutputModifierFlags modifiers, const Token* startToken);
+CAKELISP_API void addLangTokenOutput(std::vector<StringOutput>& output,
+                                     StringOutputModifierFlags modifiers, const Token* startToken);
 // Splice marker must be pushed to both source and header to preserve ordering in case spliceOutput
 // has both source and header outputs
 void addSpliceOutput(GeneratorOutput& output, GeneratorOutput* spliceOutput,
@@ -102,17 +102,21 @@ struct FunctionArgumentTokens
 	int startTypeIndex;
 	int nameIndex;
 };
-bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
-                            std::vector<FunctionArgumentTokens>& arguments, int& returnTypeStart);
+CAKELISP_API bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
+                                         std::vector<FunctionArgumentTokens>& arguments,
+                                         int& returnTypeStart);
 // startInvocationIndex is used for blaming on implicit return type
-bool outputFunctionReturnType(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                              const std::vector<Token>& tokens, GeneratorOutput& output,
-                              int returnTypeStart, int startInvocationIndex, int endArgsIndex,
-                              bool outputSource, bool outputHeader);
-bool outputFunctionArguments(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                             const std::vector<Token>& tokens, GeneratorOutput& output,
-                             const std::vector<FunctionArgumentTokens>& arguments,
-                             bool outputSource, bool outputHeader);
+CAKELISP_API bool outputFunctionReturnType(EvaluatorEnvironment& environment,
+                                           const EvaluatorContext& context,
+                                           const std::vector<Token>& tokens,
+                                           GeneratorOutput& output, int returnTypeStart,
+                                           int startInvocationIndex, int endArgsIndex,
+                                           bool outputSource, bool outputHeader);
+CAKELISP_API bool outputFunctionArguments(EvaluatorEnvironment& environment,
+                                          const EvaluatorContext& context,
+                                          const std::vector<Token>& tokens, GeneratorOutput& output,
+                                          const std::vector<FunctionArgumentTokens>& arguments,
+                                          bool outputSource, bool outputHeader);
 
 bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
                                       const EvaluatorContext& context,

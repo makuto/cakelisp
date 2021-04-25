@@ -7,6 +7,6 @@
   (test)
   (return 0))
 
-(add-c-build-dependency "Test.c")
+(add-c-build-dependency "Test.cpp")
 
 (add-c-search-directory-module "test/dir")
