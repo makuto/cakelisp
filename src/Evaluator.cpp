@@ -1184,7 +1184,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, {debugSymbolsArgument}},
 		    {ProcessCommandArgumentType_CakelispHeadersInclude,
 		     {headerInclude, precompiledHeadersInclude}},
-			{ProcessCommandArgumentType_PrecompiledHeaderInclude, precompiledHeadersToInclude}};
+		    {ProcessCommandArgumentType_PrecompiledHeaderInclude, precompiledHeadersToInclude}};
 		const char** buildArguments = MakeProcessArgumentsFromCommand(
 		    compileTimeBuildExecutable, environment.compileTimeBuildCommand.arguments,
 		    compileTimeInputs, ArraySize(compileTimeInputs));
@@ -2066,7 +2066,7 @@ bool AddCompileTimeHook(EvaluatorEnvironment& environment, std::vector<CompileTi
 	          [](const CompileTimeHook& a, const CompileTimeHook& b) {
 		          if (a.userPriority == b.userPriority)
 		          {
-					  // environmentPriority shouldn't be relied on; it's for a stable sort
+			          // environmentPriority shouldn't be relied on; it's for a stable sort
 			          return a.environmentPriority > b.environmentPriority;
 		          }
 		          return a.userPriority > b.userPriority;
