@@ -46,7 +46,8 @@
     (Logf "\n===============\n%s\n\n" test-name)
     (run-process-sequential-or
      (cakelisp-executable
-      "--execute" "--verbose-build-process"
+      "--execute"
+      ;; "--verbose-build-process"
       platform-config test-file)
      (Logf "error: test %s failed\n" test-name)
      (return false))

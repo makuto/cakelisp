@@ -923,6 +923,7 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 
 		environment.comptimeHeadersPrepared = true;
 		environment.comptimeCombinedHeaderFilename = combinedHeaderName;
+		free(buildArguments);
 		return true;
 	}
 
@@ -1002,10 +1003,9 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			precompiledHeadersToInclude.push_back(arg.c_str());
 	}
 
-	// TODO: Don't hard-code cakelispWorkingDir
 	char precompiledHeadersInclude[MAX_PATH_LENGTH] = {0};
 	makeIncludeArgument(precompiledHeadersInclude, sizeof(precompiledHeadersInclude),
-	                    "cakelisp_cache/");
+	                    cakelispWorkingDir);
 
 	// Spin up as many compile processes as necessary
 	// TODO: Combine sure-thing builds into batches (ones where we know all references)
