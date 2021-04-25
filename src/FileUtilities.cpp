@@ -407,7 +407,7 @@ bool copyBinaryFileTo(const char* srcFilename, const char* destFilename)
 	}
 
 	if (logging.fileSystem)
-		Logf("%lu bytes copied\n", totalCopied);
+		Logf(FORMAT_SIZE_T " bytes copied\n", totalCopied);
 
 	fclose(srcFile);
 	fclose(destFile);

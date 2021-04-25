@@ -884,7 +884,8 @@ bool CompileTimeFunctionSignatureMatches(EvaluatorEnvironment& environment, cons
 		             "printed below (' = name does not need to match):");
 		printTokens(expectedSignature);
 
-		Logf("too many/few tokens. %i need %lu\n", numArgumentsProvided, expectedSignature.size());
+		Logf("too many/few tokens. %i need " FORMAT_SIZE_T "\n", numArgumentsProvided,
+		     expectedSignature.size());
 		return false;
 	}
 	for (unsigned int i = 0; i < expectedSignature.size() && currentUserArgToken != endUserArgs;

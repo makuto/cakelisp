@@ -530,7 +530,8 @@ static FileModifyTime GetMostRecentIncludeModified_Recursive(
 					    searchDirectories, foundInclude, resolvedPathBuffer, isModifiedCache);
 
 					if (logging.includeScanning)
-						Logf("\t tree modificaiton time: %lu\n", includeModifiedTime);
+						Logf("\t tree modificaiton time: " FORMAT_FILETIME "\n",
+						     includeModifiedTime);
 
 					if (includeModifiedTime > mostRecentModTime)
 						mostRecentModTime = includeModifiedTime;
@@ -620,8 +621,8 @@ bool cppFileNeedsBuild(EvaluatorEnvironment& environment, const char* sourceFile
 			if (logging.includeScanning || logging.buildProcess)
 			{
 				Logf("--- Must rebuild %s (header files modified)\n", sourceFilename);
-				Logf("Artifact: %lu Most recent header: %lu\n", artifactModTime,
-				     mostRecentHeaderModTime);
+				Logf("Artifact: " FORMAT_FILETIME " Most recent header: " FORMAT_FILETIME "\n",
+				     artifactModTime, mostRecentHeaderModTime);
 			}
 		}
 	}

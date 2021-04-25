@@ -1020,7 +1020,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 	}
 
 	if (logging.includeScanning || logging.performance)
-		Logf("%lu files tested for modification times\n", headerModifiedCache.size());
+		Logf(FORMAT_SIZE_T " files tested for modification times\n", headerModifiedCache.size());
 
 	waitForAllProcessesClosed(OnCompileProcessOutput);
 	currentNumProcessesSpawned = 0;

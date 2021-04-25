@@ -11,6 +11,12 @@
 #define MAX_NAME_LENGTH 64
 #define MAX_PATH_LENGTH 256
 
+#ifdef WINDOWS
+#define FORMAT_SIZE_T "%zu"
+#else
+#define FORMAT_SIZE_T "%lu"
+#endif
+
 #define ArraySize(array) sizeof((array)) / sizeof((array)[0])
 
 #define FindInContainer(container, element) std::find(container.begin(), container.end(), element)
