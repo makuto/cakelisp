@@ -32,3 +32,10 @@ enum CStatementOperationType
 	// Statements are in Body scope
 	Statement,
 };
+
+enum TokenizePushSpliceArgumentType
+{
+	TokenizePushSpliceArgument_All,
+	TokenizePushSpliceArgument_AllExpressions,
+	TokenizePushSpliceArgument_Expression
+};

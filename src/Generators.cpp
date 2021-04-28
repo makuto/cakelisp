@@ -2429,6 +2429,244 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	return true;
 }
 
+bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                              const std::vector<Token>& tokens, int startTokenIndex,
+                              GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("tokenize-push", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Body))
+		return false;
+
+	if (!context.definitionName)
+	{
+		ErrorAtToken(tokens[startTokenIndex],
+		             "tokenize-push called in a context with no definition set. tokenize-push must "
+		             "be invoked inside a definition");
+		return false;
+	}
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int outputIndex = getExpectedArgument("tokenize-push expected output variable name", tokens,
+	                                      startTokenIndex, 1, endInvocationIndex);
+	if (outputIndex == -1)
+		return false;
+
+	// Start off with a good token to refer back to in case of problems. In this case, use
+	// "tokenize-push" which will tell the reader outputEvalHandle is created by the invocation
+	// TODO: This token can't actually be referred to later. Rather than passing a token, take a
+	// std::string instead?
+	Token evaluateOutputTempVar = tokens[startTokenIndex + 1];
+	MakeContextUniqueSymbolName(environment, context, "outputEvalHandle", &evaluateOutputTempVar);
+	// Evaluate output variable
+	{
+		addStringOutput(output.source, "std::vector<Token>&", StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex + 1]);
+		addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_SpaceAfter,
+		                &tokens[startTokenIndex + 1]);
+		addStringOutput(output.source, "=", StringOutMod_SpaceAfter, &tokens[startTokenIndex + 1]);
+		EvaluatorContext expressionContext = context;
+		expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, outputIndex,
+		                               output) != 0)
+			return false;
+		addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startTokenIndex + 1]);
+	}
+
+	// This is odd: convert tokens in the macro invocation into string, then the generated C++ will
+	// use that string to create tokens...
+	char tokenToStringBuffer[1024] = {0};
+	char* tokenToStringWrite = tokenToStringBuffer;
+	const Token* tokenToStringStartToken = nullptr;
+	int startOutputToken = getExpectedArgument("tokenize-push expected tokens to output", tokens,
+	                                           startTokenIndex, 2, endInvocationIndex);
+	if (startOutputToken == -1)
+		return false;
+
+	addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[startTokenIndex]);
+	addStringOutput(output.source, "TokenizePushContext spliceContext", StringOutMod_None,
+	                &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startTokenIndex]);
+
+	// Generate the CRC in order to retrieve the token list at macro runtime
+	uint32_t tokensCrc = 0;
+
+	for (int i = startOutputToken; i < endInvocationIndex; ++i)
+	{
+		const Token& currentToken = tokens[i];
+		const Token& nextToken = tokens[i + 1];
+
+		switch (currentToken.type)
+		{
+			case TokenType_OpenParen:
+				crc32("(", 1, &tokensCrc);
+				break;
+			case TokenType_CloseParen:
+				crc32(")", 1, &tokensCrc);
+				break;
+			case TokenType_Symbol:
+				crc32(currentToken.contents.c_str(), currentToken.contents.size(), &tokensCrc);
+				break;
+			case TokenType_String:
+				// It's unlikely there would be a collision without these, but we better be sure
+				crc32("\"", 1, &tokensCrc);
+				crc32(currentToken.contents.c_str(), currentToken.contents.size(), &tokensCrc);
+				crc32("\"", 1, &tokensCrc);
+				break;
+			default:
+				ErrorAtToken(currentToken, "token type not handled. This is likely a code error");
+				return false;
+		}
+
+		// We only need to generate code when splices are referenced. Otherwise, the tokens are
+		// pushed when executing the tokenize push
+		if (currentToken.type == TokenType_OpenParen && nextToken.type == TokenType_Symbol &&
+		    (nextToken.contents.compare("token-splice") == 0 ||
+		     nextToken.contents.compare("token-splice-addr") == 0 ||
+		     nextToken.contents.compare("token-splice-array") == 0 ||
+		     nextToken.contents.compare("token-splice-rest") == 0))
+		{
+			// TODO: Performance: remove extra string compares
+			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
+			bool isRest = nextToken.contents.compare("token-splice-rest") == 0;
+			bool tokenMakePointer = nextToken.contents.compare("token-splice-addr") == 0;
+
+			if (tokenToStringWrite != tokenToStringBuffer)
+			{
+				*tokenToStringWrite = '\0';
+				tokenizeGenerateStringTokenize(evaluateOutputTempVar.contents.c_str(),
+				                               *tokenToStringStartToken, tokenToStringBuffer,
+				                               output);
+				tokenToStringWrite = tokenToStringBuffer;
+				tokenToStringStartToken = nullptr;
+			}
+
+			// Skip invocation
+			int startSpliceArgs = i + 2;
+			int endSpliceIndex = FindCloseParenTokenIndex(tokens, i);
+			for (int spliceArg = startSpliceArgs; spliceArg < endSpliceIndex;
+			     spliceArg = getNextArgument(tokens, spliceArg, endSpliceIndex))
+			{
+				if (isArray)
+					addStringOutput(output.source, "TokenizePushSpliceAll(", StringOutMod_None,
+					                &tokens[spliceArg]);
+				else if (isRest)
+					addStringOutput(output.source, "TokenizePushSpliceAllTokenExpressions(",
+					                StringOutMod_None, &tokens[spliceArg]);
+				else
+					addStringOutput(output.source, "TokenizePushSpliceTokenExpression(",
+					                StringOutMod_None, &tokens[spliceArg]);
+
+				addStringOutput(output.source, "&spliceContext", StringOutMod_None,
+				                &tokens[spliceArg]);
+				addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[spliceArg]);
+
+				if (tokenMakePointer)
+					addStringOutput(output.source, "&", StringOutMod_None, &tokens[spliceArg]);
+
+				// Evaluate token to start output expression
+				EvaluatorContext expressionContext = context;
+				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, spliceArg,
+				                               output) != 0)
+					return false;
+
+				// Second argument is tokens array. Need to get it for bounds check
+				bool shouldBreak = false;
+				if (isRest)
+				{
+					int tokenArrayArg = getExpectedArgument(
+					    "token-splice-rest requires the array which holds the token to splice as "
+					    "the second argument, e.g. (token-splice-rest my-start-token tokens), "
+					    "where my-start-token is a pointer to a token stored within 'tokens'",
+					    tokens, i, 2, endSpliceIndex);
+					if (tokenArrayArg == -1)
+						return false;
+
+					addLangTokenOutput(output.source, StringOutMod_ListSeparator,
+					                   &tokens[spliceArg]);
+					addStringOutput(output.source, "&(", StringOutMod_None, &tokens[spliceArg]);
+					EvaluatorContext expressionContext = context;
+					expressionContext.scope = EvaluatorScope_ExpressionsOnly;
+					if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
+					                               tokenArrayArg, output) != 0)
+						return false;
+
+					addStringOutput(output.source, ".back())", StringOutMod_None,
+					                &tokens[spliceArg]);
+					shouldBreak = true;
+				}
+
+				addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[spliceArg]);
+				addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[spliceArg]);
+
+				if (shouldBreak)
+					break;
+			}
+
+			// Finished splice list
+			i = endSpliceIndex;
+		}
+	}
+
+	// Add the tokens for later retrieval
+	{
+		// TODO: Detect collisions via comparing tokens if pointer is different and tokens are
+		// different TokenizePushTokensMap::iterator findIt =
+		// definition.tokenizePushTokens.find(tokensCrc);
+		// if (findIt != definition.tokenizePushTokens.end())
+		// {
+		// if (findIt.second != &tokens[startOutputToken])
+		// {
+		// 	ErrorAtToken(tokens[startOutputToken], "collision detected between two different token
+		// "); 	return false;
+		// }
+		// }
+		ObjectDefinition* definition =
+		    findObjectDefinition(environment, context.definitionName->contents.c_str());
+		if (!definition)
+		{
+			ErrorAtTokenf(tokens[startTokenIndex],
+			              "could not find definition %s despite definition being set. Code error?",
+			              context.definitionName->contents.c_str());
+			return false;
+		}
+		definition->tokenizePushTokens[tokensCrc] = &tokens[startOutputToken];
+	}
+
+	addStringOutput(output.source, "if (!TokenizePushExecute(", StringOutMod_None,
+	                &tokens[startTokenIndex]);
+
+	addStringOutput(output.source, "environment", StringOutMod_None, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[startTokenIndex]);
+
+	addStringOutput(output.source, context.definitionName->contents.c_str(),
+	                StringOutMod_SurroundWithQuotes, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[startTokenIndex]);
+
+	// Retrieve the tokens from memory
+	addStringOutput(output.source, std::to_string(tokensCrc).c_str(), StringOutMod_None,
+	                &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[startTokenIndex]);
+
+	// Use these arguments to splice tokens in
+	addStringOutput(output.source, "&spliceContext", StringOutMod_None, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[startTokenIndex]);
+
+	// Write output argument
+	addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_None,
+	                &tokens[startTokenIndex]);
+	// addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[startTokenIndex]);
+
+	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[startTokenIndex]);
+	addStringOutput(output.source, "return false", StringOutMod_None, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[startTokenIndex]);
+	return true;
+}
+
 //
 // Compile-time conditional compilation (similar to C preprocessor #if)
 //
@@ -2923,6 +3161,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	// Token manipulation
 	environment.generators["tokenize-push"] = TokenizePushGenerator;
+	environment.generators["tokenize-push-new"] = TokenizePushNewGenerator;
 
 	environment.generators["rename-builtin"] = RenameBuiltinGenerator;
 

@@ -1167,3 +1167,52 @@ bool CompileTimeEvaluateCondition(EvaluatorEnvironment& environment,
 	conditionResult = findCompileTimeSymbol(environment, tokens[startTokenIndex].contents.c_str());
 	return true;
 }
+
+//
+// Tokenize-push
+//
+
+void TokenizePushSpliceAll(TokenizePushContext* spliceContext, const Token* startToken)
+{
+	TokenizePushSpliceArgument newArgument = {TokenizePushSpliceArgument_All, startToken, nullptr};
+	spliceContext->spliceArguments.push_back(newArgument);
+}
+
+void TokenizePushSpliceAllTokenExpressions(TokenizePushContext* spliceContext,
+                                           const Token* startToken,
+                                           std::vector<Token>* sourceTokens)
+{
+	TokenizePushSpliceArgument newArgument = {TokenizePushSpliceArgument_AllExpressions, startToken,
+	                                          sourceTokens};
+	spliceContext->spliceArguments.push_back(newArgument);
+}
+
+void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceContext, const Token* startToken)
+{
+	TokenizePushSpliceArgument newArgument = {TokenizePushSpliceArgument_Expression, startToken,
+	                                          nullptr};
+	spliceContext->spliceArguments.push_back(newArgument);
+}
+
+bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,
+                         uint32_t tokensCrc, TokenizePushContext* spliceContext,
+                         std::vector<Token>& output)
+{
+	ObjectDefinition* definition = findObjectDefinition(environment, definitionName);
+	if (!definition)
+	{
+		Logf("error: could not find definition %s to retrieve tokens to output\n", definitionName);
+		return false;
+	}
+
+	TokenizePushTokensMap::iterator findIt = definition->tokenizePushTokens.find(tokensCrc);
+	if (findIt == definition->tokenizePushTokens.end())
+	{
+		Logf("error: could not find tokens with CRC %u in definition %s\n", tokensCrc,
+		     definitionName);
+		return false;
+	}
+	// definition->tokenizePushTokens[tokensCrc] = &tokens[startOutputToken];
+
+	return true;
+}

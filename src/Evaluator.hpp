@@ -155,6 +155,9 @@ struct MacroExpansion
 	const std::vector<Token>* tokens;
 };
 
+typedef std::unordered_map<uint32_t, const Token*> TokenizePushTokensMap;
+typedef std::pair<const uint32_t, const Token*> TokenizePushTokensPair;
+
 struct ObjectDefinition
 {
 	std::string name;
@@ -202,6 +205,10 @@ struct ObjectDefinition
 	// In order to have context-unique symbols, this number is incremented for each unique name
 	// requested. This is only relevant for compile-time function bodies
 	int nextFreeUniqueSymbolNum;
+
+	// At evaluate time, the tokens are loaded to these lists. At macro run-time (comptime) these
+	// lists are used to copy tokens to the macro output
+	TokenizePushTokensMap tokenizePushTokens;
 };
 
 struct ObjectReferencePool

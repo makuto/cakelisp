@@ -149,3 +149,29 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 bool CompileTimeEvaluateCondition(EvaluatorEnvironment& environment,
                                   const EvaluatorContext& context, const std::vector<Token>& tokens,
                                   int startTokenIndex, bool& conditionResult);
+
+//
+// Macro tokenize-push runtime
+//
+
+struct TokenizePushSpliceArgument
+{
+	TokenizePushSpliceArgumentType type;
+	const Token* startToken;
+	std::vector<Token>* sourceTokens;
+};
+
+struct TokenizePushContext
+{
+	std::vector<TokenizePushSpliceArgument> spliceArguments;
+};
+
+void TokenizePushSpliceAll(TokenizePushContext* spliceContext, const Token* startToken);
+void TokenizePushSpliceAllTokenExpressions(TokenizePushContext* spliceContext,
+                                           const Token* startToken,
+                                           std::vector<Token>* sourceTokens);
+void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceContext, const Token* startToken);
+
+bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,
+                         uint32_t tokensCrc, TokenizePushContext* spliceContext,
+                         std::vector<Token>& output);
