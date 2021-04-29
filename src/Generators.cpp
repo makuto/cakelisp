@@ -2254,184 +2254,9 @@ bool IgnoreGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 	return true;
 }
 
-// I'm not too happy with this
-static void tokenizeGenerateStringTokenize(const char* outputVarName, const Token& triggerToken,
-                                           const char* stringToTokenize, GeneratorOutput& output)
-{
-	char tokenizeLineBuffer[2048] = {0};
-	PrintfBuffer(tokenizeLineBuffer,
-	             "if (!tokenizeLinePrintError(\"%s\", \"%s\", %d, %s)) {return false;}",
-	             stringToTokenize, triggerToken.source, triggerToken.lineNumber, outputVarName);
-	addStringOutput(output.source, tokenizeLineBuffer, StringOutMod_NewlineAfter, &triggerToken);
-}
-
 bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                            const std::vector<Token>& tokens, int startTokenIndex,
                            GeneratorOutput& output)
-{
-	if (!ExpectEvaluatorScope("tokenize-push", tokens[startTokenIndex], context,
-	                          EvaluatorScope_Body))
-		return false;
-
-	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
-	int outputIndex = getExpectedArgument("tokenize-push expected output variable name", tokens,
-	                                      startTokenIndex, 1, endInvocationIndex);
-	if (outputIndex == -1)
-		return false;
-
-	// Start off with a good token to refer back to in case of problems. In this case, use
-	// "tokenize-push" which will tell the reader outputEvalHandle is created by the invocation
-	// TODO: This token can't actually be referred to later. Rather than passing a token, take a
-	// std::string instead?
-	Token evaluateOutputTempVar = tokens[startTokenIndex + 1];
-	MakeContextUniqueSymbolName(environment, context, "outputEvalHandle", &evaluateOutputTempVar);
-	// Evaluate output variable
-	{
-		addStringOutput(output.source, "std::vector<Token>&", StringOutMod_SpaceAfter,
-		                &tokens[startTokenIndex + 1]);
-		addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_SpaceAfter,
-		                &tokens[startTokenIndex + 1]);
-		addStringOutput(output.source, "=", StringOutMod_SpaceAfter, &tokens[startTokenIndex + 1]);
-		EvaluatorContext expressionContext = context;
-		expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, outputIndex,
-		                               output) != 0)
-			return false;
-		addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startTokenIndex + 1]);
-	}
-
-	// This is odd: convert tokens in the macro invocation into string, then the generated C++ will
-	// use that string to create tokens...
-	char tokenToStringBuffer[1024] = {0};
-	char* tokenToStringWrite = tokenToStringBuffer;
-	const Token* tokenToStringStartToken = nullptr;
-	int startOutputToken = getExpectedArgument("tokenize-push expected tokens to output", tokens,
-	                                           startTokenIndex, 2, endInvocationIndex);
-	if (startOutputToken == -1)
-		return false;
-
-	for (int i = startOutputToken; i < endInvocationIndex; ++i)
-	{
-		const Token& currentToken = tokens[i];
-		const Token& nextToken = tokens[i + 1];
-		if (currentToken.type == TokenType_OpenParen && nextToken.type == TokenType_Symbol &&
-		    (nextToken.contents.compare("token-splice") == 0 ||
-		     nextToken.contents.compare("token-splice-addr") == 0 ||
-		     nextToken.contents.compare("token-splice-array") == 0 ||
-		     nextToken.contents.compare("token-splice-rest") == 0))
-		{
-			// TODO: Performance: remove extra string compares
-			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
-			bool isRest = nextToken.contents.compare("token-splice-rest") == 0;
-			bool tokenMakePointer = nextToken.contents.compare("token-splice-addr") == 0;
-
-			if (tokenToStringWrite != tokenToStringBuffer)
-			{
-				*tokenToStringWrite = '\0';
-				tokenizeGenerateStringTokenize(evaluateOutputTempVar.contents.c_str(),
-				                               *tokenToStringStartToken, tokenToStringBuffer,
-				                               output);
-				tokenToStringWrite = tokenToStringBuffer;
-				tokenToStringStartToken = nullptr;
-			}
-
-			// Skip invocation
-			int startSpliceArgs = i + 2;
-			int endSpliceIndex = FindCloseParenTokenIndex(tokens, i);
-			for (int spliceArg = startSpliceArgs; spliceArg < endSpliceIndex;
-			     spliceArg = getNextArgument(tokens, spliceArg, endSpliceIndex))
-			{
-				if (isArray)
-					addStringOutput(output.source, "PushBackAll(", StringOutMod_None,
-					                &tokens[spliceArg]);
-				else if (isRest)
-					addStringOutput(output.source, "PushBackAllTokenExpressions(",
-					                StringOutMod_None, &tokens[spliceArg]);
-				else
-					addStringOutput(output.source, "PushBackTokenExpression(", StringOutMod_None,
-					                &tokens[spliceArg]);
-
-				// Write output argument
-				addStringOutput(output.source, evaluateOutputTempVar.contents, StringOutMod_None,
-				                &tokens[spliceArg]);
-
-				addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[spliceArg]);
-
-				if (tokenMakePointer)
-					addStringOutput(output.source, "&", StringOutMod_None, &tokens[spliceArg]);
-
-				// Evaluate token to start output expression
-				EvaluatorContext expressionContext = context;
-				expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, spliceArg,
-				                               output) != 0)
-					return false;
-
-				// Second argument is tokens array. Need to get it for bounds check
-				bool shouldBreak = false;
-				if (isRest)
-				{
-					int tokenArrayArg = getExpectedArgument(
-					    "token-splice-rest requires the array which holds the token to splice as "
-					    "the second argument, e.g. (token-splice-rest my-start-token tokens), "
-					    "where my-start-token is a pointer to a token stored within 'tokens'",
-					    tokens, i, 2, endSpliceIndex);
-					if (tokenArrayArg == -1)
-						return false;
-
-					addLangTokenOutput(output.source, StringOutMod_ListSeparator,
-					                   &tokens[spliceArg]);
-					addStringOutput(output.source, "&(", StringOutMod_None, &tokens[spliceArg]);
-					EvaluatorContext expressionContext = context;
-					expressionContext.scope = EvaluatorScope_ExpressionsOnly;
-					if (EvaluateGenerate_Recursive(environment, expressionContext, tokens,
-					                               tokenArrayArg, output) != 0)
-						return false;
-
-					addStringOutput(output.source, ".back())", StringOutMod_None,
-					                &tokens[spliceArg]);
-					shouldBreak = true;
-				}
-
-				addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[spliceArg]);
-				addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[spliceArg]);
-
-				if (shouldBreak)
-					break;
-			}
-
-			// Finished splice list
-			i = endSpliceIndex;
-		}
-		else
-		{
-			// All other tokens are "quoted" and added to string to output at compile-time
-			if (!tokenToStringStartToken)
-				tokenToStringStartToken = &currentToken;
-
-			if (!appendTokenToString(currentToken, &tokenToStringWrite, tokenToStringBuffer,
-			                         sizeof(tokenToStringBuffer)))
-				return false;
-		}
-	}
-
-	// Finish up leftover tokens
-	if (tokenToStringWrite != tokenToStringBuffer)
-	{
-		*tokenToStringWrite = '\0';
-		tokenizeGenerateStringTokenize(evaluateOutputTempVar.contents.c_str(),
-		                               *tokenToStringStartToken, tokenToStringBuffer, output);
-		// We don't really need to reset it, but we will
-		tokenToStringWrite = tokenToStringBuffer;
-		tokenToStringStartToken = nullptr;
-	}
-
-	return true;
-}
-
-bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                              const std::vector<Token>& tokens, int startTokenIndex,
-                              GeneratorOutput& output)
 {
 	if (!ExpectEvaluatorScope("tokenize-push", tokens[startTokenIndex], context,
 	                          EvaluatorScope_Body))
@@ -2472,11 +2297,6 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 		addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startTokenIndex + 1]);
 	}
 
-	// This is odd: convert tokens in the macro invocation into string, then the generated C++ will
-	// use that string to create tokens...
-	char tokenToStringBuffer[1024] = {0};
-	char* tokenToStringWrite = tokenToStringBuffer;
-	const Token* tokenToStringStartToken = nullptr;
 	int startOutputToken = getExpectedArgument("tokenize-push expected tokens to output", tokens,
 	                                           startTokenIndex, 2, endInvocationIndex);
 	if (startOutputToken == -1)
@@ -2529,16 +2349,6 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
 			bool isRest = nextToken.contents.compare("token-splice-rest") == 0;
 			bool tokenMakePointer = isArray || nextToken.contents.compare("token-splice-addr") == 0;
-
-			if (tokenToStringWrite != tokenToStringBuffer)
-			{
-				*tokenToStringWrite = '\0';
-				tokenizeGenerateStringTokenize(evaluateOutputTempVar.contents.c_str(),
-				                               *tokenToStringStartToken, tokenToStringBuffer,
-				                               output);
-				tokenToStringWrite = tokenToStringBuffer;
-				tokenToStringStartToken = nullptr;
-			}
 
 			// Skip invocation
 			int startSpliceArgs = i + 2;
@@ -2662,6 +2472,7 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 	                &tokens[startTokenIndex]);
 	// addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[startTokenIndex]);
 
+	// Yikes
 	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startTokenIndex]);
 	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startTokenIndex]);
 	addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[startTokenIndex]);
@@ -3165,9 +2976,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["path"] = ObjectPathGenerator;
 
 	// Token manipulation
-	// environment.generators["tokenize-push"] = TokenizePushGenerator;
-	environment.generators["tokenize-push"] = TokenizePushNewGenerator;
-	environment.generators["tokenize-push-new"] = TokenizePushNewGenerator;
+	environment.generators["tokenize-push"] = TokenizePushGenerator;
 
 	environment.generators["rename-builtin"] = RenameBuiltinGenerator;
 

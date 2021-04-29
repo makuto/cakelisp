@@ -5,7 +5,7 @@
 
 ;; Returns exit code (0 = success)
 (defun-comptime run-process-wait-for-completion (run-arguments (* RunProcessArguments)
-                                                               &return int)
+                                                 &return int)
   (var status int -1)
   (unless (= 0 (runProcess (deref run-arguments) (addr status)))
     (Log "error: failed to run process\n")
@@ -79,53 +79,48 @@
   (gen-unique-symbol command-array-var "command-arguments"
                      (? arguments (deref arguments) (deref executable-name)))
 
-  (tokenize-push
-   output
-   (var (token-splice arguments-out-name) RunProcessArguments (array 0))
-   (var (token-splice-addr resolved-executable-var) ([] MAX_PATH_LENGTH char) (array 0))
-   (unless (resolveExecutablePath (token-splice executable-name)
-                                  (token-splice-addr resolved-executable-var)
-                                  (sizeof (token-splice-addr resolved-executable-var)))
-     (Logf "error: failed to resolve executable %s. Is it installed? Is the environment/path " \
-           "configured correctly?\n"
-           (token-splice executable-name))
-     (return false))
-   (set (field (token-splice arguments-out-name) fileToExecute)
-        (token-splice-addr resolved-executable-var))
-   (token-splice-array specifier-tokens)
-   (var (token-splice-addr command-array-var) ([] (* (const char)))
-        (array (token-splice-addr resolved-executable-var)
-               (token-splice-array command-arguments) null))
-   (set (field (token-splice arguments-out-name) arguments)
-        (token-splice-addr command-array-var)))
+  (tokenize-push output
+    (var (token-splice arguments-out-name) RunProcessArguments (array 0))
+    (var (token-splice-addr resolved-executable-var) ([] MAX_PATH_LENGTH char) (array 0))
+    (unless (resolveExecutablePath (token-splice executable-name)
+                                   (token-splice-addr resolved-executable-var)
+                                   (sizeof (token-splice-addr resolved-executable-var)))
+      (Logf "error: failed to resolve executable %s. Is it installed? Is the environment/path " \
+            "configured correctly?\n"
+            (token-splice executable-name))
+      (return false))
+    (set (field (token-splice arguments-out-name) fileToExecute)
+         (token-splice-addr resolved-executable-var))
+    (token-splice-array specifier-tokens)
+    (var (token-splice-addr command-array-var) ([] (* (const char)))
+      (array (token-splice-addr resolved-executable-var)
+             (token-splice-array command-arguments) null))
+    (set (field (token-splice arguments-out-name) arguments)
+         (token-splice-addr command-array-var)))
   (return true))
 
 ;; Sequential means this will block until the process completes. If it fails, on-failure block will
 ;; execute.
 (defmacro run-process-sequential-or (command array &rest on-failure array)
-  (var my-tokens (<> std::vector Token))
-  (tokenize-push
-   output
-   (scope
-    (run-process-make-arguments process-command
-                                ;; +1 because we want the inside of the command
-                                (token-splice-rest (+ 1 command) tokens))
-    (unless (= 0 (run-process-wait-for-completion (addr process-command)))
-      (token-splice-rest on-failure tokens))))
+  (tokenize-push output
+    (scope
+     (run-process-make-arguments process-command
+                                 ;; +1 because we want the inside of the command
+                                 (token-splice-rest (+ 1 command) tokens))
+     (unless (= 0 (run-process-wait-for-completion (addr process-command)))
+       (token-splice-rest on-failure tokens))))
   (return true))
 
 ;; status-int-ptr should be an address to an int variable which can be checked for process exit
 ;; code, but only after waitForAllProcessesClosed
 ;; TODO: Make run-process-start-or block based on number of cores?
 (defmacro run-process-start-or (status-int-ptr any command array &rest on-failure-to-start array)
-  (var my-tokens (<> std::vector Token))
-  (tokenize-push
-   output
-   (scope
-    (run-process-make-arguments process-command
-                                ;; +1 because we want the inside of the command
-                                (token-splice-rest (+ 1 command) tokens))
-    (unless (= 0 (runProcess process-command (token-splice status-int-ptr)))
-     (Log "error: failed to start process\n")
-     (token-splice-rest on-failure-to-start tokens))))
+  (tokenize-push output
+    (scope
+     (run-process-make-arguments process-command
+                                 ;; +1 because we want the inside of the command
+                                 (token-splice-rest (+ 1 command) tokens))
+     (unless (= 0 (runProcess process-command (token-splice status-int-ptr)))
+       (Log "error: failed to start process\n")
+       (token-splice-rest on-failure-to-start tokens))))
   (return true))
