@@ -2602,6 +2602,8 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 				addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[spliceArg]);
 				addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[spliceArg]);
 
+				// All splices accept multiple args except token-splice-rest, because it needs two
+				// args, and things would get confusing
 				if (shouldBreak)
 					break;
 			}

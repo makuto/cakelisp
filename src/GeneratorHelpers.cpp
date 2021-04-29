@@ -1213,6 +1213,14 @@ void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceContext, const
 	spliceContext->spliceArguments.push_back(newArgument);
 }
 
+static const Token* getNextExpression(const Token* token)
+{
+	if (token->type != TokenType_OpenParen)
+		return token + 1;
+
+	return FindTokenExpressionEnd(token) + 1;
+}
+
 bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,
                          uint32_t tokensCrc, TokenizePushContext* spliceContext,
                          std::vector<Token>& output)
@@ -1246,30 +1254,47 @@ bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definiti
 		     nextToken->contents.compare("token-splice-array") == 0 ||
 		     nextToken->contents.compare("token-splice-rest") == 0))
 		{
-			if (currentSpliceArgument >= numSpliceArguments)
-				return false;
-
-			const TokenizePushSpliceArgument& argument =
-			    spliceContext->spliceArguments[currentSpliceArgument];
-			++currentSpliceArgument;
-
-			// Perform the splice
-			switch (argument.type)
+			const Token* endSpliceToken = FindTokenExpressionEnd(currentToken);
+			const Token* startSpliceToken = currentToken + 2;
+			for (const Token* currentSpliceToken = startSpliceToken;
+			     currentSpliceToken != endSpliceToken;
+			     currentSpliceToken = getNextExpression(currentSpliceToken))
 			{
-				case TokenizePushSpliceArgument_Array:
-					PushBackAll(output, *argument.sourceTokens);
-					break;
-				case TokenizePushSpliceArgument_AllExpressions:
-					PushBackAllTokenExpressions(output, argument.startToken,
-					                            &argument.sourceTokens->back());
-					break;
-				case TokenizePushSpliceArgument_Expression:
-					PushBackTokenExpression(output, argument.startToken);
+				if (currentSpliceArgument >= numSpliceArguments)
+				{
+					Log("error: splice arguments are out of sync with context. Code error?\n");
+					return false;
+				}
+
+				const TokenizePushSpliceArgument& argument =
+				    spliceContext->spliceArguments[currentSpliceArgument];
+				++currentSpliceArgument;
+
+				// TODO Validate splice type matches!
+				// Perform the splice
+				bool shouldBreak = false;
+				switch (argument.type)
+				{
+					case TokenizePushSpliceArgument_Array:
+						PushBackAll(output, *argument.sourceTokens);
+						break;
+					case TokenizePushSpliceArgument_AllExpressions:
+						PushBackAllTokenExpressions(output, argument.startToken,
+						                            &argument.sourceTokens->back());
+						shouldBreak = true;
+						break;
+					case TokenizePushSpliceArgument_Expression:
+						PushBackTokenExpression(output, argument.startToken);
+						break;
+				}
+
+				// Some splices only accept one iteration
+				if (shouldBreak)
 					break;
 			}
 
 			// Skip over the token-splice so it isn't output
-			currentToken = FindTokenExpressionEnd(currentToken);
+			currentToken = endSpliceToken;
 		}
 		else
 			output.push_back(*currentToken);
