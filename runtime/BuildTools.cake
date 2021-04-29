@@ -87,7 +87,7 @@
                                   (token-splice-addr resolved-executable-var)
                                   (sizeof (token-splice-addr resolved-executable-var)))
      (Logf "error: failed to resolve executable %s. Is it installed? Is the environment/path " \
-           "configured correctly?\\n"
+           "configured correctly?\n"
            (token-splice executable-name))
      (return false))
    (set (field (token-splice arguments-out-name) fileToExecute)

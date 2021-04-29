@@ -263,6 +263,24 @@ const Token* FindTokenExpressionEnd(const Token* startToken)
 	return nullptr;
 }
 
+// For when you are within a body/rest block and only have expressions in the body
+const Token* FindTokenBodyEnd(const Token* startToken)
+{
+	int depth = 0;
+	for (const Token* currentToken = startToken; depth >= 0; ++currentToken)
+	{
+		if (currentToken->type == TokenType_OpenParen)
+			++depth;
+		else if (currentToken->type == TokenType_CloseParen)
+		{
+			--depth;
+			if (depth < 0)
+				return currentToken;
+		}
+	}
+	return nullptr;
+}
+
 static void CopyTokensWithMacrosExpanded_Recursive(const Token* startToken, const Token* endToken,
                                                    const std::vector<MacroExpansion>& expansions,
                                                    std::vector<Token>& tokensOut)
@@ -1172,15 +1190,16 @@ bool CompileTimeEvaluateCondition(EvaluatorEnvironment& environment,
 // Tokenize-push
 //
 
-void TokenizePushSpliceAll(TokenizePushContext* spliceContext, const Token* startToken)
+void TokenizePushSpliceArray(TokenizePushContext* spliceContext, const std::vector<Token>* tokens)
 {
-	TokenizePushSpliceArgument newArgument = {TokenizePushSpliceArgument_All, startToken, nullptr};
+	TokenizePushSpliceArgument newArgument = {TokenizePushSpliceArgument_Array, nullptr,
+	                                          tokens};
 	spliceContext->spliceArguments.push_back(newArgument);
 }
 
 void TokenizePushSpliceAllTokenExpressions(TokenizePushContext* spliceContext,
                                            const Token* startToken,
-                                           std::vector<Token>* sourceTokens)
+                                           const std::vector<Token>* sourceTokens)
 {
 	TokenizePushSpliceArgument newArgument = {TokenizePushSpliceArgument_AllExpressions, startToken,
 	                                          sourceTokens};
@@ -1212,7 +1231,49 @@ bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definiti
 		     definitionName);
 		return false;
 	}
-	// definition->tokenizePushTokens[tokensCrc] = &tokens[startOutputToken];
+
+	const Token* startToken = findIt->second;
+	const Token* endToken = FindTokenBodyEnd(startToken);
+	int currentSpliceArgument = 0;
+	int numSpliceArguments = (int)spliceContext->spliceArguments.size();
+
+	for (const Token* currentToken = startToken; currentToken != endToken; ++currentToken)
+	{
+		const Token* nextToken = currentToken + 1;
+		if (currentToken->type == TokenType_OpenParen && nextToken->type == TokenType_Symbol &&
+		    (nextToken->contents.compare("token-splice") == 0 ||
+		     nextToken->contents.compare("token-splice-addr") == 0 ||
+		     nextToken->contents.compare("token-splice-array") == 0 ||
+		     nextToken->contents.compare("token-splice-rest") == 0))
+		{
+			if (currentSpliceArgument >= numSpliceArguments)
+				return false;
+
+			const TokenizePushSpliceArgument& argument =
+			    spliceContext->spliceArguments[currentSpliceArgument];
+			++currentSpliceArgument;
+
+			// Perform the splice
+			switch (argument.type)
+			{
+				case TokenizePushSpliceArgument_Array:
+					PushBackAll(output, *argument.sourceTokens);
+					break;
+				case TokenizePushSpliceArgument_AllExpressions:
+					PushBackAllTokenExpressions(output, argument.startToken,
+					                            &argument.sourceTokens->back());
+					break;
+				case TokenizePushSpliceArgument_Expression:
+					PushBackTokenExpression(output, argument.startToken);
+					break;
+			}
+
+			// Skip over the token-splice so it isn't output
+			currentToken = FindTokenExpressionEnd(currentToken);
+		}
+		else
+			output.push_back(*currentToken);
+	}
 
 	return true;
 }

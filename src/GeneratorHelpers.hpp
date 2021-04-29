@@ -57,7 +57,11 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
 // block, so it knows the scope comes from the generator invocation
 int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex);
 
+// Like FindCloseParenTokenIndex(), only this works with nothing but a pointer
 CAKELISP_API const Token* FindTokenExpressionEnd(const Token* startToken);
+
+// For when you are within a body/rest block and only have expressions in the body
+CAKELISP_API const Token* FindTokenBodyEnd(const Token* startToken);
 
 // This is useful for copying a definition, with macros expanded, for e.g. code modification
 CAKELISP_API bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
@@ -158,7 +162,7 @@ struct TokenizePushSpliceArgument
 {
 	TokenizePushSpliceArgumentType type;
 	const Token* startToken;
-	std::vector<Token>* sourceTokens;
+	const std::vector<Token>* sourceTokens;
 };
 
 struct TokenizePushContext
@@ -166,10 +170,11 @@ struct TokenizePushContext
 	std::vector<TokenizePushSpliceArgument> spliceArguments;
 };
 
-void TokenizePushSpliceAll(TokenizePushContext* spliceContext, const Token* startToken);
+void TokenizePushSpliceArray(TokenizePushContext* spliceContext,
+                             const std::vector<Token>* sourceTokens);
 void TokenizePushSpliceAllTokenExpressions(TokenizePushContext* spliceContext,
                                            const Token* startToken,
-                                           std::vector<Token>* sourceTokens);
+                                           const std::vector<Token>* sourceTokens);
 void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceContext, const Token* startToken);
 
 bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,

@@ -2528,7 +2528,7 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 			// TODO: Performance: remove extra string compares
 			bool isArray = nextToken.contents.compare("token-splice-array") == 0;
 			bool isRest = nextToken.contents.compare("token-splice-rest") == 0;
-			bool tokenMakePointer = nextToken.contents.compare("token-splice-addr") == 0;
+			bool tokenMakePointer = isArray || nextToken.contents.compare("token-splice-addr") == 0;
 
 			if (tokenToStringWrite != tokenToStringBuffer)
 			{
@@ -2547,7 +2547,7 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 			     spliceArg = getNextArgument(tokens, spliceArg, endSpliceIndex))
 			{
 				if (isArray)
-					addStringOutput(output.source, "TokenizePushSpliceAll(", StringOutMod_None,
+					addStringOutput(output.source, "TokenizePushSpliceArray(", StringOutMod_None,
 					                &tokens[spliceArg]);
 				else if (isRest)
 					addStringOutput(output.source, "TokenizePushSpliceAllTokenExpressions(",
@@ -2561,7 +2561,7 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 				addLangTokenOutput(output.source, StringOutMod_ListSeparator, &tokens[spliceArg]);
 
 				if (tokenMakePointer)
-					addStringOutput(output.source, "&", StringOutMod_None, &tokens[spliceArg]);
+					addStringOutput(output.source, "&(", StringOutMod_None, &tokens[spliceArg]);
 
 				// Evaluate token to start output expression
 				EvaluatorContext expressionContext = context;
@@ -2569,6 +2569,9 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 				if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, spliceArg,
 				                               output) != 0)
 					return false;
+
+				if (tokenMakePointer)
+					addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[spliceArg]);
 
 				// Second argument is tokens array. Need to get it for bounds check
 				bool shouldBreak = false;
@@ -2584,6 +2587,7 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 
 					addLangTokenOutput(output.source, StringOutMod_ListSeparator,
 					                   &tokens[spliceArg]);
+
 					addStringOutput(output.source, "&(", StringOutMod_None, &tokens[spliceArg]);
 					EvaluatorContext expressionContext = context;
 					expressionContext.scope = EvaluatorScope_ExpressionsOnly;
@@ -2591,8 +2595,7 @@ bool TokenizePushNewGenerator(EvaluatorEnvironment& environment, const Evaluator
 					                               tokenArrayArg, output) != 0)
 						return false;
 
-					addStringOutput(output.source, ".back())", StringOutMod_None,
-					                &tokens[spliceArg]);
+					addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[spliceArg]);
 					shouldBreak = true;
 				}
 
@@ -3160,7 +3163,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["path"] = ObjectPathGenerator;
 
 	// Token manipulation
-	environment.generators["tokenize-push"] = TokenizePushGenerator;
+	// environment.generators["tokenize-push"] = TokenizePushGenerator;
+	environment.generators["tokenize-push"] = TokenizePushNewGenerator;
 	environment.generators["tokenize-push-new"] = TokenizePushNewGenerator;
 
 	environment.generators["rename-builtin"] = RenameBuiltinGenerator;

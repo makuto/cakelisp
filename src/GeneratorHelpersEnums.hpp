@@ -35,7 +35,7 @@ enum CStatementOperationType
 
 enum TokenizePushSpliceArgumentType
 {
-	TokenizePushSpliceArgument_All,
+	TokenizePushSpliceArgument_Array,
 	TokenizePushSpliceArgument_AllExpressions,
 	TokenizePushSpliceArgument_Expression
 };

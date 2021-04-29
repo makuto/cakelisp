@@ -23,7 +23,7 @@
 
 (defmacro simple-macro ()
   (printf "simple-macro: %d, %d!\n" (compile-time-call) (compile-time-call-before))
-  (tokenize-push output (printf "Hello, macros!\\n") (magic-number))
+  (tokenize-push output (printf "Hello, macros!\n") (magic-number))
   (return true))
 
 (defun-comptime compile-time-call (&return int)
@@ -38,7 +38,7 @@
   (get-or-create-comptime-var test-var std::string)
   (get-or-create-comptime-var test-crazy-var (* (const (* (<> std::vector int)))))
   (set (deref test-var) "Yeah")
-  (tokenize-push output (printf "The magic number is 42\\n"))
+  (tokenize-push output (printf "The magic number is 42\n"))
   (return true))
 
 (defun-comptime sabotage-main-printfs (environment (& EvaluatorEnvironment)

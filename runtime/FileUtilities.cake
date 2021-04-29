@@ -87,7 +87,7 @@
    (scope
     (var num-printed int (snprintf (token-splice buffer size format)
                                    (token-splice-rest args tokens)))
-    (set (at num-printed (token-splice buffer)) '\\0')))
+    (set (at num-printed (token-splice buffer)) '\0')))
  (return true))
 
 (defmacro string-duplicate (string-to-dup any)

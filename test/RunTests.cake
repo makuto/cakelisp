@@ -40,6 +40,7 @@
         (true
          "runtime/Config_Linux.cake")))
 
+  ;; TODO Don't run process, just create a new environment for each test (easier to attach debugger)
   (var i int 0)
   (while (< i (array-size tests))
     (var test-name (* (const char)) (field (at i tests) test-name))
