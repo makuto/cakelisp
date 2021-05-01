@@ -170,13 +170,14 @@ struct TokenizePushContext
 	std::vector<TokenizePushSpliceArgument> spliceArguments;
 };
 
-void TokenizePushSpliceArray(TokenizePushContext* spliceContext,
-                             const std::vector<Token>* sourceTokens);
-void TokenizePushSpliceAllTokenExpressions(TokenizePushContext* spliceContext,
-                                           const Token* startToken,
-                                           const std::vector<Token>* sourceTokens);
-void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceContext, const Token* startToken);
+CAKELISP_API void TokenizePushSpliceArray(TokenizePushContext* spliceContext,
+                                          const std::vector<Token>* sourceTokens);
+CAKELISP_API void TokenizePushSpliceAllTokenExpressions(TokenizePushContext* spliceContext,
+                                                        const Token* startToken,
+                                                        const std::vector<Token>* sourceTokens);
+CAKELISP_API void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceContext,
+                                                    const Token* startToken);
 
-bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,
-                         uint32_t tokensCrc, TokenizePushContext* spliceContext,
-                         std::vector<Token>& output);
+CAKELISP_API bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,
+                                      uint32_t tokensCrc, TokenizePushContext* spliceContext,
+                                      std::vector<Token>& output);
