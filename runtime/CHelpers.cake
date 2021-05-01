@@ -199,7 +199,7 @@
   (return (c-statement-out define-statement)))
 
 (defgenerator if-c-preprocessor-defined (preprocessor-symbol symbol
-                                                             true-block (index any) false-block (index any))
+                                         true-block (index any) false-block (index any))
   (var statement (const ([] CStatementOperation))
     (array
      (array Keyword "#ifdef" -1)

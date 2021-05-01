@@ -39,6 +39,8 @@ The number represents how many arguments are expected to the function.
   (put 'c-for 'lisp-indent-function 3)
 
   (put 'run-process-sequential-or 'lisp-indent-function 1)
+
+  (put 'if-c-preprocessor-defined 'lisp-indent-function 1)
 #+END_SRC
 
 You will need to add these for your custom macros because I haven't written an Emacs parser to automatically determine indentation from macro/generator signatures.

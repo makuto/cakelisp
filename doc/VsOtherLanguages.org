@@ -58,6 +58,8 @@ The bad things:
 
 I appreciate the existence of Scopes, and it provides some interesting features (esp. GPU support). Scopes also provides the tight 3rd party C/C++ build system support that I haven't seen any other language offer (besides Scopes and Cakelisp).
 
+In short, Scopes is trying to be its own language, with much more radical ideas and features. Cakelisp is a much more incremental improvement over C.
+
 We do have different approaches to solving similar problems, so I recommend anyone give both a deep look before deciding. Here are some things which I think make Cakelisp more suitable to me, personally:
 
 - Cakelisp is very lightweight in terms of installation. Windows has no dependency other than MSVC, and is a one-click batch script after you have MSVC installed. Linux is a single shell script execution, assuming your system already has ~g++~ (which I think is a safe assumption, but I haven't done a survey or anything)
