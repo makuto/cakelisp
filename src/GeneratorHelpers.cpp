@@ -705,24 +705,7 @@ bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
 
 		int endTokenIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
 
-		if (typeInvocation.contents.compare("const") == 0)
-		{
-			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))
-				return false;
-
-			// Prepend const-ness
-			addStringOutput(typeOutput, "const", StringOutMod_SpaceAfter, &typeInvocation);
-
-			int typeIndex = getExpectedArgument("const requires type", tokens, startTokenIndex, 1,
-			                                    endTokenIndex);
-			if (typeIndex == -1)
-				return false;
-
-			return tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
-			                                        allowArray, typeOutput, afterNameOutput);
-		}
-		else if (typeInvocation.contents.compare("*") == 0 ||
-		         typeInvocation.contents.compare("&") == 0)
+		if (typeInvocation.contents.compare("*") == 0 || typeInvocation.contents.compare("&") == 0)
 		{
 			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))
 				return false;
@@ -870,8 +853,20 @@ bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
 		}
 		else
 		{
-			ErrorAtToken(typeInvocation, "unknown C/C++ type specifier");
-			return false;
+			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))
+				return false;
+
+			// Prepend keyword
+			addStringOutput(typeOutput, typeInvocation.contents, StringOutMod_SpaceAfter,
+			                &typeInvocation);
+
+			int typeIndex = getExpectedArgument("keyword requires type", tokens, startTokenIndex, 1,
+			                                    endTokenIndex);
+			if (typeIndex == -1)
+				return false;
+
+			return tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
+			                                        allowArray, typeOutput, afterNameOutput);
 		}
 		return true;
 	}
