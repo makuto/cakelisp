@@ -38,13 +38,13 @@
   (var findIt FunctionReferenceMapIterator
        (call-on find registered-functions function-name))
   (if (= findIt (call-on end registered-functions))
-      (block
-          (var new-function-pointer-array FunctionReferenceArray)
-        (call-on push_back new-function-pointer-array function-pointer)
-        (set (at function-name registered-functions)
-             ;; This could also be written as (std::move new-function-pointer-array)
-             ;; I'm not sure how I want it to work
-             (call (in std move) new-function-pointer-array)))
+      (scope
+       (var new-function-pointer-array FunctionReferenceArray)
+       (call-on push_back new-function-pointer-array function-pointer)
+       (set (at function-name registered-functions)
+            ;; This could also be written as (std::move new-function-pointer-array)
+            ;; I'm not sure how I want it to work
+            (call (in std move) new-function-pointer-array)))
       (call-on push_back (path findIt > second) function-pointer)))
 
 (defun-local copy-binary-file-to (srcFilename (* (const char))
@@ -111,9 +111,9 @@
   (var global-initializer (* void)
        (dynamic-library-get-symbol current-lib "hotReloadInitializeState"))
   (if global-initializer
-      (block
-          (def-function-signature global-initializer-signature ())
-        (call (type-cast global-initializer global-initializer-signature)))
+      (scope
+       (def-function-signature global-initializer-signature ())
+       (call (type-cast global-initializer global-initializer-signature)))
       (printf "warning: global initializer 'hotReloadInitializeState' not found!"))
 
   (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions

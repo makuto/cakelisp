@@ -20,21 +20,21 @@
    ('Unix
 	;; Second condition allows for absolute paths
 	(if (and fromDirectory (!= (at 0 filePath) '/'))
-        (block
-		    (var relativePath ([] MAX_PATH_LENGTH char) (array 0))
-		  (safe-string-print relativePath (sizeof relativePath) "%s/%s" fromDirectory filePath)
-		  (return (realpath relativePath null)))
-        (block
-		    ;; The path will be relative to the binary's working directory
-		    (return (realpath filePath null)))))
+        (scope
+		 (var relativePath ([] MAX_PATH_LENGTH char) (array 0))
+		 (safe-string-print relativePath (sizeof relativePath) "%s/%s" fromDirectory filePath)
+		 (return (realpath relativePath null)))
+        (scope
+		 ;; The path will be relative to the binary's working directory
+		 (return (realpath filePath null)))))
    ('Windows
 	(var absolutePath (* char) (type-cast (calloc MAX_PATH_LENGTH (sizeof char)) (* char)))
 	(var isValid bool false)
 	(if fromDirectory
-        (block
-		    (var relativePath ([] MAX_PATH_LENGTH char) (array 0))
-		  (safe-string-print relativePath (sizeof relativePath) "%s/%s" fromDirectory filePath)
-		  (set isValid (_fullpath absolutePath relativePath MAX_PATH_LENGTH)))
+        (scope
+		 (var relativePath ([] MAX_PATH_LENGTH char) (array 0))
+		 (safe-string-print relativePath (sizeof relativePath) "%s/%s" fromDirectory filePath)
+		 (set isValid (_fullpath absolutePath relativePath MAX_PATH_LENGTH)))
 		(set isValid (_fullpath absolutePath filePath MAX_PATH_LENGTH)))
 
 	(unless isValid

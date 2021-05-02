@@ -227,13 +227,13 @@
              (var existing-value (* void) nullptr)
              (if (hot-reload-find-variable (token-splice-addr string-var-name) (addr existing-value))
                  (set (token-splice-addr var-name) (type-cast existing-value (* (token-splice-addr type-start))))
-                 (block ;; Create the variable
-                     ;; C can have an easier time with plain old malloc and cast
-                     (set (token-splice-addr var-name) (new (token-splice-addr type-start)))
-                   (token-splice-array assignment-tokens)
-                   ;; (set (deref (token-splice-addr var-name)) (token-splice-addr assignment))
-                   (hot-reload-register-variable (token-splice-addr string-var-name)
-                                                 (token-splice-addr var-name))))))
+                 (scope ;; Create the variable
+                  ;; C can have an easier time with plain old malloc and cast
+                  (set (token-splice-addr var-name) (new (token-splice-addr type-start)))
+                  (token-splice-array assignment-tokens)
+                  ;; (set (deref (token-splice-addr var-name)) (token-splice-addr assignment))
+                  (hot-reload-register-variable (token-splice-addr string-var-name)
+                                                (token-splice-addr var-name))))))
           (when verbose (prettyPrintTokens (deref initializer-procedure-tokens)))
 
           ;; Make the changes

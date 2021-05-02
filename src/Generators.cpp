@@ -2080,7 +2080,7 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 		ErrorAtToken(
 		    tokens[extraArgument],
 		    "if expects up to two blocks. If you want to have more than one statement in a block, "
-		    "surround the statements in (block) or (scope), or use cond instead of if (etc.)");
+		    "surround the statements in (scope), or use cond instead of if (etc.)");
 		return false;
 	}
 
@@ -2627,6 +2627,23 @@ bool ComptimeDefineSymbolGenerator(EvaluatorEnvironment& environment,
 	return true;
 }
 
+// Give the user a replacement suggestion
+typedef std::unordered_map<std::string, const char*> DeprecatedHelpStringMap;
+DeprecatedHelpStringMap s_deprecatedHelpStrings;
+bool DeprecatedGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                         const std::vector<Token>& tokens, int startTokenIndex,
+                         GeneratorOutput& output)
+{
+	DeprecatedHelpStringMap::iterator findIt =
+	    s_deprecatedHelpStrings.find(tokens[startTokenIndex + 1].contents.c_str());
+	if (findIt != s_deprecatedHelpStrings.end())
+		ErrorAtTokenf(tokens[startTokenIndex], "this function is now deprecated. %s",
+		             findIt->second);
+	else
+		ErrorAtToken(tokens[startTokenIndex], "this function is now deprecated");
+	return false;
+}
+
 //
 // CStatements
 //
@@ -2991,7 +3008,6 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["var-static"] = VariableDeclarationGenerator;
 
 	environment.generators["at"] = ArrayAccessGenerator;
-	environment.generators["nth"] = ArrayAccessGenerator;
 
 	environment.generators["if"] = IfGenerator;
 	environment.generators["cond"] = ConditionGenerator;
@@ -3039,7 +3055,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
 	    "while", "for-in", "return", "continue", "break", "when", "unless", "array", "set", "scope",
-	    "block", "?", "new", "delete", "new-array", "delete-array",
+	    "?", "new", "delete", "new-array", "delete-array",
 	    // Pointers
 	    "deref", "addr", "field",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
@@ -3056,4 +3072,11 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	{
 		environment.generators[cStatementKeywords[i]] = CStatementGenerator;
 	}
+
+	// Deprecated
+	s_deprecatedHelpStrings["block"] = "use (scope) instead";
+	environment.generators["block"] = DeprecatedGenerator;
+
+	s_deprecatedHelpStrings["nth"] = "use (at) instead";
+	environment.generators["nth"] = DeprecatedGenerator;
 }

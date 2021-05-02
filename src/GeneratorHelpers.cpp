@@ -200,8 +200,7 @@ int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex, int
 int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex)
 {
 	if (tokens[startBlockIndex].type == TokenType_OpenParen &&
-	    (tokens[startBlockIndex + 1].contents.compare("scope") == 0 ||
-	     tokens[startBlockIndex + 1].contents.compare("block") == 0))
+	    tokens[startBlockIndex + 1].contents.compare("scope") == 0)
 		return startBlockIndex + 2;
 	return startBlockIndex;
 }
