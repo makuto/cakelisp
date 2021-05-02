@@ -1248,6 +1248,14 @@ bool VariableDeclarationGenerator(EvaluatorEnvironment& environment,
 		if (EvaluateGenerate_Recursive(environment, expressionContext, tokens, valueIndex,
 		                               *variableOutput) != 0)
 			return false;
+
+		if (!ExpectNumArguments(tokens, startTokenIndex, endInvocationIndex, 4))
+			return false;
+	}
+	else
+	{
+		if (!ExpectNumArguments(tokens, startTokenIndex, endInvocationIndex, 3))
+			return false;
 	}
 
 	addLangTokenOutput(variableOutput->source, StringOutMod_EndStatement,
