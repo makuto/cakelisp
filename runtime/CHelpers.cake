@@ -24,9 +24,32 @@
      (array Keyword "' '" -1)))
   (return (c-statement-out statement)))
 
+;; e.g. (negate 1) outputs (-1)
+(defgenerator negate (to-negate (arg-index any))
+  (var negate-statement (const ([] CStatementOperation))
+    (array
+     (array OpenParen null -1)
+     (array Keyword "-" -1)
+     (array Expression null to-negate)
+     (array CloseParen null -1)))
+  (return (CStatementOutput environment context tokens startTokenIndex
+                            negate-statement (array-size negate-statement)
+                            output)))
+
 ;;
 ;; Declarations
 ;;
+
+;; Especially useful for casting from malloc:
+;; (var my-thing (* thing) (type-cast (* thing) (malloc (sizeof thing))))
+;; vs.
+;; (var my-thing (* thing) (malloc (sizeof thing)))
+(defmacro var-cast-to (var-name symbol type any expression-to-cast any)
+  (tokenize-push output
+    (var (token-splice var-name) (token-splice type)
+      (type-cast (token-splice expression-to-cast)
+                 (token-splice type))))
+  (return true))
 
 ;; Given
 ;; (declare-extern-function my-func (i int &return bool))
@@ -184,7 +207,7 @@
 ;; Preprocessor
 ;;
 
-(defgenerator define-constant (define-name (arg-index symbol) value (arg-index any))
+(defgenerator c-preprocessor-define-constant (define-name (arg-index symbol) value (arg-index any))
   (var define-statement (const ([] CStatementOperation))
     (array
      (array Keyword "#define" -1)
@@ -194,7 +217,7 @@
      (array KeywordNoSpace "\n" -1)))
   (return (c-statement-out define-statement)))
 
-(defgenerator undefine-constant (define-name symbol)
+(defgenerator c-preprocessor-undefine (define-name symbol)
   (var define-statement (const ([] CStatementOperation))
     (array
      (array Keyword "#undef" -1)
@@ -229,3 +252,75 @@
           (array KeywordNoSpace "#endif" -1)
           (array KeywordNoSpace "\n" -1)))
        (return (c-statement-out statement)))))
+
+;;
+;; Aliasing
+;;
+
+;; When encountering references of (alias), output C function invocation underlyingFuncName()
+;; Note that this circumvents the reference system in order to reduce compile-time cost of using
+;; aliased functions. This will probably have to be fixed eventually
+(defgenerator output-aliased-c-function-invocation (&optional &rest arguments any)
+  (var invocation-name (& (const std::string)) (field (at (+ 1 startTokenIndex) tokens) contents))
+  ;; TODO Hack: If I was referenced directly, don't do anything, because it's only for dependencies
+  (when (= 0 (call-on compare invocation-name
+                      "output-aliased-c-function-invocation"))
+    (return true))
+  (get-or-create-comptime-var c-function-aliases (<> std::unordered_map std::string std::string))
+  (def-type-alias FunctionAliasMap (<> std::unordered_map std::string std::string))
+
+  (var alias-func-pair (in FunctionAliasMap iterator)
+    (call-on-ptr find c-function-aliases invocation-name))
+  (unless (!= alias-func-pair (call-on-ptr end c-function-aliases))
+    (ErrorAtToken (at (+ 1 startTokenIndex) tokens)
+                  "unknown function alias. This is likely a code error, as it should never have " \
+                  "gotten this far")
+    (return false))
+
+  (var underlying-func-name (& (const std::string)) (path alias-func-pair > second))
+  ;; (Logf "found %s, outputting %s\n" (call-on c_str invocation-name) (call-on c_str underlying-func-name))
+
+  (if arguments
+      (scope
+       (var invocation-statement (const ([] CStatementOperation))
+         (array
+          (array KeywordNoSpace (call-on c_str underlying-func-name) -1)
+          (array OpenParen null -1)
+          (array ExpressionList null 1)
+          (array CloseParen null -1)
+          (array SmartEndStatement null -1)))
+       (return (CStatementOutput environment context tokens startTokenIndex
+                                 invocation-statement (array-size invocation-statement)
+                                 output)))
+      (scope
+       (var invocation-statement (const ([] CStatementOperation))
+         (array
+          (array KeywordNoSpace (call-on c_str underlying-func-name) -1)
+          (array OpenParen null -1)
+          (array CloseParen null -1)
+          (array SmartEndStatement null -1)))
+       (return (CStatementOutput environment context tokens startTokenIndex
+                                 invocation-statement (array-size invocation-statement)
+                                 output)))))
+
+;; When encountering references of (alias), output C function invocation underlyingFuncName()
+;; output-aliased-c-function-invocation actually does the work
+(defgenerator def-c-function-alias (alias (ref symbol) underlying-func-name (ref symbol))
+  ;; TODO Hack: Invoke this to create a dependency on it, so by the time we make the
+  ;; alias, we can set the generators table to it
+  (output-aliased-c-function-invocation)
+
+  (get-or-create-comptime-var c-function-aliases (<> std::unordered_map std::string std::string))
+  (set (at (field alias contents) (deref c-function-aliases)) (field underlying-func-name contents))
+
+  ;; (Logf "aliasing %s to %s\n" (call-on c_str (field underlying-func-name contents))
+  ;; (call-on c_str (field alias contents)))
+
+  ;; Upen encountering an invocation of our alias, run the aliased function output
+  ;; In case the function already has references, resolve them now. Future invocations will be
+  ;; handled immediately (because it'll be in the generators list)
+  (var evaluated-success bool
+    (registerEvaluateGenerator environment (call-on c_str (field alias contents))
+                               (at "output-aliased-c-function-invocation" (field environment generators))))
+
+  (return evaluated-success))
