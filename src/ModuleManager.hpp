@@ -80,6 +80,10 @@ struct ModuleManager
 };
 
 void moduleManagerInitialize(ModuleManager& manager);
+// Do not close opened dynamic libraries. Should by called by sub-instances of cakelisp instead of
+// moduleManagerDestroy(), otherwise they may segfault
+void moduleManagerDestroyKeepDynLibs(ModuleManager& manager);
+// Note that this will close all dynamic libraries
 void moduleManagerDestroy(ModuleManager& manager);
 
 bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>** tokensOut);
@@ -87,6 +91,8 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 bool moduleManagerEvaluateResolveReferences(ModuleManager& manager);
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager);
 bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs);
+bool moduleManagerExecuteBuiltOutputs(ModuleManager& manager,
+                                      const std::vector<std::string>& builtOutputs);
 
 // Initializes a normal environment and outputs all generators available to it
 void listBuiltInGenerators();

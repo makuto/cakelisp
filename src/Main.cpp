@@ -41,10 +41,6 @@ void printHelp(const CommandLineOption* options, int numOptions)
 	}
 }
 
-void OnExecuteProcessOutput(const char* output)
-{
-}
-
 int main(int numArguments, char* arguments[])
 {
 	bool ignoreCachedFiles = false;
@@ -255,54 +251,10 @@ int main(int numArguments, char* arguments[])
 
 	if (executeOutput)
 	{
-		if (logging.phases)
-			Log("\nExecute:\n");
-
-		if (builtOutputs.empty())
+		if (!moduleManagerExecuteBuiltOutputs(moduleManager, builtOutputs))
 		{
-			Log("error: --execute: No executables were output\n");
 			moduleManagerDestroy(moduleManager);
 			return 1;
-		}
-
-		// TODO: Allow user to forward arguments to executable
-		for (const std::string& output : builtOutputs)
-		{
-			RunProcessArguments arguments = {};
-			// Need to use absolute path when executing
-			const char* executablePath = makeAbsolutePath_Allocated(nullptr, output.c_str());
-			arguments.fileToExecute = executablePath;
-			const char* commandLineArguments[] = {StrDuplicate(arguments.fileToExecute), nullptr};
-			arguments.arguments = commandLineArguments;
-			char workingDirectory[MAX_PATH_LENGTH] = {0};
-			getDirectoryFromPath(arguments.fileToExecute, workingDirectory,
-			                     ArraySize(workingDirectory));
-			arguments.workingDirectory = workingDirectory;
-			int status = 0;
-
-			if (runProcess(arguments, &status) != 0)
-			{
-				Logf("error: execution of %s failed\n", output.c_str());
-				free((void*)executablePath);
-				free((void*)commandLineArguments[0]);
-				moduleManagerDestroy(moduleManager);
-				return 1;
-			}
-
-			waitForAllProcessesClosed(OnExecuteProcessOutput);
-
-			free((void*)executablePath);
-			free((void*)commandLineArguments[0]);
-
-			if (status != 0)
-			{
-				Logf("error: execution of %s returned non-zero exit code %d\n", output.c_str(),
-				     status);
-				moduleManagerDestroy(moduleManager);
-				// Why not return the exit code? Because some exit codes end up becoming 0 after the
-				// mod 256. I'm not really sure how other programs handle this
-				return 1;
-			}
 		}
 	}
 
