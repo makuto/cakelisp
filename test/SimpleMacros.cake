@@ -1,5 +1,9 @@
 (c-import "<stdio.h>")
 
+(defmacro argument-indices (first (arg-index string) &optional second (arg-index any))
+  (Logf "first arg has index %d, second has index %d\n" first second)
+  (return true))
+
 (defmacro my-print (message string)
   (printf "Compile-time print!\n")
   (tokenize-push output (printf "%s\n" (token-splice message)))
@@ -15,4 +19,6 @@
 (defun main(&return int)
   (printf "Hello, world! From Cakelisp!\n")
   (my-print "Printed thanks to a macro!")
+  (argument-indices "test")
+  (argument-indices "test" "test 2")
   (return 0))

@@ -300,6 +300,12 @@ Let's go argument-by-argument for the above signature:
 - ~var-type (ref any)~: Like ~bound-var-name~, only this will take the second argument to the macro invocation, and it will accept any type of token. We use ~any~ here because types could start with ~(~ or be a single symbol
 - ~&optional initializer-index (index any)~: This time, we need the index into the array of tokens. There are a couple reasons to require an index binding. In this case, we cannot use ~(ref)~ because the argument is marked ~&optional~ (references cannot be made in C++ if they could be ~null~). If the argument is present, the ~any~ type means we don't need to perform token type checking. If the argument is omitted, the variable will be set to ~-1~
 
+There are several different "binding types" which dictate the local variable's type in your macro/generator body:
+- ~index~: Indicate the start of the argument via an index into the ~tokens~ array. ~-1~ if not set (allowed only if ~&optional~)
+- ~ref~: Set a reference to the argument's first token in the ~tokens~ array
+- ~arg-index~: Set a variable with the index of the argument itself. Note that arguments start at ~1~ because the token at ~0~ is always the invocation. Can be ~-1~ if the argument was ~&optional~ and unspecified. ~arg-index~ is mainly useful for ~CStatementOutput~, which takes argument indices instead of token pointers/indices
+- ~<unspecified>~: Set a pointer to the argument's first token. May be ~null~ if the argument is ~&optional~ and unspecified
+
 If we do not specify ~(ref)~ nor ~(index)~, the implicit binding type is a pointer to a ~Token~, which is perfect for ~(token-splice)~. For example, we could say ~(bound-var-name symbol)~ to get a single argument of type ~symbol~ which is bound to a Token pointer.
 
 If you want to get an unlimited number of arguments, specify ~&rest~ before the final argument. The final argument will be the first of the rest of the arguments. Also specify ~&optional~ if you expect zero or more arguments.

@@ -9,12 +9,12 @@
   (return true))
 
 ;; Necessary to create e.g. in C PREFIX "_my_thing"
-(defgenerator static-string-combine (string-A any string-B any)
+(defgenerator static-string-combine (string-A (arg-index any) string-B (arg-index any))
   (var statement (const ([] CStatementOperation))
     (array
-     (array Expression null 1)
+     (array Expression null string-A)
      (array Keyword " " -1)
-     (array Expression null 2)))
+     (array Expression null string-B)))
   (return (c-statement-out statement)))
 
 ;; cakelisp's tokenizer doesn't properly parse ' '
@@ -128,18 +128,22 @@
 ;; Iteration/Looping
 ;;
 
-(defgenerator c-for (initializer any conditional any update any &rest &optional body any)
+(defgenerator c-for (initializer (arg-index any)
+                     conditional (arg-index any)
+                     update (arg-index any)
+                     ;; Cannot be optional due to CStatementOutput limitation
+                     &rest body (arg-index any))
   (var statement (const ([] CStatementOperation))
     (array
      (array Keyword "for" -1)
      (array OpenParen null -1)
-     (array Statement null 1)
-     (array Expression null 2)
+     (array Statement null initializer)
+     (array Expression null conditional)
      (array Keyword ";" -1)
-     (array Expression null 3)
+     (array Expression null update)
      (array CloseParen null -1)
      (array OpenBlock null -1)
-     (array Body null 4)
+     (array Body null body)
      (array CloseBlock null -1)))
   (return (c-statement-out statement)))
 
@@ -180,13 +184,13 @@
 ;; Preprocessor
 ;;
 
-(defgenerator define-constant (define-name symbol value any)
+(defgenerator define-constant (define-name (arg-index symbol) value (arg-index any))
   (var define-statement (const ([] CStatementOperation))
     (array
      (array Keyword "#define" -1)
-     (array Expression null 1)
+     (array Expression null define-name)
      (array Keyword " " -1)
-     (array Expression null 2)
+     (array Expression null value)
      (array KeywordNoSpace "\n" -1)))
   (return (c-statement-out define-statement)))
 
@@ -198,17 +202,30 @@
      (array KeywordNoSpace "\n" -1)))
   (return (c-statement-out define-statement)))
 
-(defgenerator if-c-preprocessor-defined (preprocessor-symbol symbol
-                                         true-block (index any) false-block (index any))
-  (var statement (const ([] CStatementOperation))
-    (array
-     (array Keyword "#ifdef" -1)
-     (array Expression null 1)
-     (array KeywordNoSpace "\n" -1)
-     (array Statement null 2)
-     (array KeywordNoSpace "#else" -1)
-     (array KeywordNoSpace "\n" -1)
-     (array Statement null 3)
-     (array KeywordNoSpace "#endif" -1)
-     (array KeywordNoSpace "\n" -1)))
-  (return (c-statement-out statement)))
+(defgenerator if-c-preprocessor-defined (preprocessor-symbol (arg-index symbol)
+                                         true-block (arg-index any)
+                                         &optional false-block (arg-index any))
+  (if (!= -1 false-block)
+      (scope
+       (var statement (const ([] CStatementOperation))
+         (array
+          (array Keyword "#ifdef" -1)
+          (array Expression null preprocessor-symbol)
+          (array KeywordNoSpace "\n" -1)
+          (array Statement null true-block)
+          (array KeywordNoSpace "#else" -1)
+          (array KeywordNoSpace "\n" -1)
+          (array Statement null false-block)
+          (array KeywordNoSpace "#endif" -1)
+          (array KeywordNoSpace "\n" -1)))
+       (return (c-statement-out statement)))
+      (scope
+       (var statement (const ([] CStatementOperation))
+         (array
+          (array Keyword "#ifdef" -1)
+          (array Expression null preprocessor-symbol)
+          (array KeywordNoSpace "\n" -1)
+          (array Statement null true-block)
+          (array KeywordNoSpace "#endif" -1)
+          (array KeywordNoSpace "\n" -1)))
+       (return (c-statement-out statement)))))

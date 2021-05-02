@@ -1448,6 +1448,7 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 		{
 			enum TokenBindType
 			{
+				ArgumentIndex,
 				Index,
 				Pointer,
 				Reference,
@@ -1458,14 +1459,12 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 			if (currentToken.type == TokenType_OpenParen)
 			{
 				const Token& typeModifier = tokens[currentArgIndex + 1];
-				if (typeModifier.contents.compare("index") == 0)
-				{
+				if (typeModifier.contents.compare("arg-index") == 0)
+					bindType = ArgumentIndex;
+				else if (typeModifier.contents.compare("index") == 0)
 					bindType = Index;
-				}
 				else if (typeModifier.contents.compare("ref") == 0)
-				{
 					bindType = Reference;
-				}
 				else
 				{
 					ErrorAtToken(typeModifier,
@@ -1592,6 +1591,29 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 			// Finally, output the binding
 			switch (bindType)
 			{
+				case ArgumentIndex:
+					addStringOutput(output.source, "int", StringOutMod_SpaceAfter, argument.name);
+					addStringOutput(output.source, convertedName, StringOutMod_SpaceAfter,
+					                argument.name);
+					addStringOutput(output.source, "=", StringOutMod_SpaceAfter, argument.name);
+					if (isOptional)
+					{
+						OutputIndexName();
+						addStringOutput(output.source, "!= -1 ?",
+						                (StringOutputModifierFlags)(StringOutMod_SpaceAfter |
+						                                            StringOutMod_SpaceBefore),
+						                argument.name);
+					}
+					addStringOutput(output.source, std::to_string(runtimeArgumentIndex),
+					                StringOutMod_None, argument.name);
+					if (isOptional)
+					{
+						// It's a bit weird specifying optional on an argument index, but we will
+						// support it via setting unspecified arguments to -1
+						addStringOutput(output.source, " : -1", StringOutMod_None, argument.name);
+					}
+					addLangTokenOutput(output.source, StringOutMod_EndStatement, argument.name);
+					break;
 				case Index:
 					addStringOutput(output.source, "int", StringOutMod_SpaceAfter, argument.name);
 					addStringOutput(output.source, convertedName, StringOutMod_SpaceAfter,
