@@ -123,6 +123,8 @@ While this is more verbose than C types, they are much more easily parsed and co
 To read C types properly, you must [[http://unixwiz.net/techtips/reading-cdecl.html][work backwards from the name]] and apply several heuristics. The parentheses do add more typing, but they're more clear, machine-parseable, and can be read naturally (e.g. read left to right "pointer to constant character" vs. C's "constant character pointer", which seems worse in my mind).
 
 This form also handles arrays as part of the type: ~(var my-array ([] 5 int))~ rather than ~int myArray[5];~, another way it is more consistent, readable, and parsable.
+
+You can use any C/C++ keywords like ~volatile~, ~unsigned~, ~struct~, etc. in the same way that ~const~ is demonstrated above.
 * Functions
 Functions are defined with ~defun~. ~defun~ provides some variants via different invocations:
 - ~defun~: Define a function which is intended to be public, i.e. exported in the header file
