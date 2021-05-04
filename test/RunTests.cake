@@ -13,6 +13,7 @@
     test-file (* (const char)))
   (var tests ([] (const cakelisp-test))
     (array
+     (array "Hello" "test/Hello.cake")
      (array "Macros" "test/SimpleMacros.cake")
      (array "Code modification" "test/CodeModification.cake")
      ;; (array "Build options" "test/BuildOptions.cake")

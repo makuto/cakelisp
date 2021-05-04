@@ -59,28 +59,31 @@
 (defgenerator declare-extern-function (name-token (ref symbol) signature-index (index array))
   (quick-token-at signature-token signature-index)
   (var return-type-start int -1)
+  (var is-variadic-index int -1)
   (var arguments (<> std::vector FunctionArgumentTokens))
-  (unless (parseFunctionSignature tokens signature-index arguments return-type-start)
-	(return false))
+  (unless (parseFunctionSignature tokens signature-index arguments
+                                  return-type-start is-variadic-index)
+    (return false))
 
   (var end-signature-index int (FindCloseParenTokenIndex tokens signature-index))
   (unless (outputFunctionReturnType environment context tokens output return-type-start
                                     startTokenIndex
-	                                end-signature-index
-	                                true ;; Output to source
+                                    end-signature-index
+                                    true ;; Output to source
                                     false) ;; Output to header
     (return false))
 
   (addStringOutput (path output . source) (field name-token contents)
                    StringOutMod_ConvertFunctionName
-	               (addr name-token))
+                   (addr name-token))
 
   (addLangTokenOutput (field output source) StringOutMod_OpenParen (addr signature-token))
 
   (unless (outputFunctionArguments environment context tokens output arguments
+                                   is-variadic-index
                                    true ;; Output to source
                                    false) ;; Output to header
-	(return false))
+    (return false))
 
   (addLangTokenOutput (field output source) StringOutMod_CloseParen (addr signature-token))
 

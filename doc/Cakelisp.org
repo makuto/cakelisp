@@ -149,6 +149,23 @@ The example function's signature will also be added to the header file so that i
 Unlike Lisps, function returns must be explicitly specified via ~(return)~, unless the function has no ~&return~ (implicit ~void~ return).
 
 Notice that argument names come first. I chose to swap the order of name and type because it places more emphasis on the name. A well-written program will convey more useful information in the name than in the type, so it makes sense to me to have it come first for the reader. This also applies to ~defstruct~ members, ~type-cast~, ~var~ declarations, etc.
+
+** Variable arguments
+The keyword ~&variable-arguments can be used to create a function with variadic arguments:
+#+BEGIN_SRC lisp
+  (c-import "<stdio.h>" "<stdarg.h>")
+
+  (defun varargs (num-args int &variable-arguments)
+    (var list va_list)
+    (va_start list num-args)
+    (each-in-range num-args i
+      (printf "%d\n" (va_arg list int)))
+    (va_end list))
+
+  (defun main (&return int)
+    (varargs 3 1 2 3)
+    (return 0))
+#+END_SRC
 * Variables
 The following invocations will declare variables:
 - ~var~: Module- or body-scope local. This is the most-used variable type

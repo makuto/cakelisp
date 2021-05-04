@@ -5,6 +5,7 @@
 
 #include "Build.hpp"
 #include "Evaluator.hpp"
+#include "Exporting.hpp"
 #include "ModuleManagerEnums.hpp"
 #include "RunProcess.hpp"
 #include "Tokenizer.hpp"
@@ -79,20 +80,22 @@ struct ModuleManager
 	ArtifactCrcTable newCommandCrcs;
 };
 
-void moduleManagerInitialize(ModuleManager& manager);
+CAKELISP_API void moduleManagerInitialize(ModuleManager& manager);
 // Do not close opened dynamic libraries. Should by called by sub-instances of cakelisp instead of
 // moduleManagerDestroy(), otherwise they may segfault
-void moduleManagerDestroyKeepDynLibs(ModuleManager& manager);
+CAKELISP_API void moduleManagerDestroyKeepDynLibs(ModuleManager& manager);
 // Note that this will close all dynamic libraries
-void moduleManagerDestroy(ModuleManager& manager);
+CAKELISP_API void moduleManagerDestroy(ModuleManager& manager);
 
 bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>** tokensOut);
-bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, Module** moduleOut);
-bool moduleManagerEvaluateResolveReferences(ModuleManager& manager);
-bool moduleManagerWriteGeneratedOutput(ModuleManager& manager);
-bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs);
-bool moduleManagerExecuteBuiltOutputs(ModuleManager& manager,
-                                      const std::vector<std::string>& builtOutputs);
+CAKELISP_API bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename,
+                                               Module** moduleOut);
+CAKELISP_API bool moduleManagerEvaluateResolveReferences(ModuleManager& manager);
+CAKELISP_API bool moduleManagerWriteGeneratedOutput(ModuleManager& manager);
+CAKELISP_API bool moduleManagerBuildAndLink(ModuleManager& manager,
+                                            std::vector<std::string>& builtOutputs);
+CAKELISP_API bool moduleManagerExecuteBuiltOutputs(ModuleManager& manager,
+                                                   const std::vector<std::string>& builtOutputs);
 
 // Initializes a normal environment and outputs all generators available to it
 void listBuiltInGenerators();

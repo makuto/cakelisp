@@ -108,7 +108,7 @@ struct FunctionArgumentTokens
 };
 CAKELISP_API bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
                                          std::vector<FunctionArgumentTokens>& arguments,
-                                         int& returnTypeStart);
+                                         int& returnTypeStart, int& isVariadicIndex);
 // startInvocationIndex is used for blaming on implicit return type
 CAKELISP_API bool outputFunctionReturnType(EvaluatorEnvironment& environment,
                                            const EvaluatorContext& context,
@@ -120,7 +120,8 @@ CAKELISP_API bool outputFunctionArguments(EvaluatorEnvironment& environment,
                                           const EvaluatorContext& context,
                                           const std::vector<Token>& tokens, GeneratorOutput& output,
                                           const std::vector<FunctionArgumentTokens>& arguments,
-                                          bool outputSource, bool outputHeader);
+                                          int isVariadicIndex, bool outputSource,
+                                          bool outputHeader);
 
 bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
                                       const EvaluatorContext& context,

@@ -932,8 +932,9 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	}
 
 	int returnTypeStart = -1;
+	int isVariadicIndex = -1;
 	std::vector<FunctionArgumentTokens> arguments;
-	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
+	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart, isVariadicIndex))
 		return false;
 
 	if (isCompileTime && environment.isMsvcCompiler)
@@ -974,6 +975,7 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		addLangTokenOutput(functionOutput->header, StringOutMod_OpenParen, &argsStart);
 
 	if (!outputFunctionArguments(environment, context, tokens, *functionOutput, arguments,
+	                             isVariadicIndex,
 	                             /*outputSource=*/true,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;
@@ -1064,8 +1066,9 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 	std::vector<StringOutput>& outputDest = isModuleLocal ? output.source : output.header;
 
 	int returnTypeStart = -1;
+	int isVariadicIndex = -1;
 	std::vector<FunctionArgumentTokens> arguments;
-	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart))
+	if (!parseFunctionSignature(tokens, argsIndex, arguments, returnTypeStart, isVariadicIndex))
 		return false;
 
 	addStringOutput(outputDest, "typedef", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
@@ -1084,7 +1087,7 @@ bool DefFunctionSignatureGenerator(EvaluatorEnvironment& environment,
 
 	addLangTokenOutput(outputDest, StringOutMod_OpenParen, &argsStart);
 
-	if (!outputFunctionArguments(environment, context, tokens, output, arguments,
+	if (!outputFunctionArguments(environment, context, tokens, output, arguments, isVariadicIndex,
 	                             /*outputSource=*/isModuleLocal,
 	                             /*outputHeader=*/!isModuleLocal))
 		return false;

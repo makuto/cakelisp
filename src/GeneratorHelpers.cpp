@@ -465,7 +465,8 @@ void addSpliceOutput(GeneratorOutput& output, GeneratorOutput* spliceOutput,
 //
 
 bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
-                            std::vector<FunctionArgumentTokens>& arguments, int& returnTypeStart)
+                            std::vector<FunctionArgumentTokens>& arguments, int& returnTypeStart,
+                            int& isVariadicIndex)
 {
 	enum DefunState
 	{
@@ -476,6 +477,8 @@ bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
 
 	DefunState state = Name;
 	FunctionArgumentTokens currentArgument = {};
+
+	isVariadicIndex = -1;
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
 	for (int i = argsIndex + 1; i < endArgsIndex; ++i)
@@ -497,6 +500,19 @@ bool parseFunctionSignature(const std::vector<Token>& tokens, int argsIndex,
 					return false;
 				// Wait until next token to get type
 				continue;
+			}
+			else if (currentToken.type == TokenType_Symbol &&
+			    currentToken.contents.compare("&variable-arguments") == 0)
+			{
+				isVariadicIndex = i;
+				continue;
+			}
+
+			if (isVariadicIndex != -1)
+			{
+				ErrorAtToken(currentToken,
+				             "no additional arguments may be declared after &variable-arguments");
+				return false;
 			}
 
 			if (!ExpectTokenType("defun", currentToken, TokenType_Symbol))
@@ -609,7 +625,7 @@ bool outputFunctionReturnType(EvaluatorEnvironment& environment, const Evaluator
 bool outputFunctionArguments(EvaluatorEnvironment& environment, const EvaluatorContext& context,
                              const std::vector<Token>& tokens, GeneratorOutput& output,
                              const std::vector<FunctionArgumentTokens>& arguments,
-                             bool outputSource, bool outputHeader)
+                             int isVariadicIndex, bool outputSource, bool outputHeader)
 {
 	int numFunctionArguments = arguments.size();
 	for (int i = 0; i < numFunctionArguments; ++i)
@@ -654,6 +670,26 @@ bool outputFunctionArguments(EvaluatorEnvironment& environment, const EvaluatorC
 				addLangTokenOutput(output.header, StringOutMod_ListSeparator,
 				                   &tokens[arg.nameIndex]);
 		}
+	}
+
+	if (isVariadicIndex >= 0)
+	{
+		if (numFunctionArguments)
+		{
+			if (outputSource)
+				addLangTokenOutput(output.source, StringOutMod_ListSeparator,
+				                   &tokens[numFunctionArguments - 1]);
+			if (outputHeader)
+				addLangTokenOutput(output.header, StringOutMod_ListSeparator,
+				                   &tokens[numFunctionArguments - 1]);
+		}
+
+		if (outputSource)
+			addStringOutput(output.source, "...",
+			                StringOutMod_None, &tokens[isVariadicIndex]);
+		if (outputHeader)
+			addStringOutput(output.header, "...",
+			                StringOutMod_None, &tokens[isVariadicIndex]);
 	}
 
 	return true;

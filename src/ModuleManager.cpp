@@ -418,7 +418,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 		const char* normalizedProspectiveModuleFilename = makeAbsolutePath_Allocated(".", filename);
 		if (!normalizedProspectiveModuleFilename)
 		{
-			Logf("error: failed to normalize path %s", filename);
+			Logf("error: failed to normalize path %s\n", filename);
 			free((void*)normalizedFilename);
 			return false;
 		}
@@ -427,7 +427,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 
 		if (!normalizedModuleFilename)
 		{
-			Logf("error: failed to normalize path %s", module->filename);
+			Logf("error: failed to normalize path %s\n", module->filename);
 			free((void*)normalizedProspectiveModuleFilename);
 			free((void*)normalizedFilename);
 			return false;
