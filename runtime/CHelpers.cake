@@ -2,6 +2,14 @@
 
 (import &comptime-only "ComptimeHelpers.cake")
 
+;; Unlike scope, this does not create a scope, which is useful when you don't want a scope but do
+;; want multiple statements
+;; Like Lisp's progn but without a name that doesn't make sense in C
+(defmacro body (&rest statements any)
+  (tokenize-push output
+    (token-splice-rest statements tokens))
+  (return true))
+
 ;; This should evaluate its argument, but I'm just hacking it in right now anyways
 (defmacro array-size (array-token symbol)
   (tokenize-push output (/ (sizeof (token-splice array-token))
