@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Exporting.hpp"
 #include "FileTypes.hpp"
 
 // Returns zero if the file doesn't exist, or there was some other error
@@ -10,7 +11,7 @@ FileModifyTime fileGetLastModificationTime(const char* filename);
 // than the previous build (or the source has never been built)
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference);
 
-bool fileExists(const char* filename);
+CAKELISP_API bool fileExists(const char* filename);
 
 void makeDirectory(const char* path);
 
