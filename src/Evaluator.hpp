@@ -434,8 +434,8 @@ const ObjectReferenceStatus* addObjectReference(EvaluatorEnvironment& environmen
 
 // When registering new generators, this function will re-evaluate any existing references that
 // would otherwise be guessed incorrectly, now that we know it's a generator
-bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* generatorName,
-                               GeneratorFunc function);
+CAKELISP_API bool registerEvaluateGenerator(EvaluatorEnvironment& environment,
+                                            const char* generatorName, GeneratorFunc function);
 
 GeneratorFunc findGenerator(EvaluatorEnvironment& environment, const char* functionName);
 CAKELISP_API void* findCompileTimeFunction(EvaluatorEnvironment& environment,

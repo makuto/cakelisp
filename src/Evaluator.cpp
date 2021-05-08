@@ -1724,8 +1724,9 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 				if (!isCompileTimeCodeLoaded(environment, definition))
 				{
 					// TODO: Add note for who required the object
-					ErrorAtToken(*definition.definitionInvocation,
-					             "Failed to build required object");
+					if (logging.buildProcess)
+						ErrorAtToken(*definition.definitionInvocation,
+						             "Failed to build required object");
 					++errors;
 				}
 				else
@@ -1761,7 +1762,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 					}
 				}
 
-				if (!missingDefinitions.empty())
+				if (logging.buildProcess && !missingDefinitions.empty())
 				{
 					ErrorAtTokenf(*definition.definitionInvocation, "failed to generate %s",
 					              definition.name.c_str());
