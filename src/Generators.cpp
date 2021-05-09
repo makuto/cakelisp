@@ -175,7 +175,7 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 	if (tokens[optionNameIndex].contents.compare("use-c-linkage") == 0)
 	{
 		int enableStateIndex =
-		    getExpectedArgument("expected path", tokens, startTokenIndex, 2, endInvocationIndex);
+		    getExpectedArgument("expected true or false", tokens, startTokenIndex, 2, endInvocationIndex);
 		if (enableStateIndex == -1)
 			return false;
 

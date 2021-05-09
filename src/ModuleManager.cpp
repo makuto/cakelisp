@@ -941,7 +941,7 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 		}
 
 		char debugSymbolsName[MAX_PATH_LENGTH] = {0};
-		PrintfBuffer(debugSymbolsName, "%s.%s", objectOutput->c_str(),
+		PrintfBuffer(debugSymbolsName, "%s.%s", object->filename.c_str(),
 		             compilerDebugSymbolsExtension);
 		char debugSymbolsArgument[MAX_PATH_LENGTH] = {0};
 		makeDebugSymbolsOutputArgument(debugSymbolsArgument, sizeof(debugSymbolsArgument),

@@ -9,7 +9,7 @@ FileModifyTime fileGetLastModificationTime(const char* filename);
 // Returns true if the reference file doesn't exist. This is under the assumption that this function
 // is always used to check whether it is necessary to e.g. build something if the source is newer
 // than the previous build (or the source has never been built)
-bool fileIsMoreRecentlyModified(const char* filename, const char* reference);
+CAKELISP_API bool fileIsMoreRecentlyModified(const char* filename, const char* reference);
 
 CAKELISP_API bool fileExists(const char* filename);
 
@@ -31,8 +31,8 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
                                       const char* addExtension, char* bufferOut, int bufferSize);
 
-bool copyBinaryFileTo(const char* srcFilename, const char* destFilename);
-bool copyFileTo(const char* srcFilename, const char* destFilename);
+CAKELISP_API bool copyBinaryFileTo(const char* srcFilename, const char* destFilename);
+CAKELISP_API bool copyFileTo(const char* srcFilename, const char* destFilename);
 
 // Non-binary files only
 bool moveFile(const char* srcFilename, const char* destFilename);
