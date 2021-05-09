@@ -143,10 +143,11 @@ struct CStatementOperation
 	int argumentIndex;
 };
 
-bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext& context,
-                      const std::vector<Token>& tokens, int startTokenIndex,
-                      const CStatementOperation* operation, int numOperations,
-                      GeneratorOutput& output);
+CAKELISP_API bool CStatementOutput(EvaluatorEnvironment& environment,
+                                   const EvaluatorContext& context,
+                                   const std::vector<Token>& tokens, int startTokenIndex,
+                                   const CStatementOperation* operation, int numOperations,
+                                   GeneratorOutput& output);
 
 // Interprets simple conditionals during compile-time. This is useful when you don't even have macro
 // support yet, e.g. you need to change which compiler will even be used to make macros themselves.

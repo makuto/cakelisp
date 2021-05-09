@@ -78,6 +78,8 @@ struct ModuleManager
 	ArtifactCrcTable cachedCommandCrcs;
 	// If any artifact no longer matches its crc in cachedCommandCrcs, the change will appear here
 	ArtifactCrcTable newCommandCrcs;
+
+	CAKELISP_API ~ModuleManager() = default;
 };
 
 CAKELISP_API void moduleManagerInitialize(ModuleManager& manager);

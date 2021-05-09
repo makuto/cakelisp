@@ -397,7 +397,7 @@ struct EvaluatorEnvironment
 	std::vector<CompileTimeHook> preLinkHooks;
 
 	// Will NOT clean up macroExpansions! Use environmentDestroyInvalidateTokens()
-	~EvaluatorEnvironment();
+	CAKELISP_API ~EvaluatorEnvironment();
 };
 
 // Make sure you're ready to do this! (see macroExpansions comment)

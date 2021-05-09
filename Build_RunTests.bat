@@ -65,7 +65,7 @@ CL.exe src/Tokenizer.cpp ^
 )
 
 :build_user
-"bin\cakelisp.exe" --verbose-processes --execute runtime/Config_Windows.cake test/RunTests.cake
+"bin\cakelisp.exe" --execute runtime/Config_Windows.cake test/RunTests.cake
 @if %ERRORLEVEL% == 0 (
   echo Success!
   goto success
