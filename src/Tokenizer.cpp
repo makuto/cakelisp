@@ -59,6 +59,7 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 	{                                         \
 		outputString = contentsBuffer;        \
 		contentsBufferWrite = contentsBuffer; \
+		*contentsBufferWrite = '\0';          \
 	}
 
 	int columnStart = 0;
