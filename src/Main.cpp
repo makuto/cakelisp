@@ -41,6 +41,14 @@ void printHelp(const CommandLineOption* options, int numOptions)
 	}
 }
 
+static bool isOptionArgument(const char* argument)
+{
+	if (!argument || !argument[0])
+		return false;
+
+	return (argument[0] == '-' && argument[1] == '-');
+}
+
 int main(int numArguments, char* arguments[])
 {
 	bool ignoreCachedFiles = false;
@@ -121,8 +129,6 @@ int main(int numArguments, char* arguments[])
 		return 1;
 	}
 
-	int startFiles = numArguments;
-
 	for (int i = 1; i < numArguments; ++i)
 	{
 		if (strcmp(arguments[i], "-h") == 0 || strcmp(arguments[i], "--help") == 0)
@@ -130,20 +136,8 @@ int main(int numArguments, char* arguments[])
 			printHelp(options, ArraySize(options));
 			return 1;
 		}
-		else if (arguments[i][0] != '-')
+		else if (isOptionArgument(arguments[i]))
 		{
-			if (startFiles == numArguments)
-				startFiles = i;
-		}
-		else
-		{
-			if (startFiles < numArguments)
-			{
-				Log("Error: Options must precede files\n\n");
-				printHelp(options, ArraySize(options));
-				return 1;
-			}
-
 			bool foundOption = false;
 			for (int optionIndex = 0; (unsigned long)optionIndex < ArraySize(options);
 			     ++optionIndex)
@@ -192,8 +186,13 @@ int main(int numArguments, char* arguments[])
 	}
 
 	std::vector<const char*> filesToEvaluate;
-	for (int i = startFiles; i < numArguments; ++i)
+	for (int i = 1; i < numArguments; ++i)
+	{
+		if (isOptionArgument(arguments[i]))
+			continue;
+
 		filesToEvaluate.push_back(arguments[i]);
+	}
 
 	if (filesToEvaluate.empty())
 	{
