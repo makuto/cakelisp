@@ -937,6 +937,7 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 	if (runProcess(arguments, &status) != 0)
 	{
 		free(buildArguments);
+		environment.comptimeNewCommandCrcs.erase(precompiledHeaderFilename);
 		return false;
 	}
 
@@ -952,6 +953,7 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 	}
 
 	Logf("Failed to update precompiled header %s\n", precompiledHeaderFilename);
+	environment.comptimeNewCommandCrcs.erase(precompiledHeaderFilename);
 	return false;
 }
 
@@ -1235,6 +1237,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		{
 			// TODO: Abort building if cannot invoke compiler?
 			free(buildArguments);
+			environment.comptimeNewCommandCrcs.erase(buildObject.dynamicLibraryPath.c_str());
 			continue;
 		}
 
@@ -1263,6 +1266,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		if (buildObject.status != 0)
 		{
+			environment.comptimeNewCommandCrcs.erase(buildObject.dynamicLibraryPath.c_str());
+
 			ErrorAtTokenf(*buildObject.definition->definitionInvocation,
 			              "failed to compile definition '%s' with status %d",
 			              buildObject.definition->name.c_str(), buildObject.status);

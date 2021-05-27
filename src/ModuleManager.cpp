@@ -1037,6 +1037,8 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 		if (buildResult != 0 || !fileExists(object->filename.c_str()))
 		{
 			Logf("error: failed to make target %s\n", object->filename.c_str());
+			// Forget that the command was changed because the artifact wasn't successfully built
+			manager.newCommandCrcs.erase(object->filename.c_str());
 			succeededBuild = false;
 			continue;
 		}
@@ -1235,6 +1237,8 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 
 	if (!succeededBuild)
 	{
+		// Forget that the command was changed because the artifact wasn't successfully built
+		manager.newCommandCrcs.erase(finalOutputName);
 		buildObjectsFree(buildObjects);
 		return false;
 	}
@@ -1266,10 +1270,22 @@ bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>&
 		return false;
 
 	if (!moduleManagerBuild(manager, buildObjects, buildOptions))
+	{
+		// Remember any succeeded artifact command CRCs so they don't get forgotten just because
+		// some others failed
+		buildWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
+		                    manager.newCommandCrcs);
 		return false;
+	}
 
 	if (!moduleManagerLink(manager, buildObjects, buildOptions, builtOutputs))
+	{
+		// Remember any succeeded artifact command CRCs so they don't get forgotten just because
+		// some others failed
+		buildWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
+		                    manager.newCommandCrcs);
 		return false;
+	}
 
 	buildWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
 	                    manager.newCommandCrcs);
