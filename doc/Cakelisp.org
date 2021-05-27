@@ -4,45 +4,10 @@ This document aspires to be one page of everything you need to know to learn the
 
 This doesn't cover the internal workings of the Cakelisp transpiler. See [[file:Internals.org][Internals.org]] for that information.
 
-* What is Cakelisp?
 Cakelisp is not intended to be an easy language for beginners. You should already have a strong grasp of either C or C++, because many functions and idioms used are actually straight from C/C++. Cakelisp is intended for people who already know C/C++ but want more features on top of the language.
 
-Additionally, Lisp users may be disappointed by Cakelisp's relative impurity. I took ideas I liked and left out a lot of core Lisp concepts. For example, functions only return a value with an explicit ~return~ statement. Any sort of immutability or non-sequential assumptions are also out (though you can use C/C++ ~const~). You should think about Cakelisp more as "C with parentheses" than "Lisp that outputs to C". Of course, it's more than just added parentheses (macros are the primary addition), but you get the point.
+Additional notes on Cakelisp as a language, the origins of the name "Cakelisp", etc. are provided after the technical sections.
 
-This means that except in the case of macros, reading /The C Programming Language/ is going to help you learn Cakelisp better than reading /Practical Common Lisp/.
-** A note on the name
-I thought of the name because the idiom "you can't have your cake and eat it too" was in my head while researching Lisp languages. It is about having both the power of Lisp languages (having cake) /and/ high performance (eating it too).
-
-Admittedly, it is a bit of a misnomer, because Cakelisp is in no way compatible with Common Lisp. The name "Cakelisp" brings some baggage that makes what Cakelisp actually /is/ less clear. A more accurate name would be CakeC, because the actual mechanics of the language are much closer to C/C++. I expect programmers would call it Lisp if they saw it, simply because the code uses S-expression syntax and borrows some keywords (~defun~, ~defmacro~, ~when~, ~unless~, etc.).
-
-Regardless, the name has excellent characteristics for finding it via search engines, so I'm keeping it.
-
-The combination is pronounced the same as the individual words one after another, i.e. "cake lisp", not "cakel isp", "cak e-lisp" or anything like that. Someone who uses Cakelisp is a "Cakelisp user", not a "caker", nor "baker", nor "Cakelisper".
-
-It's my personal preference that puns off of "cake" when naming programming things don't become a thing. Please don't name your thing something cleverly cake- or baking-related. Name it what it is or what it does. Of course, I'm a hypocrite for not naming Cakelisp "Lisp-to-C-Transpiler (with a bunch of other features)".
-** C or C++?
-Cakelisp itself is written in C++. Macros and generators must generate C++ code to interact with the evaluator.
-
-However, you have more options for your project's /generated/ code:
-- Only C: Generate pure C. Error if any generators which require C++ features are invoked
-- Only C++: Assume all code is compiled with a C++ compiler, even if a Cakelisp module does not use any C++ features
-- Mixed C/C++, warn on promotion: Try to generate pure C, but if a C++ feature is used, automatically change the file extension to indicate it requires a C++ compiler (~.c~ to ~.cpp~) and print a warning so the build system can be updated
-
-/Note:/ The ability to output only C is not yet implemented.
-
-I may also add declarations which allow you to constrain generation to a single module, if e.g. you want your project to be only C except for when you must interact with external C++ code.
-
-Generators keep track of when they require C++ support and will add that requirement to the generator output as necessary.
-
-Hot-reloading won't work with features like templates or class member functions. This is partially a constraint imposed by dynamic loading, which has to be able to find the symbol. C++ name mangling makes that much more complicated, and compiler-dependent.
-
-I'm personally fine with this limitation because I would like to move more towards an Only C environment anyway. This might be evident when reading Cakelisp's source code: I don't use ~class~, define new templates, or define struct/class member functions, but I do rely on some C++ standard library containers and ~&~ references.
-** Why Lisp?
-The primary benefit of using a Lisp S-expression-style dialect is its ease of extensibility. The tokenizer is extremely simple, and parsing S-expressions is also simple. This consistent syntax makes it easy to write macros, which generate more S-expressions.
-
-Additionally, S-expressions are good for representing data, which means writing domain-specific languages is easier, because you can have the built-in tokenizer do most of the work.
-
-It's also a reaction to the high difficulty of parsing C and especially C++, which requires something like [[https://clang.llvm.org/doxygen/group__CINDEX.html][libclang]] to sanely parse.
 * Modules
 Cakelisp projects are organized into /modules/. Modules are usually associated with a single file. For example, I could have a module ~Math.cake~ which holds my math functions. When I say "module", I'm not referring to C++20's ~modules~, which Cakelisp does not use.
 
@@ -631,3 +596,41 @@ Hot-reloading is implemented entirely in user-space, i.e. outside the core of Ca
 Various other files in ~runtime/~ assist in writing macros and generators faster. There are also utilities for accessing Cakelisp's process execution system during compile-time, which is useful for inserting custom pre-build steps (etc.).
 * External tools
 See [[file:ToolsIntegration.org][ToolsIntegration.org]].
+
+* Additional notes on Cakelisp
+Lisp users may be disappointed by Cakelisp's relative impurity. I took ideas I liked and left out a lot of core Lisp concepts. For example, functions only return a value with an explicit ~return~ statement. Any sort of immutability or non-sequential assumptions are also out (though you can use C/C++ ~const~). You should think about Cakelisp more as "C with parentheses" than "Lisp that outputs to C". Of course, it's more than just added parentheses (macros are the primary addition), but you get the point.
+
+This means that except in the case of macros, reading /The C Programming Language/ is going to help you learn Cakelisp better than reading /Practical Common Lisp/.
+** A note on the name
+I thought of the name because the idiom "you can't have your cake and eat it too" was in my head while researching Lisp languages. It is about having both the power of Lisp languages (having cake) /and/ high performance (eating it too).
+
+Admittedly, it is a bit of a misnomer, because Cakelisp is in no way compatible with Common Lisp. The name "Cakelisp" brings some baggage that makes what Cakelisp actually /is/ less clear. A more accurate name would be CakeC, because the actual mechanics of the language are much closer to C/C++. I expect programmers would call it Lisp if they saw it, simply because the code uses S-expression syntax and borrows some keywords (~defun~, ~defmacro~, ~when~, ~unless~, etc.).
+
+Regardless, the name has excellent characteristics for finding it via search engines, so I'm keeping it.
+
+The combination is pronounced the same as the individual words one after another, i.e. "cake lisp", not "cakel isp", "cak e-lisp" or anything like that. Someone who uses Cakelisp is a "Cakelisp user", not a "caker", nor "baker", nor "Cakelisper".
+
+It's my personal preference that puns off of "cake" when naming programming things don't become a thing. Please don't name your thing something cleverly cake- or baking-related. Name it what it is or what it does. Of course, I'm a hypocrite for not naming Cakelisp "Lisp-to-C-Transpiler (with a bunch of other features)".
+** C or C++?
+Cakelisp itself is written in C++. Macros and generators must generate C++ code to interact with the evaluator.
+
+However, you have more options for your project's /generated/ code:
+- Only C: Generate pure C. Error if any generators which require C++ features are invoked
+- Only C++: Assume all code is compiled with a C++ compiler, even if a Cakelisp module does not use any C++ features
+- Mixed C/C++, warn on promotion: Try to generate pure C, but if a C++ feature is used, automatically change the file extension to indicate it requires a C++ compiler (~.c~ to ~.cpp~) and print a warning so the build system can be updated
+
+/Note:/ The ability to output only C is not yet implemented.
+
+I may also add declarations which allow you to constrain generation to a single module, if e.g. you want your project to be only C except for when you must interact with external C++ code.
+
+Generators keep track of when they require C++ support and will add that requirement to the generator output as necessary.
+
+Hot-reloading won't work with features like templates or class member functions. This is partially a constraint imposed by dynamic loading, which has to be able to find the symbol. C++ name mangling makes that much more complicated, and compiler-dependent.
+
+I'm personally fine with this limitation because I would like to move more towards an Only C environment anyway. This might be evident when reading Cakelisp's source code: I don't use ~class~, define new templates, or define struct/class member functions, but I do rely on some C++ standard library containers and ~&~ references.
+** Why S-expressions?
+The primary benefit of using a Lisp S-expression-style dialect is its ease of extensibility. The tokenizer is extremely simple, and parsing S-expressions is also simple. This consistent syntax makes it easy to write macros, which generate more S-expressions.
+
+Additionally, S-expressions are good for representing data, which means writing domain-specific languages is easier, because you can have the built-in tokenizer do most of the work.
+
+It's also a reaction to the high difficulty of parsing C and especially C++, which requires something like [[https://clang.llvm.org/doxygen/group__CINDEX.html][libclang]] to sanely parse.
