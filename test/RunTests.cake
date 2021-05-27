@@ -40,6 +40,26 @@
       (Logf "error: test %s failed\n" test-name)
       (return false))
     (Logf "\n%s succeeded\n" test-name))
+
+  ;; Special cases that don't yet fit into the standard test loop
+  (scope
+   (Logf "\n===============\n%s\n\n" "Hot reloadable library")
+   (var files ([] (* (const char)))
+     (array platform-config "runtime/HotReloadingCodeModifier.cake" "runtime/TextAdventure.cake"))
+   (unless (cakelisp-evaluate-build-files files (array-size files))
+     (Logf "error: test %s failed\n" "Hot reloadable library")
+     (return false))
+   (Logf "\n%s succeeded\n" "Hot reloadable library"))
+
+  (scope
+   (Logf "\n===============\n%s\n\n" "Hot loader")
+   (var files ([] (* (const char)))
+     (array platform-config "runtime/HotLoader.cake"))
+   (unless (cakelisp-evaluate-build-files files (array-size files))
+     (Logf "error: test %s failed\n" "Hot loader")
+     (return false))
+   (Logf "\n%s succeeded\n" "Hot loader"))
+
   (Log "\nRunTests: All tests succeeded!\n")
   (return true))
 (add-compile-time-hook-module pre-build run-tests)
