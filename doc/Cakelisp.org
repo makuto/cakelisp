@@ -7,7 +7,14 @@ This doesn't cover the internal workings of the Cakelisp transpiler. See [[file:
 Cakelisp is not intended to be an easy language for beginners. You should already have a strong grasp of either C or C++, because many functions and idioms used are actually straight from C/C++. Cakelisp is intended for people who already know C/C++ but want more features on top of the language.
 
 Additional notes on Cakelisp as a language, the origins of the name "Cakelisp", etc. are provided after the technical sections.
+* Running ~cakelisp~
+This document assumes you have already built ~cakelisp~. Instructions for building are found in the [[../ReadMe.org][ReadMe]].
 
+Cakelisp is a command-line tool. Usual operation will be either automated or part of your editor's compile commands. Running ~./bin/cakelisp~ will print the help instructions. The output is the most up-to-date documentation on the command-line interface available.
+
+The argument format is simple:
+- Any argument starting with ~--~ is considered an /option/ toggle, e.g. ~--execute~. These are intended to assist in debugging or perform helpful operations. Note that options are not meant to change the generated output - your program's specification on how to build it must be entirely contained in ~.cake~ files
+- All other arguments are considered paths to ~.cake~ files which will be read in and evaluated
 * Modules
 Cakelisp projects are organized into /modules/. Modules are usually associated with a single file. For example, I could have a module ~Math.cake~ which holds my math functions. When I say "module", I'm not referring to C++20's ~modules~, which Cakelisp does not use.
 
@@ -339,7 +346,7 @@ Macros must return ~true~ or ~false~ to denote whether the expansion was success
   (var my-tokens (<> std::vector Token))
 #+END_SRC
 
-~tokenize-push~ treats all tokens as strings until it reaches one of the ~token*~ functions. These functions tell the tokenizer to unpack and insert the tokens in the variables rather than the symbol which is the variable name. Unless otherwise specified, these take any number of arguments:
+~tokenize-push~ copies all source tokens directly to the output until it reaches one of the ~token*~ functions. These functions tell the tokenizer to unpack and insert the tokens in the variables rather than the symbol which is the variable name. Unless otherwise specified, these take any number of arguments:
 - ~token-splice~: Given a token's address, insert a copy of that token. If the token is an open parenthesis, insert the whole expression (go until the closing parenthesis is found)
 - ~token-splice-addr~: Like ~token-splice~, only it automatically takes the address of the given arguments
 - ~token-splice-array~: Given an array of tokens, insert a copy of all tokens in the array

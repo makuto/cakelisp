@@ -31,7 +31,7 @@ void printHelp(const CommandLineOption* options, int numOptions)
 	    "Created by Macoy Madson <macoy@macoy.me>.\nhttps://macoy.me/code/macoy/cakelisp\n"
 	    "Copyright (c) 2020 Macoy Madson.\n"
 	    "Licensed under GPL-3.0-or-later.\n\n"
-	    "USAGE: cakelisp [options] <input .cake files>\nAll options must precede .cake files.\n\n"
+	    "USAGE: cakelisp [options] <input .cake files>\n\n"
 	    "OPTIONS:\n";
 	Logf("%s", helpString);
 
