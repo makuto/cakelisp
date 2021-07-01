@@ -2,7 +2,7 @@
 
 (import "DynamicLoader.cake"
         &comptime-only "ComptimeHelpers.cake" "CHelpers.cake")
-(c-import "<unordered_map>" "<vector>")
+(c-import "<unordered_map>" "<vector>" "<string>")
 
 (comptime-cond
  ('Unix
