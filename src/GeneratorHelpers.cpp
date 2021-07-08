@@ -360,10 +360,7 @@ bool CreateDefinitionCopyMacroExpanded(const ObjectDefinition& definition,
 void PushBackTokenExpression(std::vector<Token>& output, const Token* startToken)
 {
 	if (!startToken)
-	{
-		Log("error: PushBackTokenExpression() received null token\n");
 		return;
-	}
 
 	if (startToken->type != TokenType_OpenParen)
 	{
@@ -391,10 +388,7 @@ void PushBackAllTokenExpressions(std::vector<Token>& output, const Token* startT
                                  const Token* finalToken)
 {
 	if (!startToken)
-	{
-		Log("error: PushBackTokenExpression() received null token\n");
 		return;
-	}
 
 	int depth = 0;
 	for (const Token* currentToken = startToken; depth >= 0; ++currentToken)
