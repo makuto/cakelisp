@@ -140,7 +140,7 @@
          (addStringOutput output-dest (field invocation-token contents)
                           StringOutMod_SpaceAfter (addr invocation-token))
          (addStringOutput output-dest (field type-name-token contents)
-                          StringOutMod_None (addr type-name-token))
+                          StringOutMod_ConvertTypeName (addr type-name-token))
          (addLangTokenOutput output-dest StringOutMod_EndStatement (addr type-name-token)))
         (true
          (ErrorAtToken invocation-token "unknown forward-declare type")
