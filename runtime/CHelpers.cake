@@ -51,7 +51,7 @@
 ;; Especially useful for casting from malloc:
 ;; (var my-thing (* thing) (type-cast (* thing) (malloc (sizeof thing))))
 ;; vs.
-;; (var my-thing (* thing) (malloc (sizeof thing)))
+;; (var-cast-to my-thing (* thing) (malloc (sizeof thing)))
 (defmacro var-cast-to (var-name symbol type any expression-to-cast any)
   (tokenize-push output
     (var (token-splice var-name) (token-splice type)

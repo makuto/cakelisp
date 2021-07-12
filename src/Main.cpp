@@ -89,7 +89,7 @@ int main(int numArguments, char* arguments[])
 	    {"--verbose-dependency-propagation", &logging.dependencyPropagation,
 	     "Output why objects are being built (why they are required for building)"},
 	    {"--verbose-build-reasons", &logging.buildReasons,
-	     "Output why objects are being built (i.e., why the cached version couldn't be used"},
+	     "Output why objects are being built (i.e., why the cached version couldn't be used)"},
 	    {"--verbose-compile-time-build-reasons", &logging.compileTimeBuildReasons,
 	     "Output why objects are or are not being built in each compile-time build cycle"},
 	    {"--verbose-build-process", &logging.buildProcess,
