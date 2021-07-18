@@ -215,6 +215,17 @@
   (return true))
 
 ;;
+;; String helpers
+;;
+
+;; Ensure that the null terminator is written, which strncpy does NOT do when hitting buffer size
+(defmacro safe-strncpy (dest any source any dest-buffer-size any)
+  (tokenize-push output
+    (strncpy (token-splice dest source) (- (token-splice dest-buffer-size) 1))
+    (set (at (- (token-splice dest-buffer-size) 1) (token-splice dest)) 0))
+  (return true))
+
+;;
 ;; Preprocessor
 ;;
 
