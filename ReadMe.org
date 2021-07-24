@@ -25,7 +25,7 @@ For more advantages, see [[file:doc/NeatUses.org][doc/NeatUses.org]].
 
 Some of these features come naturally from using C as the backend. Eventually it would be cool to not have to generate C (e.g. generate LLVM bytecode instead), but that can a project for another time.
 * Terms
-Cakelisp is copyright (C) 2020 Macoy Madson ~<macoy@macoy.me>~.
+Cakelisp is copyright (C) 2021 Macoy Madson ~<macoy@macoy.me>~.
 
 Licensed under ~GPL-3.0-or-later~, with added [[https://www.gnu.org/licenses/gpl-faq.en.html#LinkingOverControlledInterface][Linking Over Controlled Interface]] exception.
 ~runtime/~ is licensed under MIT License.

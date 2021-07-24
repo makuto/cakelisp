@@ -11,38 +11,22 @@ Create a ~.gitattributes~ file in the project root, then add the following:
 *.cake linguist-language=lisp
 #+END_SRC
 * Emacs
-** Open ~.cake~ files in ~lisp-mode~
+Add the following to your ~.emacs~ configuration:
 #+BEGIN_SRC lisp
-(add-to-list 'auto-mode-alist '("\\.cake?\\'" . lisp-mode))
+  ;; Path given as an example; change it to where you put cakelisp
+  (load-file "~/Repositories/cakelisp/tools/cakelisp.el")
+#+END_SRC
+** Specify indentation of custom forms
+You will need to specify indentation of custom forms because I haven't written an Emacs parser to automatically determine indentation from macro/generator signatures yet. For example:
+
+#+BEGIN_SRC lisp
+  (defun mylib-cakelisp-mode ()
+    (put 'each-in-strdict 'lisp-indent-function 2)
+    (put 'scope-timed 'lisp-indent-function 1))
+
+  (add-hook 'cakelisp-mode-hook mylib-cakelisp-mode)
 #+END_SRC
 
-** Specify indentation of various new forms
+This will make ~each-in-strdict~ indent all symbols after the first two arguments to the body depth.
+
 The number represents how many arguments are expected to the function.
-
-#+BEGIN_SRC lisp
-  (put 'defun-local 'lisp-indent-function 'defun)
-  (put 'defun-comptime 'lisp-indent-function 'defun)
-  (put 'defgenerator 'lisp-indent-function 'defun)
-
-  (put 'defstruct-local 'lisp-indent-function 1)
-  (put 'defstruct 'lisp-indent-function 1)
-
-  (put 'var 'lisp-indent-function 2)
-  ;;(put 'block 'lisp-indent-function 3) ;; Doesn't work because block is special (always expects 1)
-
-  (put 'tokenize-push 'lisp-indent-function 1)
-  (put 'for-in 'lisp-indent-function 3)
-
-  ;; Macros
-  (put 'each-in-range 'lisp-indent-function 2)
-  (put 'each-in-array 'lisp-indent-function 2)
-  (put 'each-char-in-string 'lisp-indent-function 2)
-  (put 'each-char-in-string-const 'lisp-indent-function 2)
-  (put 'c-for 'lisp-indent-function 3)
-
-  (put 'run-process-sequential-or 'lisp-indent-function 1)
-
-  (put 'if-c-preprocessor-defined 'lisp-indent-function 1)
-#+END_SRC
-
-You will need to add these for your custom macros because I haven't written an Emacs parser to automatically determine indentation from macro/generator signatures.
