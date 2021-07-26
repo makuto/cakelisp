@@ -196,3 +196,13 @@
                       (array-size (token-splice statement-operation))
                       output))
   (return true))
+
+;; Create a symbol which is unique in the current context (e.g. function body)
+(defmacro gen-unique-symbol (token-var-name symbol prefix string reference-token any)
+  (tokenize-push
+   output
+   (var (token-splice token-var-name) Token (token-splice reference-token))
+   (MakeContextUniqueSymbolName environment context (token-splice prefix)
+                                (addr (token-splice token-var-name))))
+  (return true))
+

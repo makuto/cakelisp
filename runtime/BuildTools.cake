@@ -2,6 +2,7 @@
 ;; These rely on Cakelisp, so don't expect it to work outside comptime
 
 (skip-build)
+(import &comptime-only "ComptimeHelpers.cake")
 
 ;; Returns exit code (0 = success)
 (defun-comptime run-process-wait-for-completion (run-arguments (* RunProcessArguments)
@@ -13,14 +14,6 @@
 
   (waitForAllProcessesClosed null)
   (return status))
-
-(defmacro gen-unique-symbol (token-var-name symbol prefix string reference-token any)
-  (tokenize-push
-   output
-   (var (token-splice token-var-name) Token (token-splice reference-token))
-   (MakeContextUniqueSymbolName environment context (token-splice prefix)
-                                (addr (token-splice token-var-name))))
-  (return true))
 
 ;; Creates a variable arguments-out-name set up to run the given process
 ;; Use :in-directory to specify the working directory to run the process in
