@@ -15,6 +15,7 @@ enum TokenizeState
 	TokenizeState_InString,
 	TokenizeState_StringMerge,
 	TokenizeState_StringContinue,
+	TokenizeState_InQuote,
 };
 
 int g_totalLinesTokenized = 0;
@@ -94,6 +95,12 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				else if (*currentChar == '"')
 				{
 					tokenizeState = TokenizeState_InString;
+					columnStart = currentColumn;
+				}
+				else if (*currentChar == '\'')
+				{
+					WriteContents(*currentChar);
+					tokenizeState = TokenizeState_InQuote;
 					columnStart = currentColumn;
 				}
 				else if (std::isspace(*currentChar))
@@ -204,6 +211,77 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 					// comments or the opening of the rest of the string
 					return "expected \" due to previous \\, which expects a string to merge on "
 					       "next line";
+				}
+				break;
+			case TokenizeState_InQuote:
+				// This is gross because it has to support all of the following:
+				// 'my-lisp-symbol ...
+				// 'my-lisp-symbol) ;; Where the ) marks the end of 'my-lisp-symbol
+				// 'c'
+				// ' '
+				// ')'
+				// 'c
+				if (*currentChar == '\'')
+				{
+					WriteContents(*currentChar);
+					// These are a special case because unlike strings, they shouldn't be quoted or
+					// delimited. Not sure what the clean way to handle them is
+					Token pseudoSymbol = {TokenType_Symbol, EmptyString, source,
+					                      lineNumber,       columnStart, currentColumn + 1};
+					CopyContentsAndReset(pseudoSymbol.contents);
+					// Logf("Write C literal: <%s>\n", pseudoSymbol.contents.c_str());
+					tokensOut.push_back(pseudoSymbol);
+					tokenizeState = TokenizeState_Normal;
+				}
+				// This condition ensures we can do ')' as well as 'my-symbol), where the latter
+				// ends up being a symbol 'my-symbol
+				else if (*currentChar == ')')
+				{
+					if (*(currentChar + 1) != '\'')
+					{
+						Token lispStyleSymbol = {TokenType_Symbol, EmptyString, source,
+						                         lineNumber,       columnStart, currentColumn + 1};
+						CopyContentsAndReset(lispStyleSymbol.contents);
+						tokensOut.push_back(lispStyleSymbol);
+						// Logf("Write symbol: <%s>\n", lispStyleSymbol.contents.c_str());
+
+						// We also need to push this paren (or go back one char, but I like this
+						// better because it's a bit easier to follow)
+						Token closeParen = {TokenType_CloseParen, EmptyString,   source,
+						                    lineNumber,           currentColumn, currentColumn + 1};
+						tokensOut.push_back(closeParen);
+						tokenizeState = TokenizeState_Normal;
+						// Log("Write close paren\n");
+					}
+					else
+						WriteContents(*currentChar);  // Edge case for ')' C literal
+				}
+				// Quoted symbol that doesn't end in a quote means lisp-style symbol, not C literal
+				else if (std::isspace(*currentChar))
+				{
+					if (previousChar == '\'')
+					{
+						if (*(currentChar + 1) != '\'')
+							return "Multi-character char literal or empty quote symbol not allowed";
+						else
+							WriteContents(*currentChar);  // Edge case for ' ' C literal
+					}
+					else
+					{
+						Token lispStyleSymbol = {TokenType_Symbol, EmptyString, source,
+						                         lineNumber,       columnStart, currentColumn + 1};
+						CopyContentsAndReset(lispStyleSymbol.contents);
+						tokensOut.push_back(lispStyleSymbol);
+						tokenizeState = TokenizeState_Normal;
+						// Logf("Write lisp-style symbol: <%s>\n",
+						// lispStyleSymbol.contents.c_str());
+					}
+				}
+				else
+				{
+					// Note: C literals can end up with more than one char between the single
+					// quotes, because the \ delimiter
+					WriteContents(*currentChar);
 				}
 				break;
 			default:

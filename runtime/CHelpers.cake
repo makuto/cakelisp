@@ -25,13 +25,6 @@
      (array Expression null string-B)))
   (return (c-statement-out statement)))
 
-;; cakelisp's tokenizer doesn't properly parse ' '
-(defgenerator space-hack ()
-  (var statement (const ([] CStatementOperation))
-    (array
-     (array Keyword "' '" -1)))
-  (return (c-statement-out statement)))
-
 ;; e.g. (negate 1) outputs (-1)
 (defgenerator negate (to-negate (arg-index any))
   (var negate-statement (const ([] CStatementOperation))
