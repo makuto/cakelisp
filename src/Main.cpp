@@ -53,6 +53,7 @@ int main(int numArguments, char* arguments[])
 {
 	bool ignoreCachedFiles = false;
 	bool executeOutput = false;
+	bool skipBuild = false;
 	bool listBuiltInGeneratorsThenQuit = false;
 	bool waitForDebugger = false;
 
@@ -61,6 +62,7 @@ int main(int numArguments, char* arguments[])
 	     "Prohibit skipping an operation if the resultant file is already in the cache (and the "
 	     "source file hasn't been modified more recently). This is a good way to test a 'clean' "
 	     "build without having to delete the Cakelisp cache directory"},
+	    {"--skip-build", &skipBuild, "Only output generate files. Do not compile or link them."},
 	    {"--execute", &executeOutput,
 	     "If building completes successfully, run the output executable. Its working directory "
 	     "will be the final location of the executable. This allows Cakelisp code to be run as if "
@@ -237,6 +239,21 @@ int main(int numArguments, char* arguments[])
 
 	if (logging.phases)
 		Log("Successfully generated files\n");
+
+	if (skipBuild)
+	{
+		moduleManagerDestroy(moduleManager);
+
+		if (executeOutput)
+		{
+			Log("error: --skip-build is incompatible with --execute, because --execute requires an "
+			    "executable to be built\n");
+			return 1;
+		}
+
+		Log("Not building due to --skip-build\n");
+		return 0;
+	}
 
 	if (logging.phases)
 		Log("\nBuild:\n");
