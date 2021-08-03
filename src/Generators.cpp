@@ -895,6 +895,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	// Note that macros and generators have their own generators, so we don't handle them here
 	bool isCompileTime = tokens[startTokenIndex + 1].contents.compare("defun-comptime") == 0;
 
+	bool isNoDecl = tokens[startTokenIndex + 1].contents.compare("defun-nodecl") == 0;
+
 	// In order to support function definition modification, even runtime functions must have
 	// spliced output, because we might be completely changing the definition
 	GeneratorOutput* functionOutput = new GeneratorOutput;
@@ -948,30 +950,30 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	}
 	// Compile-time functions need to be exposed with C bindings so they can be found (true?)
 	// Module-local functions are always marked static, which hides them from linking
-	else if (!isModuleLocal && (isCompileTime || environment.useCLinkage))
+	else if (!isModuleLocal && !isNoDecl && (isCompileTime || environment.useCLinkage))
 	{
 		addStringOutput(functionOutput->header, "extern \"C\"", StringOutMod_SpaceAfter,
 		                &tokens[startTokenIndex]);
 	}
 
-	if (isModuleLocal)
+	if (isModuleLocal && !isNoDecl)
 		addStringOutput(functionOutput->source, "static", StringOutMod_SpaceAfter,
 		                &tokens[startTokenIndex]);
 
 	int endArgsIndex = FindCloseParenTokenIndex(tokens, argsIndex);
 	if (!outputFunctionReturnType(environment, context, tokens, *functionOutput, returnTypeStart,
 	                              startTokenIndex, endArgsIndex,
-	                              /*outputSource=*/true, /*outputHeader=*/!isModuleLocal))
+	                              /*outputSource=*/true, /*outputHeader=*/!isModuleLocal && !isNoDecl))
 		return false;
 
 	addStringOutput(functionOutput->source, nameToken.contents, StringOutMod_ConvertFunctionName,
 	                &nameToken);
-	if (!isModuleLocal)
+	if (!isModuleLocal && !isNoDecl)
 		addStringOutput(functionOutput->header, nameToken.contents,
 		                StringOutMod_ConvertFunctionName, &nameToken);
 
 	addLangTokenOutput(functionOutput->source, StringOutMod_OpenParen, &argsStart);
-	if (!isModuleLocal)
+	if (!isModuleLocal && !isNoDecl)
 		addLangTokenOutput(functionOutput->header, StringOutMod_OpenParen, &argsStart);
 
 	if (!outputFunctionArguments(environment, context, tokens, *functionOutput, arguments,
@@ -994,7 +996,10 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	addLangTokenOutput(functionOutput->source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 	if (!isModuleLocal)
 	{
-		addLangTokenOutput(functionOutput->header, StringOutMod_CloseParen, &tokens[endArgsIndex]);
+	  // Hack: Keep semicolon if isNoDecl to generate header
+	  if (!isNoDecl) {
+	    addLangTokenOutput(functionOutput->header, StringOutMod_CloseParen, &tokens[endArgsIndex]);
+	  }
 		// Forward declarations end with ;
 		addLangTokenOutput(functionOutput->header, StringOutMod_EndStatement,
 		                   &tokens[endArgsIndex]);
@@ -2993,6 +2998,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["defun"] = DefunGenerator;
 	environment.generators["defun-local"] = DefunGenerator;
 	environment.generators["defun-comptime"] = DefunGenerator;
+	environment.generators["defun-nodecl"] = DefunGenerator;
 
 	environment.generators["def-function-signature"] = DefFunctionSignatureGenerator;
 	environment.generators["def-function-signature-global"] = DefFunctionSignatureGenerator;
