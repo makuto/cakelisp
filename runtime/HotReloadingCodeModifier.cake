@@ -354,10 +354,14 @@
 
 (add-compile-time-hook post-references-resolved make-code-hot-reloadable)
 
-(add-compiler-link-options "-shared")
-
-;; TODO: Automatically make library if no main found?
-(set-cakelisp-option executable-output "libGeneratedCakelisp.so")
+(comptime-cond
+ ('Unix
+  (add-compiler-link-options "-shared")
+  ;; TODO: Automatically make library if no main found?
+  (set-cakelisp-option executable-output "libGeneratedCakelisp.so"))
+ ('Windows
+  (add-compiler-link-options "/DLL")
+  (set-cakelisp-option executable-output "libGeneratedCakelisp.dll")))
 
 ;; This modifies code extensively, so it makes sense to have its own label
 (add-build-config-label "HotReloadable")

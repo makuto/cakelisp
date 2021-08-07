@@ -2,6 +2,8 @@
 
 #include "ConverterEnums.hpp"
 
+#include "Exporting.hpp"
+
 struct Token;
 
 struct NameStyleSettings
@@ -26,5 +28,5 @@ struct NameStyleSettings
 // C names. It's safe to e.g. pass in valid C names because they cannot have lisp-allowed symbols in
 // them. This also means you can use whatever style you want in Cakelisp, and you'll get valid C/C++
 // generated (so long as your non-'-' strings match the other C/C++ names)
-void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* bufferOut,
-                               int bufferOutSize, const Token& token);
+CAKELISP_API void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* bufferOut,
+                                            int bufferOutSize, const Token& token);
