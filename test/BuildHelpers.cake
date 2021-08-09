@@ -3,6 +3,9 @@
 
 (c-import "<stdio.h>")
 
+(defun-nodecl my-test ()
+  (printf "Does nothing\n"))
+
 (defun main (&return int)
   (printf "Hello, build tools!\n")
   (return 0))
