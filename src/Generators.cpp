@@ -626,7 +626,8 @@ enum ImportState
 	WithDefinitions,
 	WithDeclarations,
 	CompTimeOnly,
-	DeclarationsOnly
+	DeclarationsOnly,
+	DefinitionsOnly
 };
 
 bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
@@ -666,6 +667,15 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 				}
 				state = DeclarationsOnly;
 			}
+			else if (currentToken.contents.compare("&defs-only") == 0)
+			{
+				if (!isCakeImport)
+				{
+					ErrorAtToken(currentToken, "&defs-only not supported on C/C++ imports");
+					return false;
+				}
+				state = DefinitionsOnly;
+			}
 			else if (currentToken.contents.compare("&with-decls") == 0)
 				state = WithDeclarations;
 			else if (currentToken.contents.compare("&comptime-only") == 0)
@@ -679,10 +689,10 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			}
 			else
 			{
-				ErrorAtToken(
-				    currentToken,
-				    "Unrecognized sentinel symbol. Options "
-				    "are:\n\t&with-defs\n\t&with-decls\n\t&decls-only\n\t&comptime-only\n");
+				ErrorAtToken(currentToken,
+				             "Unrecognized sentinel symbol. Options "
+				             "are:\n\t&with-defs\n\t&with-decls\n\t&decls-only\n\t&defs-only\n\t&"
+				             "comptime-only\n");
 				return false;
 			}
 
@@ -743,7 +753,8 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 		}
 
 		// Comptime only means no includes in the generated file
-		if (state != CompTimeOnly)
+		bool shouldIncludeHeader = state != CompTimeOnly && state != DefinitionsOnly;
+		if (shouldIncludeHeader)
 		{
 			std::vector<StringOutput>& outputDestination =
 			    state == WithDefinitions ? output.source : output.header;

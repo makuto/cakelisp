@@ -560,6 +560,18 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 	return true;
 }
 
+static bool StringOutputHasAnyMeaningfulOutput(const std::vector<StringOutput>* stringOutput,
+                                               bool isHeader)
+{
+	// Gross special case where every header has an empty splice
+	return !stringOutput->empty() &&
+	       (stringOutput->size() > 1 || (*stringOutput)[0].modifiers != StringOutMod_Splice ||
+	        (isHeader ? StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->header,
+	                                                       isHeader) :
+	                    StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->source,
+	                                                       isHeader)));
+}
+
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 {
 	createBuildOutputDirectory(manager.environment, manager.buildOutputDir);
@@ -576,7 +588,9 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		GeneratorOutput footer;
 		// Something to attach the reason for generating this output
 		const Token* blameToken = &(*module->tokens)[0];
-		// Always include my header file
+
+		// Only include my header if it has some output
+		if (StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->header, true))
 		{
 			char relativeIncludeBuffer[MAX_PATH_LENGTH];
 			getFilenameFromPath(module->filename, relativeIncludeBuffer,
@@ -588,6 +602,13 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 			                blameToken);
 			addLangTokenOutput(header.source, StringOutMod_NewlineAfter, blameToken);
 		}
+		else
+		{
+			if (logging.fileSystem)
+				Logf("Opting not to write nor include %s header because it is empty\n",
+				     module->filename);
+		}
+
 		makeRunTimeHeaderFooter(header, footer, blameToken);
 		outputSettings.heading = &header;
 		outputSettings.footer = &footer;

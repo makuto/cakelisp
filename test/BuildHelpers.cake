@@ -1,5 +1,5 @@
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "BuildTools.cake")
+(import &defs-only "NoHeader.cake" &comptime-only "BuildTools.cake")
 
 (c-import "<stdio.h>")
 
