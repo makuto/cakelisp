@@ -22,7 +22,8 @@
      (array "Multi-line strings" "test/MultiLineStrings.cake")
      (array "Build helpers" "test/BuildHelpers.cake")
      (array "Hooks" "test/CompileTimeHooks.cake")
-     (array "Build dependencies" "test/BuildDependencies.cake")))
+     (array "Build dependencies" "test/BuildDependencies.cake")
+     (array "Cpp helpers" "test/CppHelpersTest.cake")))
 
   (var platform-config (* (const char))
     (comptime-cond
