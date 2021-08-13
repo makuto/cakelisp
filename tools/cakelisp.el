@@ -30,6 +30,11 @@
 
     (put 'if-c-preprocessor-defined 'lisp-indent-function 1)
 
+    (put 'each-token-argument-in 'lisp-indent-function 4)
+
+    (put 'defenum 'lisp-indent-function 1)
+    (put 'defenum-local 'lisp-indent-function 1)
+
     ;; Keywords
     ;; "(def[a-zA-Z0-9-]*" all define keywords
 

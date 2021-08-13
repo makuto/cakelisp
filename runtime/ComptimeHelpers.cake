@@ -206,3 +206,32 @@
                                 (addr (token-splice token-var-name))))
   (return true))
 
+;; (defmacro each-token-argument-in (token-array any
+;;                                   start-index any
+;;                                   iterator-name symbol
+;;                                   &rest body any)
+;;   (gen-unique-symbol end-token-var "end-token" (deref start-index))
+;;   (tokenize-push output
+;;     (scope
+;;      (var (token-splice-addr end-token-var) int
+;;        (FindCloseParenTokenIndex (token-splice token-array start-index)))
+;;      (c-for (var (token-splice iterator-name) int (token-splice start-index))
+;;          (< (token-splice iterator-name) (token-splice-addr end-token-var))
+;;          (set (token-splice iterator-name)
+;;               (getNextArgument (token-splice token-array iterator-name (addr end-token-var))))
+;;        (token-splice-rest body tokens))))
+;;   (return true))
+
+(defmacro each-token-argument-in (token-array any
+                                  start-index any
+                                  end-token-index any
+                                  iterator-name symbol
+                                  &rest body any)
+  (tokenize-push output
+    (scope
+     (c-for (var (token-splice iterator-name) int (token-splice start-index))
+         (< (token-splice iterator-name) (token-splice end-token-index))
+         (set (token-splice iterator-name)
+              (getNextArgument (token-splice token-array iterator-name end-token-index)))
+       (token-splice-rest body tokens))))
+  (return true))

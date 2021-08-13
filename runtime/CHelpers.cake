@@ -150,6 +150,62 @@
     (incr current-index))
   (return true))
 
+;; TODO: Better way to handle global vs. local
+(defun-comptime defenum-internal (environment (& EvaluatorEnvironment)
+                                  context (& (const EvaluatorContext))
+                                  tokens (& (const (<> (in std vector) Token)))
+                                  startTokenIndex int
+                                  output (& GeneratorOutput)
+                                  is-global bool
+                                  name (* (const Token))
+                                  enum-values int
+                                  &return bool)
+  (var output-dest (& (<> std::vector StringOutput))
+    (? is-global (field output header) (field output source)))
+
+  (addStringOutput output-dest "enum" StringOutMod_SpaceAfter name)
+  (addStringOutput output-dest (path name > contents) StringOutMod_ConvertTypeName name)
+  (addLangTokenOutput output-dest StringOutMod_OpenBlock name)
+
+  (var end-invocation-index int (FindCloseParenTokenIndex tokens startTokenIndex))
+  (each-token-argument-in tokens enum-values end-invocation-index current-index
+    (var current-token (* (const Token)) (addr (at current-index tokens)))
+    (unless (ExpectTokenType "defenum" (deref current-token) TokenType_Symbol)
+      (return false))
+    (addStringOutput output-dest (path current-token > contents)
+                     ;; Use variable name so they aren't cumbersome to reference
+                     StringOutMod_ConvertVariableName
+                     current-token)
+    (addLangTokenOutput output-dest StringOutMod_ListSeparator current-token))
+
+  (addLangTokenOutput output-dest StringOutMod_NewlineAfter name)
+  (addLangTokenOutput output-dest StringOutMod_CloseBlock name)
+  (addLangTokenOutput output-dest StringOutMod_EndStatement name)
+  (return true))
+
+(defgenerator defenum (name symbol
+                       &rest enum-values (index any))
+  (var is-global bool true)
+  (return (defenum-internal environment
+          context
+          tokens
+          startTokenIndex
+          output
+          is-global
+          name
+          enum-values)))
+
+(defgenerator defenum-local (name symbol
+                             &rest enum-values (index any))
+  (var is-global bool false)
+  (return (defenum-internal environment
+          context
+          tokens
+          startTokenIndex
+          output
+          is-global
+          name
+          enum-values)))
 
 ;;
 ;; Iteration/Looping
