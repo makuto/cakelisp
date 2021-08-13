@@ -185,7 +185,7 @@
 
 (defgenerator defenum (name symbol
                        &rest enum-values (index any))
-  (var is-global bool true)
+  (var is-global bool (!= context.scope EvaluatorScope_Body))
   (return (defenum-internal environment
           context
           tokens
