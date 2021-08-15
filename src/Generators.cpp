@@ -2697,9 +2697,10 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {CloseBlock, nullptr, -1}};
 
 	const CStatementOperation ternaryOperatorStatement[] = {
-	    {Expression /*Name*/, nullptr, 1}, {Keyword, "?", -1},
-	    {Expression, nullptr, 2},          {Keyword, ":", -1},
-	    {Expression, nullptr, 3},          {SmartEndStatement, nullptr, -1}};
+	    {OpenParen, nullptr, -1},  {Expression /*Name*/, nullptr, 1},
+	    {Keyword, "?", -1},        {Expression, nullptr, 2},
+	    {Keyword, ":", -1},        {Expression, nullptr, 3},
+	    {CloseParen, nullptr, -1}, {SmartEndStatement, nullptr, -1}};
 
 	// Control flow
 	const CStatementOperation returnStatement[] = {{Keyword, "return", -1},
