@@ -174,6 +174,8 @@ See [[file:doc/ToolsIntegration.org][doc/ToolsIntegration.org]] for e.g. editor 
 A build system may work with Cakelisp, because Cakelisp outputs C/C++ source/header files. Cakelisp must run before your regular build system runs, or in a stage where Cakelisp can create and add files to the build. This is because Cakelisp handles its own modules such that adding support to an existing build system would be challenging.
 
 Ideally, you should be able to rely on Cakelisp's built-in build system. This allows Cakelisp files to know how to build themselves.
+
+If you do want to use your build system instead of Cakelisp, pass ~--skip-build~ to ~cakelisp~ so that Cakelisp generates the files but doesn't build them.
 ** Debugging
 See [[file:doc/Debugging.org][doc/Debugging.org]]. Cakelisp doesn't really have an interpreter. Cakelisp always generates C/C++ code to do meaningful work. This means the Cakelisp transpiler, macros, generators, and final code output can be debugged using a regular C/C++ debugger like GDB, LLDB, or Visual Studio Debugger.
 
