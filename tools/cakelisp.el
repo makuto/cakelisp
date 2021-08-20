@@ -57,3 +57,4 @@
                                    1 font-lock-warning-face))))
 
 (add-to-list 'auto-mode-alist '("\\.cake?\\'" . cakelisp-mode))
+(add-to-list 'auto-mode-alist '("\\.cakedata?\\'" . cakelisp-mode))
