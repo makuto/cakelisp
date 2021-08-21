@@ -1,4 +1,4 @@
-#+TITLE:Fun with Cakelisp
+#+title: Fun with Cakelisp
 
 Here are a list of things I did with Cakelisp which I thought showcase its niceties. Nothing is too small, because small things can make a big difference!
 

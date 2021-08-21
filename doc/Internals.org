@@ -1,4 +1,4 @@
-#+TITLE:Cakelisp Technical Details
+#+title: Cakelisp Technical Details
 
 In very broad phases, this is what Cakelisp does/is:
 - Tokenizer and evaluator written in C++

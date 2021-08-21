@@ -1,4 +1,4 @@
-#+TITLE:Cakelisp Language
+#+title: Cakelisp Language
 
 This document aspires to be one page of everything you need to know to learn the Cakelisp language. I liked how [[https://ziglang.org/documentation/master/][Zig]] is all on one page, so I'm going to emulate that here.
 
