@@ -839,7 +839,7 @@ bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
 				                               firstArgIndex, arrayOutput) != 0)
 					return false;
 
-				if (!arrayOutput.header.empty())
+				if (StringOutputHasAnyMeaningfulOutput(&arrayOutput.header, true))
 				{
 					ErrorAtToken(tokens[firstArgIndex],
 					             "array size expression cannot invoke generators which output to "

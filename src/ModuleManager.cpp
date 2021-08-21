@@ -560,18 +560,6 @@ static bool createBuildOutputDirectory(EvaluatorEnvironment& environment, std::s
 	return true;
 }
 
-static bool StringOutputHasAnyMeaningfulOutput(const std::vector<StringOutput>* stringOutput,
-                                               bool isHeader)
-{
-	// Gross special case where every header has an empty splice
-	return !stringOutput->empty() &&
-	       (stringOutput->size() > 1 || (*stringOutput)[0].modifiers != StringOutMod_Splice ||
-	        (isHeader ? StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->header,
-	                                                       isHeader) :
-	                    StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->source,
-	                                                       isHeader)));
-}
-
 bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 {
 	createBuildOutputDirectory(manager.environment, manager.buildOutputDir);

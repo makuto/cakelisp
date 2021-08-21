@@ -481,5 +481,8 @@ bool AddCompileTimeHook(EvaluatorEnvironment& environment, std::vector<CompileTi
                         const char* expectedSignature, const char* compileTimeFunctionName,
                         void* hookFunction, int userPriority, const Token* blameToken);
 
+bool StringOutputHasAnyMeaningfulOutput(const std::vector<StringOutput>* stringOutput,
+                                        bool isHeader);
+
 extern const char* globalDefinitionName;
 extern const char* cakelispWorkingDir;
