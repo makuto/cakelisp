@@ -21,10 +21,10 @@
   ;; Convert type to parseable string as well as unique (to the type) function name
   (scope
    ;; For parsing
-   (var type-to-string-buffer ([] 128 char) (array 0))
+   (var type-to-string-buffer ([] 256 char) (array 0))
    (var type-string-write-head (* char) type-to-string-buffer)
    ;; For function name
-   (var type-to-name-string-buffer ([] 128 char) (array 0))
+   (var type-to-name-string-buffer ([] 256 char) (array 0))
    (var type-name-string-write-head (* char) type-to-name-string-buffer)
    (unless (writeStringToBufferErrorToken "destroy-"
                                           (addr type-name-string-write-head) type-to-name-string-buffer
