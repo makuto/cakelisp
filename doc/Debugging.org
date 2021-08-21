@@ -1,4 +1,4 @@
-#+TITLE:Debugging Cakelisp
+#+title: Debugging Cakelisp
 Cakelisp doesn't really have an interpreter. Cakelisp always generates C/C++ code to do meaningful work. This means the Cakelisp transpiler, macros, generators, and of course final code output can be debugged using a regular C/C++ debugger like GDB, LLDB, Or Visual Studio Debugger.
 
 * Verbosity

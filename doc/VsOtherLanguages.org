@@ -1,4 +1,4 @@
-#+TITLE:Cakelisp vs. Other Languages
+#+title: Cakelisp vs. Other Languages
 * Naughty Dog
 [[https://en.wikipedia.org/wiki/Game_Oriented_Assembly_Lisp][Game Oriented Assembly Lisp]] was my chief inspiration.
 
