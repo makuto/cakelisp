@@ -881,6 +881,33 @@ bool tokenizedCTypeToString_Recursive(EvaluatorEnvironment& environment,
 					addStringOutput(typeOutput, "::", StringOutMod_None, &tokens[startScopeIndex]);
 			}
 		}
+		else if (typeInvocation.contents.compare("const") == 0)
+		{
+			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))
+				return false;
+
+			int typeIndex =
+			    getExpectedArgument("expected type", tokens, startTokenIndex, 1, endTokenIndex);
+			if (typeIndex == -1)
+				return false;
+
+			// Annoyingly, pointer const-ness must be appended in our world
+			bool isConstPointer = tokens[typeIndex].type == TokenType_OpenParen &&
+			                      (tokens[typeIndex + 1].contents.compare("*") == 0 ||
+			                       tokens[typeIndex + 1].contents.compare("&") == 0);
+
+			if (!isConstPointer)
+				addStringOutput(typeOutput, typeInvocation.contents.c_str(), StringOutMod_SpaceAfter,
+				                &typeInvocation);
+
+			if (!tokenizedCTypeToString_Recursive(environment, context, tokens, typeIndex,
+			                                      allowArray, typeOutput, afterNameOutput))
+				return false;
+
+			if (isConstPointer)
+				addStringOutput(typeOutput, typeInvocation.contents.c_str(),
+				                StringOutMod_SpaceBefore, &typeInvocation);
+		}
 		else
 		{
 			if (!ExpectNumArguments(tokens, startTokenIndex, endTokenIndex, 2))

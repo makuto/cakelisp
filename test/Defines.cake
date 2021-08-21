@@ -15,6 +15,9 @@
 (def-type-alias-global my-string (const (in std string)))
 (def-type-alias-global my-string-array (const ([] (+ 2 3) (in std string))))
 (def-type-alias-global my-string-array-2 (const ([] 5 (in std string))))
+(def-type-alias-global my-const-pointer (const (* (const int))))
+(def-type-alias-global my-const-vector-pointer
+    (const (* (<> (in std vector) (<> (in std vector) int)))))
 
 (defun main (&return int)
   (printf "Path length: %d\n" MAX_PATH_LENGTH)
