@@ -231,7 +231,7 @@
   (return (c-statement-out statement)))
 
 ;; This only works for arrays where the size is known at compile-time
-(defmacro each-in-array (array-name symbol iterator-name symbol &rest body any)
+(defmacro each-in-array (array-name any iterator-name symbol &rest body any)
   (tokenize-push output
     (scope
      (each-in-range (array-size (token-splice array-name)) (token-splice iterator-name)
