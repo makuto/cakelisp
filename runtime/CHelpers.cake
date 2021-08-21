@@ -10,8 +10,7 @@
     (token-splice-rest statements tokens))
   (return true))
 
-;; This should evaluate its argument, but I'm just hacking it in right now anyways
-(defmacro array-size (array-token symbol)
+(defmacro array-size (array-token any)
   (tokenize-push output (/ (sizeof (token-splice array-token))
                            (sizeof (at 0 (token-splice array-token)))))
   (return true))
