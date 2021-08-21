@@ -3,6 +3,7 @@
 #include <algorithm>  // std::find
 #include <cstdio>     //  sprintf
 #include <string>
+#include <string.h>
 
 #ifdef UNIX
 #include <strings.h>
