@@ -221,7 +221,10 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				// ' '
 				// ')'
 				// 'c
-				if (*currentChar == '\'' && previousChar != '\\')
+				// '\\'
+				// '\''
+				if (*currentChar == '\'' && *(currentChar - 2) != '\\' &&
+				    *(currentChar - 1) != '\\')
 				{
 					WriteContents(*currentChar);
 					// These are a special case because unlike strings, they shouldn't be quoted or
