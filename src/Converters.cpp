@@ -121,6 +121,18 @@ void lispNameStyleToCNameStyle(NameStyleMode mode, const char* name, char* buffe
 					                                   token))
 						return;
 					break;
+				case '=':
+					// TODO: Decide how to handle object pathing
+					if (!writeStringToBufferErrorToken("Equals", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
+						return;
+					break;
+				case '!':
+					// TODO: Decide how to handle object pathing
+					if (!writeStringToBufferErrorToken("Not", &bufferWrite, bufferOut,
+					                                   bufferOutSize, token))
+						return;
+					break;
 				default:
 					ErrorAtTokenf(
 					    token,
