@@ -8,7 +8,7 @@
 #include <strings.h>
 #endif
 
-#define MAX_NAME_LENGTH 64
+#define MAX_NAME_LENGTH 256
 #define MAX_PATH_LENGTH 256
 
 #ifdef WINDOWS

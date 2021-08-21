@@ -208,7 +208,7 @@ int blockAbsorbScope(const std::vector<Token>& tokens, int startBlockIndex)
 void MakeUniqueSymbolName(EvaluatorEnvironment& environment, const char* prefix,
                           Token* tokenToChange)
 {
-	char symbolNameBuffer[64] = {0};
+	char symbolNameBuffer[MAX_NAME_LENGTH] = {0};
 	PrintfBuffer(symbolNameBuffer, "%s_%d", prefix, environment.nextFreeUniqueSymbolNum);
 
 	tokenToChange->type = TokenType_Symbol;
@@ -235,7 +235,7 @@ void MakeContextUniqueSymbolName(EvaluatorEnvironment& environment, const Evalua
 		return;
 	}
 
-	char symbolNameBuffer[64] = {0};
+	char symbolNameBuffer[MAX_NAME_LENGTH] = {0};
 	PrintfBuffer(symbolNameBuffer, "%s_%d", prefix, definition->nextFreeUniqueSymbolNum);
 
 	tokenToChange->type = TokenType_Symbol;
