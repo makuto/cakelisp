@@ -1,4 +1,5 @@
-(c-import "<stdio.h>" "<string>")
+(c-import "<stdio.h>" "<string>"
+          &with-decls "<stdio.h>") ;; FILE* TODO: How can I remove this from header?
 
 (c-preprocessor-define MAX_PATH_LENGTH 256)
 
@@ -99,3 +100,12 @@
     (tokenize-push output
                    (_strdup (token-splice string-to-dup)))))
   (return true))
+
+;; TODO: Windows CreateFile version of this
+(defun read-file-into-memory (in-file (* FILE) &return (* char))
+  (fseek in-file 0 SEEK_END)
+  (var file-size size_t (ftell in-file))
+  (rewind in-file)
+  (var-cast-to out-buffer (* char) (malloc file-size))
+  (fread out-buffer file-size 1 in-file)
+  (return out-buffer))
