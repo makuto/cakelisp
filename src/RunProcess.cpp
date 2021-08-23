@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 #include <string.h>
 #include <sys/types.h>  // pid
 #include <sys/wait.h>   // waitpid
@@ -24,7 +24,7 @@
 #include "Logging.hpp"
 #include "Utilities.hpp"
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 typedef pid_t ProcessId;
 #else
 typedef int ProcessId;
@@ -33,7 +33,7 @@ typedef int ProcessId;
 struct Subprocess
 {
 	int* statusOut;
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	ProcessId processId;
 	int pipeReadFileDescriptor;
 #elif WINDOWS
@@ -49,7 +49,7 @@ static std::vector<Subprocess> s_subprocesses;
 // Never returns, if success
 void systemExecute(const char* fileToExecute, char** arguments)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	// pid_t pid;
 	execvp(fileToExecute, arguments);
 	perror("RunProcess execvp() error: ");
@@ -81,7 +81,7 @@ int runProcess(const RunProcessArguments& arguments, int* statusOut)
 		Log("\n");
 	}
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	int pipeFileDescriptors[2] = {0};
 	const int PipeRead = 0;
 	const int PipeWrite = 1;
@@ -416,7 +416,7 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 
 	for (Subprocess& process : s_subprocesses)
 	{
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 		char processOutputBuffer[1024] = {0};
 		int numBytesRead =
 		    read(process.pipeReadFileDescriptor, processOutputBuffer, sizeof(processOutputBuffer));

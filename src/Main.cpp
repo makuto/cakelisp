@@ -163,7 +163,7 @@ int main(int numArguments, char* arguments[])
 
 	if (waitForDebugger)
 	{
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 		// While there is *a* way, I didn't like what I was reading, so I'm not implementing it.
 		// Wait for debugger is mainly useful on Windows because Visual Studio is the best debugger,
 		// but setting up a project to debug from VS is a huge PITA. It's much easier just to attach

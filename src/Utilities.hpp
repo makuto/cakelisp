@@ -5,7 +5,7 @@
 #include <string>
 #include <string.h>
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 #include <strings.h>
 #endif
 

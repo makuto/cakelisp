@@ -472,7 +472,7 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 	// const char* normalizedFilename = makeAbsolutePath_Allocated(".", filename);
 	if (!normalizedFilename)
 	{
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 		perror("failed to normalize filename: ");
 #else
 		Logf("error: could not normalize filename, or file not found: %s\n", filename);

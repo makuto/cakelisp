@@ -8,7 +8,7 @@
 #include "FileUtilities.hpp"
 #include "Utilities.hpp"
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 #include <dlfcn.h>
 #elif WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -29,7 +29,7 @@ DynamicLibHandle loadDynamicLibrary(const char* libraryPath)
 {
 	void* libHandle = nullptr;
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	// Clear error
 	dlerror();
 
@@ -98,7 +98,7 @@ void* getSymbolFromDynamicLibrary(DynamicLibHandle library, const char* symbolNa
 		return nullptr;
 	}
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	// Clear any existing error before running dlsym
 	char* error = dlerror();
 	if (error != nullptr)
@@ -134,7 +134,7 @@ void closeAllDynamicLibraries()
 {
 	for (std::pair<const std::string, DynamicLibrary>& libraryPair : dynamicLibraries)
 	{
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 		dlclose(libraryPair.second.handle);
 #elif WINDOWS
 		FreeLibrary((HMODULE)libraryPair.second.handle);
@@ -164,7 +164,7 @@ void closeDynamicLibrary(DynamicLibHandle handleToClose)
 		libHandle = handleToClose;
 	}
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	dlclose(libHandle);
 #elif WINDOWS
 	FreeLibrary((HMODULE)libHandle);

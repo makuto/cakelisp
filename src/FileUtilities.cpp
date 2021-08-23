@@ -6,7 +6,7 @@
 #include "Logging.hpp"
 #include "Utilities.hpp"
 
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
@@ -24,7 +24,7 @@
 
 FileModifyTime fileGetLastModificationTime(const char* filename)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	struct stat fileStat;
 	if (stat(filename, &fileStat) == -1)
 	{
@@ -66,7 +66,7 @@ FileModifyTime fileGetLastModificationTime(const char* filename)
 
 bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	struct stat fileStat;
 	struct stat referenceStat;
 	if (stat(filename, &fileStat) == -1)
@@ -129,7 +129,7 @@ bool fileIsMoreRecentlyModified(const char* filename, const char* reference)
 
 bool fileExists(const char* filename)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	return access(filename, F_OK) != -1;
 #elif WINDOWS
 	return GetFileAttributes(filename) != INVALID_FILE_ATTRIBUTES;
@@ -140,7 +140,7 @@ bool fileExists(const char* filename)
 
 void makeDirectory(const char* path)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	if (mkdir(path, 0755) == -1)
 	{
 		// We don't care about EEXIST, we just want the dir
@@ -160,7 +160,7 @@ void makeDirectory(const char* path)
 
 void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	char* pathCopy = StrDuplicate(path);
 	const char* dirName = dirname(pathCopy);
 	SafeSnprintf(bufferOut, bufferSize, "%s", dirName);
@@ -182,7 +182,7 @@ void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize)
 
 void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	char* pathCopy = StrDuplicate(path);
 	const char* fileName = basename(pathCopy);
 	SafeSnprintf(bufferOut, bufferSize, "%s", fileName);
@@ -210,7 +210,7 @@ void makePathRelativeToFile(const char* filePath, const char* referencedFilePath
 
 const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* filePath)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	// Second condition allows for absolute paths
 	if (fromDirectory && filePath[0] != '/')
 	{
@@ -251,7 +251,7 @@ const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* fi
 
 void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, int bufferSize)
 {
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	// If it's already absolute, keep it that way
 	// Accept a lone . as well, for current working directory
 	if (filePath[0] == '/' || (filePath[0] == '.' && filePath[1] == '\0') ||
@@ -460,7 +460,7 @@ bool moveFile(const char* srcFilename, const char* destFilename)
 void addExecutablePermission(const char* filename)
 {
 	// Not necessary on Windows
-#ifdef UNIX
+#if defined(UNIX) || defined(MACOS)
 	// From man 2 chmod:
 	// S_IRUSR  (00400)  read by owner
 	//  S_IWUSR  (00200)  write by owner
