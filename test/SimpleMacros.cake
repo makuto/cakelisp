@@ -22,3 +22,5 @@
   (argument-indices "test")
   (argument-indices "test" "test 2")
   (return 0))
+
+(set-cakelisp-option executable-output "test/SimpleMacros")

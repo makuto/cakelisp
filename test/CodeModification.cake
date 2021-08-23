@@ -124,3 +124,5 @@
 ;;   ;; TODO: This is no good, because var looks at its invocation name
 ;;   (set (field (at 1 output) contents) "badvar")
 ;;   (return true))
+
+(set-cakelisp-option executable-output "test/CodeModification")

@@ -35,8 +35,17 @@ src/runProcessTest
 src/dependencyTest
 runtime/HotReloadingTest
 hot_loader*
+
 test/ExecuteMe
 test/MultiLineStrings
+test/BuildDependencies
+test/BuildHelpers
+test/CodeModification
+test/CppHelpers
+test/Defines
+test/Hello
+test/Hooks
+test/SimpleMacros
 
 *.cake.cpp
 *.cake.hpp

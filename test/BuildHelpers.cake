@@ -28,3 +28,5 @@
   (return (and (= cakelisp-status 0) (= cakelisp-2-status 0))))
 
 (add-compile-time-hook-module pre-build run-3rd-party-build)
+
+(set-cakelisp-option executable-output "test/BuildHelpers")

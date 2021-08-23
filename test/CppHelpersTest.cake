@@ -19,3 +19,5 @@
 (defun main (&return int)
   (var state my-enum my-enum-a)
   (return 0))
+
+(set-cakelisp-option executable-output "test/CppHelpers")

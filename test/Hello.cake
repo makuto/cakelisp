@@ -13,3 +13,5 @@
   (printf "Hello, world! From Cakelisp!\n")
   (varargs 3 1 2 3)
   (return 0))
+
+(set-cakelisp-option executable-output "test/Hello")

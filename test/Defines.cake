@@ -27,3 +27,5 @@
   (printf "Thing: %d\n" a-thing)
 
   (return 0))
+
+(set-cakelisp-option executable-output "test/Defines")

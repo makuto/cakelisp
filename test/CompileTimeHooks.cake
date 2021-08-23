@@ -21,3 +21,5 @@
 (add-compile-time-hook-module pre-build third-hook :priority-decrease 3)
 (add-compile-time-hook-module pre-build last-hook :priority-decrease 10000)
 (add-compile-time-hook-module pre-build second-hook :priority-decrease 2)
+
+(set-cakelisp-option executable-output "test/Hooks")

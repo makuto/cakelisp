@@ -10,3 +10,5 @@
 (add-c-build-dependency "Test.cpp")
 
 (add-c-search-directory-module "test/dir")
+
+(set-cakelisp-option executable-output "test/BuildDependencies")
