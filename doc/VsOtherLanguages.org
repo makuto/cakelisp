@@ -16,7 +16,7 @@ Lisp-style languages for other non-GC languages:
 - [[https://gamelisp.rs/][GameLisp]]: Seamless Rust API, no GC
 
 The following I believe have little or no activity, implying they are no longer supported:
-- [[https://github.com/tomhrr/dale][Dale]]: "Lisp-flavoured C". Hasn't been touched in over two years
+- [[https://github.com/tomhrr/dale][Dale]]: "Lisp-flavoured C". Requires function bindings, uses LLVM in a way which limits easy platform switching
 - [[https://github.com/wolfgangj/bone-lisp][Bone Lisp]]: Lisp with no GC. Creator has abandoned it, but it still gets some attention
 - [[https://github.com/ska80/thinlisp][Thinlisp]]: No GC option available. Write your stuff in CL using the cushy SBCL environment, then compile down to C for good performance
 - [[https://gitlab.com/count.j0ecool/shiv][Shiv]]: Notably has a non-S-expr wrapper that still gets tokenized into S-exprs

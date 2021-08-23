@@ -16,7 +16,7 @@
   (tokenize-push output (printf "%d %d %d\n" (token-splice-array numbers)))
   (return true))
 
-(defun main(&return int)
+(defun main (&return int)
   (printf "Hello, world! From Cakelisp!\n")
   (my-print "Printed thanks to a macro!")
   (argument-indices "test")
