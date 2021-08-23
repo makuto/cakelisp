@@ -30,7 +30,11 @@ const char* compilerObjectExtension = "o";
 const char* compilerDebugSymbolsExtension = "";   // Not applicable
 const char* compilerImportLibraryExtension = "";  // Not applicable
 const char* linkerDynamicLibraryPrefix = "lib";
+#ifdef MACOS
+const char* linkerDynamicLibraryExtension = "dylib";
+#else
 const char* linkerDynamicLibraryExtension = "so";
+#endif
 const char* defaultExecutableName = "a.out";
 const char* precompiledHeaderExtension = "gch";
 #endif

@@ -4,6 +4,8 @@
 
 #ifdef WINDOWS
 #define FORMAT_FILETIME "%I64u"
+#elif MACOS
+#define FORMAT_FILETIME "%lld"
 #else
 #define FORMAT_FILETIME "%lu"
 #endif

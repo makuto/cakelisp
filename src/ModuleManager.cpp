@@ -152,6 +152,75 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_Libraries, EmptyString},
 		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
+#elif MACOS
+		// TODO: Switch this on
+		manager.environment.comptimeUsePrecompiledHeaders = false;
+		// manager.environment.comptimeUsePrecompiledHeaders = true;
+
+		const char* defaultCompilerLinker = "clang";
+
+		manager.environment.compileTimeBuildCommand.fileToExecute = defaultCompilerLinker;
+		manager.environment.compileTimeBuildCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-c"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+		    {ProcessCommandArgumentType_PrecompiledHeaderInclude, EmptyString},
+		    {ProcessCommandArgumentType_String, "-fPIC"},
+		    {ProcessCommandArgumentType_String, "--std=c++11"}};
+
+		manager.environment.compileTimeLinkCommand.fileToExecute = defaultCompilerLinker;
+		manager.environment.compileTimeLinkCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-dynamiclib"},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-lstdc++"},
+		    {ProcessCommandArgumentType_String, "-undefined"},
+		    {ProcessCommandArgumentType_String, "dynamic_lookup"}};
+
+		// Note that this command must match the compilation command to be compatible, see
+		// https://gcc.gnu.org/onlinedocs/gcc/Precompiled-Headers.html
+		manager.environment.compileTimeHeaderPrecompilerCommand.fileToExecute =
+		    defaultCompilerLinker;
+		manager.environment.compileTimeHeaderPrecompilerCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-x"},
+		    {ProcessCommandArgumentType_String, "c++-header"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_PrecompiledHeaderOutput, EmptyString},
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+		    {ProcessCommandArgumentType_String, "-fPIC"},
+		    {ProcessCommandArgumentType_String, "--std=c++11"}};
+
+		manager.environment.buildTimeBuildCommand.fileToExecute = defaultCompilerLinker;
+		manager.environment.buildTimeBuildCommand.arguments = {
+		    {ProcessCommandArgumentType_String, "-g"},
+		    {ProcessCommandArgumentType_String, "-c"},
+		    {ProcessCommandArgumentType_SourceInput, EmptyString},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
+		    // Probably unnecessary to make the user's code position-independent, but it does make
+		    // hotreloading a bit easier to try out
+		    {ProcessCommandArgumentType_String, "-fPIC"},
+		    {ProcessCommandArgumentType_String, "--std=c++11"},
+		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+
+		manager.environment.buildTimeLinkCommand.fileToExecute = defaultCompilerLinker;
+		manager.environment.buildTimeLinkCommand.arguments = {
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
+		    {ProcessCommandArgumentType_String, "-o"},
+		    {ProcessCommandArgumentType_ExecutableOutput, EmptyString},
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
+		    {ProcessCommandArgumentType_LibrarySearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_Libraries, EmptyString},
+		    {ProcessCommandArgumentType_String, "-lstdc++"},
+		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
+		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
 #else
 		// 13.2 seconds Debug; 10.25 no debug
 		// manager.environment.comptimeUsePrecompiledHeaders = false;
