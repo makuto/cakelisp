@@ -30,7 +30,7 @@ else
 		src/Logging.cpp \
 		src/Build.cpp \
 		src/Main.cpp \
-		-DUNIX || exit $?
+		-DMACOS || exit $?
 	# Need -ldl for dynamic loading, -rdynamic to let compile-time functions resolve to
 	# Cakelisp symbols
 	$LINK -o $CAKELISP_BOOTSTRAP_BIN *.o -ldl -lstdc++ -rdynamic || exit $?
