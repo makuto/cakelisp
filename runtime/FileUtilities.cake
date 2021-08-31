@@ -1,4 +1,4 @@
-(c-import "<stdio.h>" "<string>"
+(c-import "<stdio.h>" "<string>" "<assert.h>"
           &with-decls "<stdio.h>") ;; FILE* TODO: How can I remove this from header?
 
 (c-preprocessor-define MAX_PATH_LENGTH 256)
