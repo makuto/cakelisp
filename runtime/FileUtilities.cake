@@ -109,3 +109,27 @@
   (var-cast-to out-buffer (* char) (malloc file-size))
   (fread out-buffer file-size 1 in-file)
   (return out-buffer))
+
+(defun write-string (out-file (* FILE) out-string (* (const char)))
+  (var string-length size_t (strlen out-string))
+  ;; (fprintf stderr "%s has length %d\n" out-string (type-cast string-length int))
+  (fwrite (addr string-length) (sizeof string-length) 1 out-file)
+  (fwrite out-string string-length 1 out-file))
+
+(defun read-string (in-file (* FILE) out-string-buffer (* char) out-string-buffer-length size_t)
+  (var string-length size_t 0)
+  (fread (addr string-length) (sizeof string-length) 1 in-file)
+  ;; (fprintf stderr "Next string has length %d\n" (type-cast string-length int))
+  (assert (<= string-length out-string-buffer-length))
+  (fread out-string-buffer string-length 1 in-file))
+
+;; Plain old data with a known size
+(defmacro write-pod (item any out-file any)
+  (tokenize-push output
+    (fwrite (addr (token-splice item)) (sizeof (token-splice item)) 1 (token-splice out-file)))
+  (return true))
+
+(defmacro read-pod (item any in-file any)
+  (tokenize-push output
+    (fread (addr (token-splice item)) (sizeof (token-splice item)) 1 (token-splice in-file)))
+  (return true))
