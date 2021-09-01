@@ -133,3 +133,20 @@
   (tokenize-push output
     (fread (addr (token-splice item)) (sizeof (token-splice item)) 1 (token-splice in-file)))
   (return true))
+
+(ignore ;; For reference
+ (defun-local test--load-save ()
+   (scope
+    (var test-file (* FILE) (fopen "Test.bin" "wb"))
+    (unless test-file
+      (return 1))
+    (write-string test-file "This is a test string")
+    (fclose test-file)
+
+    (var read-file (* FILE) (fopen "Test.bin" "rb"))
+    (unless read-file
+      (return 1))
+    (var read-buffer ([] 256 char) (array 0))
+    (read-string read-file read-buffer (sizeof read-buffer))
+    (fprintf stderr "Got \"%s\"\n" read-buffer)
+    (fclose read-file))))
