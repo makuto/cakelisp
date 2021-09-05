@@ -118,8 +118,8 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 					tokensOut.back().type = TokenType_StringMerge;
 					tokenizeState = TokenizeState_StringMerge;
 				}
-				// "Here string" is e.g. ###Blah blah "Look ma, no escape chars!"###
-				else if (*currentChar == '#' && *(currentChar + 1) == '#' &&
+				// "Here string" is e.g. #"#Blah blah "Look ma, no escape chars!"#"#
+				else if (*currentChar == '#' && *(currentChar + 1) == '\"' &&
 				         *(currentChar + 2) == '#')
 				{
 					Token startHereString = {
@@ -304,7 +304,7 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				}
 				break;
 			case TokenizeState_HereString:
-				if (*currentChar == '#' && *(currentChar + 1) == '#' && *(currentChar + 2) == '#')
+				if (*currentChar == '#' && *(currentChar + 1) == '\"' && *(currentChar + 2) == '#')
 				{
 					Token& previousToken = tokensOut.back();
 					if (previousToken.type != TokenType_HereString)
@@ -446,7 +446,7 @@ bool validateTokens(const std::vector<Token>& tokens)
 			ErrorAtToken(token,
 			             "multi-line string malformed. Is it missing a closing quote? Does it "
 			             "have a trailing \\, despite being the last string? Is it a here-string "
-			             "with missing matching ###?");
+			             "with missing matching #\"#?");
 			return false;
 		}
 	}
