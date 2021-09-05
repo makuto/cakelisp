@@ -461,6 +461,7 @@ bool AddStringOptionsGenerator(EvaluatorEnvironment& environment, const Evaluato
 	    {"add-compiler-link-options", &context.module->compilerLinkOptions},
 	    {"add-linker-options", &context.module->toLinkerOptions},
 	    {"add-build-options", &context.module->additionalBuildOptions},
+	    {"add-build-options-global", &environment.compilerAdditionalOptions},
 	    {"add-build-config-label", &environment.buildConfigurationLabels}};
 
 	const StringOptionList* destination = nullptr;
@@ -3055,6 +3056,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
 	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
 	environment.generators["add-build-options"] = AddStringOptionsGenerator;
+	environment.generators["add-build-options-global"] = AddStringOptionsGenerator;
 	environment.generators["add-c-search-directory-module"] = AddStringOptionsGenerator;
 	environment.generators["add-c-search-directory-global"] = AddStringOptionsGenerator;
 	environment.generators["add-cakelisp-search-directory"] = AddStringOptionsGenerator;

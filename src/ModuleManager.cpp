@@ -728,6 +728,9 @@ struct SharedBuildOptions
 	std::string* buildOutputDir;
 	std::vector<CompileTimeHook>* preLinkHooks;
 
+	// Compile options
+	std::vector<std::string>* compilerAdditionalOptions;
+
 	// Link options
 	std::vector<std::string> linkLibraries;
 	std::vector<std::string> librarySearchDirs;
@@ -746,6 +749,7 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 	sharedBuildOptions.executableOutput = &manager.environment.executableOutput;
 	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
 	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
+	sharedBuildOptions.compilerAdditionalOptions = &manager.environment.compilerAdditionalOptions;
 
 	int numModules = manager.modules.size();
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
@@ -928,7 +932,14 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 		}
 
 		std::vector<const char*> additionalOptions;
+		additionalOptions.reserve(object->additionalOptions.size() +
+		                          buildOptions.compilerAdditionalOptions->size());
 		for (const std::string& option : object->additionalOptions)
+		{
+			additionalOptions.push_back(option.c_str());
+		}
+
+		for (const std::string& option : *buildOptions.compilerAdditionalOptions)
 		{
 			additionalOptions.push_back(option.c_str());
 		}

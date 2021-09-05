@@ -364,6 +364,7 @@ struct EvaluatorEnvironment
 	std::vector<std::string> searchPaths;
 
 	std::vector<std::string> cSearchDirectories;
+	std::vector<std::string> compilerAdditionalOptions;
 
 	// Build configurations are e.g. Debug vs. Release, which have e.g. different compiler flags
 	// Anything which changes the output vs. another configuration should have a label. Examples:
