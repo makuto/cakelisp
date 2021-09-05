@@ -19,7 +19,9 @@ newlines. It's a trade-off.\n")
     bacon\n
     sword\n
 "
-)
+          )
+  (printf ###This is a "here-string". All the characters that I type should literally appear,
+          including that indentation###)
   (return 0))
 
 (set-cakelisp-option executable-output "test/MultiLineStrings")
