@@ -1,10 +1,13 @@
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "CHelpers.cake")
+(import "Duplicate.cake" &comptime-only "CHelpers.cake")
+
+(c-import "<stdio.h>")
 
 (declare-extern-function test ())
 
 (defun main (&return int)
   (test)
+  (fprintf stderr "%d\n" (my-fun))
   (return 0))
 
 (add-c-build-dependency "Test.cpp")

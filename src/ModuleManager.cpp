@@ -890,6 +890,55 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 		buildObjects.push_back(newBuildObject);
 	}
 
+	// Ensure unique output filenames
+	typedef std::unordered_map<std::string, std::vector<BuildObject*>> FilenameMap;
+	FilenameMap filenameMap;
+	for (BuildObject* object : buildObjects)
+	{
+		FilenameMap::iterator findIt = filenameMap.find(object->filename);
+		if (findIt == filenameMap.end())
+		{
+			std::vector<BuildObject*> newList;
+			newList.push_back(object);
+			filenameMap[object->filename] = std::move(newList);
+		}
+		else
+		{
+			// Found a duplicate. It will be disambiguated later
+			filenameMap[object->filename].push_back(object);
+		}
+	}
+
+	for (std::pair<const std::string, std::vector<BuildObject*>>& filenamePair : filenameMap)
+	{
+		if (filenamePair.second.size() < 2)
+			continue;
+
+		for (BuildObject* object : filenamePair.second)
+		{
+			std::string disambiguatedFilename = object->sourceFilename;
+			for (int i = 0; i < (int)disambiguatedFilename.size(); ++i)
+			{
+				if (disambiguatedFilename[i] == '/' || disambiguatedFilename[i] == '\\')
+					disambiguatedFilename[i] = '_';
+			}
+
+			char buildObjectName[MAX_PATH_LENGTH] = {0};
+			if (!outputFilenameFromSourceFilename(
+			        manager.buildOutputDir.c_str(), disambiguatedFilename.c_str(),
+			        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
+			{
+				Log("error: failed to create suitable unambiguous output filename");
+				buildObjectsFree(buildObjects);
+				return false;
+			}
+			if (logging.fileSystem)
+				Logf("Duplicate output name %s will be corrected: %s\n", filenamePair.first.c_str(),
+				     buildObjectName);
+			object->filename = buildObjectName;
+		}
+	}
+
 	return true;
 }
 
