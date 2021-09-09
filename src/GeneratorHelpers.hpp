@@ -18,8 +18,8 @@ struct ObjectDefinition;
 void StripInvocation(int& startTokenIndex, int& endTokenIndex);
 CAKELISP_API int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenIndex);
 
-bool ExpectEvaluatorScope(const char* generatorName, const Token& token,
-                          const EvaluatorContext& context, EvaluatorScope expectedScope);
+CAKELISP_API bool ExpectEvaluatorScope(const char* generatorName, const Token& token,
+                                       const EvaluatorContext& context, EvaluatorScope expectedScope);
 bool IsForbiddenEvaluatorScope(const char* generatorName, const Token& token,
                                const EvaluatorContext& context, EvaluatorScope forbiddenScope);
 CAKELISP_API bool ExpectTokenType(const char* generatorName, const Token& token,
@@ -50,8 +50,8 @@ CAKELISP_API bool ExpectNumArguments(const std::vector<Token>& tokens, int start
                                      int endTokenIndex, int numExpectedArguments);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 // There are no more arguments once this returns endArrayTokenIndex
-int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
-                    int endArrayTokenIndex);
+CAKELISP_API int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
+                                 int endArrayTokenIndex);
 
 // If the current token is a scope, skip it. This is useful when a generator has already opened a
 // block, so it knows the scope comes from the generator invocation

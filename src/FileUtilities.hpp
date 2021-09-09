@@ -28,8 +28,8 @@ const char* makeAbsolutePath_Allocated(const char* fromDirectory, const char* fi
 void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, int bufferSize);
 
 // Turns a/b/file.txt into outputDir/file.txt.addExtension
-bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
-                                      const char* addExtension, char* bufferOut, int bufferSize);
+CAKELISP_API bool outputFilenameFromSourceFilename(const char* outputDir, const char* sourceFilename,
+                                                   const char* addExtension, char* bufferOut, int bufferSize);
 
 CAKELISP_API bool copyBinaryFileTo(const char* srcFilename, const char* destFilename);
 CAKELISP_API bool copyFileTo(const char* srcFilename, const char* destFilename);
