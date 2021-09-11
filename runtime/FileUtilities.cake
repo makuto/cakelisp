@@ -15,8 +15,19 @@
    "This module requires platform-specific code. Please define your platform before importing" \
    " this module, e.g.: (comptime-define-symbol 'Unix). Supported platforms: 'Unix, 'Windows")))
 
+(defun path-convert-to-forward-slashes (path-str (* char))
+  (each-char-in-string path-str current-char
+	(when (= (deref current-char) '\\')
+	  (set (deref current-char) '/'))))
+
+(defun path-convert-to-backward-slashes (path-str (* char))
+  (each-char-in-string path-str current-char
+	(when (= (deref current-char) '/')
+	  (set (deref current-char) '\\'))))
+
+;; Converts to forward slashes!
 (defun make-absolute-path-allocated (fromDirectory (* (const char)) filePath (* (const char))
-                                     &return (* (const char)))
+                                     &return (* char))
   (comptime-cond
    ('Unix
 	;; Second condition allows for absolute paths
@@ -41,6 +52,10 @@
 	(unless isValid
 	  (free absolutePath)
 	  (return null))
+
+    ;; Save the user from a whole lot of complexity by keeping slashes consistent with Unix style
+    ;; Note that this means you may need to convert back to backslashes in some cases
+    (path-convert-to-forward-slashes absolutePath)
 	(return absolutePath))
    (true
     (comptime-error "Need to be able to normalize path on this platform")
@@ -67,8 +82,8 @@
    (true
     (comptime-error "Need to be able to strip path on this platform"))))
 
-(defun make-backslash-filename (buffer (* char) bufferSize
-                                int filename (* (const char)))
+(defun make-backslash-filename (buffer (* char) bufferSize int
+                                filename (* (const char)))
   (var bufferWrite (* char) buffer)
   (var currentChar (* (const char)) filename)
   (while (deref currentChar)

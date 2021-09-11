@@ -57,7 +57,6 @@
     (var absoluteLibPath (* (const char))
          (make-absolute-path-allocated null libraryPath))
     (var convertedPath ([] MAX_PATH_LENGTH char) (array 0))
-    ;; TODO Remove, redundant with makeAbsolutePath_Allocated()
     (make-backslash-filename convertedPath (sizeof convertedPath) absoluteLibPath)
     (var dllDirectory ([] MAX_PATH_LENGTH char) (array 0))
     (get-directory-from-path convertedPath dllDirectory (sizeof dllDirectory))
