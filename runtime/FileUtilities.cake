@@ -72,7 +72,7 @@
    ('Windows
     (var converted-path ([] MAX_PATH_LENGTH char) (array 0))
     (var num-printed size_t
-	  (snprintf converted-path (sizeof converted-path) "%s" current-dir))
+	  (snprintf converted-path (sizeof converted-path) "%s" path))
 	(when (= (at (- num-printed 1) converted-path) '/')
 	  (set (at (- num-printed 1) converted-path) 0))
     (path-convert-to-backward-slashes converted-path)
