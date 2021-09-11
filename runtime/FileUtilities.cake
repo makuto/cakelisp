@@ -61,6 +61,7 @@
     (comptime-error "Need to be able to normalize path on this platform")
 	(return null))))
 
+;; Expects: forward slash path. Returns: forward slash path
 (defun get-directory-from-path (path (* (const char)) bufferOut (* char) bufferSize int)
   (comptime-cond
    ('Unix
@@ -69,33 +70,33 @@
 	(safe-string-print bufferOut bufferSize "%s" dirName)
 	(free pathCopy))
    ('Windows
+    (var converted-path ([] MAX_PATH_LENGTH char) (array 0))
+    (var num-printed size_t
+	  (snprintf converted-path (sizeof converted-path) "%s" current-dir))
+	(when (= (at (- num-printed 1) converted-path) '/')
+	  (set (at (- num-printed 1) converted-path) 0))
+    (path-convert-to-backward-slashes converted-path)
+
 	(var drive ([] _MAX_DRIVE char))
 	(var dir ([] _MAX_DIR char))
 	;; char fname[_MAX_FNAME];
 	;; char ext[_MAX_EXT];
-	(_splitpath_s path drive (sizeof drive) dir (sizeof dir)
+	(_splitpath_s converted-path drive (sizeof drive) dir (sizeof dir)
 	              null 0 ;; fname
 	              null 0) ;; extension
 	(_makepath_s bufferOut bufferSize drive dir
                  null ;; fname
-	             null)) ;; extension
+	             null) ;; extension
+
+    (path-convert-to-forward-slashes bufferOut)
+
+    ;; Remove trailing slash to match dirname
+    (var bufferOut-length size_t (strlen bufferOut))
+    (when (and (> bufferOut-length 1)
+               (= (at (- bufferOut-length 1) bufferOut) '/'))
+	  (set (at (- bufferOut-length 1) bufferOut) 0)))
    (true
     (comptime-error "Need to be able to strip path on this platform"))))
-
-(defun make-backslash-filename (buffer (* char) bufferSize int
-                                filename (* (const char)))
-  (var bufferWrite (* char) buffer)
-  (var currentChar (* (const char)) filename)
-  (while (deref currentChar)
-    (if (= (deref currentChar)  '/')
-        (set (deref bufferWrite) '\\')
-        (set (deref bufferWrite) (deref currentChar)))
-
-    (incr bufferWrite)
-    (incr currentChar)
-    (when (>= (- bufferWrite buffer) bufferSize)
-      (fprintf stderr "error: could not make safe filename: buffer too small\n")
-      (break))))
 
 (defmacro safe-string-print (buffer any size any
                              format string &rest args any)

@@ -54,12 +54,16 @@
    ('Windows
     ;; TODO Clean this up! Only the cakelispBin is necessary I think (need to double check that)
     ;; TODO Clear added dirs after? (RemoveDllDirectory())
-    (var absoluteLibPath (* (const char))
-         (make-absolute-path-allocated null libraryPath))
-    (var convertedPath ([] MAX_PATH_LENGTH char) (array 0))
-    (make-backslash-filename convertedPath (sizeof convertedPath) absoluteLibPath)
+    (var absoluteLibPath (* char)
+      (make-absolute-path-allocated null libraryPath))
     (var dllDirectory ([] MAX_PATH_LENGTH char) (array 0))
-    (get-directory-from-path convertedPath dllDirectory (sizeof dllDirectory))
+    (get-directory-from-path absoluteLibPath dllDirectory (sizeof dllDirectory))
+    (path-convert-to-backward-slashes absoluteLibPath)
+    (var dll-directory-length size_t (strlen dllDirectory))
+    ;; Append the trailing slash for Windows
+    (set (at dll-directory-length dllDirectory) '/')
+    (set (at (+ 1 dll-directory-length) dllDirectory) 0)
+    (path-convert-to-backward-slashes dllDirectory)
     (scope ;; DLL directory
      (var wchars_num int (MultiByteToWideChar CP_UTF8 0 dllDirectory -1 null 0))
      (var wstrDllDirectory (* wchar_t) (new-array wchars_num wchar_t))
@@ -79,11 +83,11 @@
     ;;  (free (type-cast cakelispBinDirectory (* void)))
     ;;  (delete-array wstrDllDirectory))
 
-    (set libHandle (LoadLibraryEx convertedPath null
+    (set libHandle (LoadLibraryEx absoluteLibPath null
                                   (bit-or LOAD_LIBRARY_SEARCH_USER_DIRS
                                           LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)))
     (unless libHandle
-      (fprintf stderr "DynamicLoader Error: Failed to load %s with code %d\n" convertedPath
+      (fprintf stderr "DynamicLoader Error: Failed to load %s with code %d\n" absoluteLibPath
                (GetLastError))
       (free (type-cast absoluteLibPath (* void)))
       (return null))
