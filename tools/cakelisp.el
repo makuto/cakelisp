@@ -10,6 +10,7 @@
     (put 'defun-comptime 'lisp-indent-function 'defun)
     (put 'defun-nodecl 'lisp-indent-function 'defun)
     (put 'defgenerator 'lisp-indent-function 'defun)
+    (put 'def-function-signature 'lisp-indent-function 'defun)
 
     (put 'defstruct-local 'lisp-indent-function 1)
     (put 'defstruct 'lisp-indent-function 1)
