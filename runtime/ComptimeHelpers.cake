@@ -235,3 +235,13 @@
               (getNextArgument (token-splice token-array iterator-name end-token-index)))
        (token-splice-rest body tokens))))
   (return true))
+
+(defmacro token-contents-snprintf (token any format string &rest arguments any)
+  (tokenize-push output
+    (scope
+     (var token-contents-printf-buffer ([] 256 char) (array 0))
+     (snprintf token-contents-printf-buffer (sizeof token-contents-printf-buffer)
+               (token-splice format)
+               (token-splice-rest arguments tokens))
+     (set (field (token-splice token) contents) token-contents-printf-buffer)))
+  (return true))
