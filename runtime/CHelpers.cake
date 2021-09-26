@@ -246,6 +246,15 @@
       (token-splice-rest body tokens)))
   (return true))
 
+;; [start, end) a.k.a. standard C for loop with non-zero start
+(defmacro each-in-interval (start any end any iterator-name symbol &rest body any)
+  (tokenize-push output
+    (c-for (var (token-splice iterator-name) int (token-splice start))
+        (< (token-splice iterator-name) (token-splice end))
+        (incr (token-splice iterator-name))
+      (token-splice-rest body tokens)))
+  (return true))
+
 (defmacro each-char-in-string (start-char any iterator-name symbol &rest body any)
   (tokenize-push output
     (c-for (var (token-splice iterator-name) (* char) (token-splice start-char))
