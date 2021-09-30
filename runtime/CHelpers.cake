@@ -255,6 +255,17 @@
       (token-splice-rest body tokens)))
   (return true))
 
+;; [start, end] where start >= end
+(defmacro each-in-closed-interval-descending (start-max any end-min any
+                                              iterator-name symbol
+                                              &rest body any)
+  (tokenize-push output
+    (c-for (var (token-splice iterator-name) int (token-splice start-max))
+        (>= (token-splice iterator-name) (token-splice end-min))
+        (decr (token-splice iterator-name))
+      (token-splice-rest body tokens)))
+  (return true))
+
 (defmacro each-char-in-string (start-char any iterator-name symbol &rest body any)
   (tokenize-push output
     (c-for (var (token-splice iterator-name) (* char) (token-splice start-char))

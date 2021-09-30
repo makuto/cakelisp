@@ -25,6 +25,7 @@
     ;; Macros
     (put 'each-in-range 'lisp-indent-function 2)
     (put 'each-in-interval 'lisp-indent-function 3)
+    (put 'each-in-closed-interval-descending 'lisp-indent-function 3)
     (put 'each-in-array 'lisp-indent-function 2)
     (put 'each-char-in-string 'lisp-indent-function 2)
     (put 'each-char-in-string-const 'lisp-indent-function 2)
