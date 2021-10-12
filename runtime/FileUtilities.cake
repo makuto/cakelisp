@@ -122,8 +122,9 @@
   (fseek in-file 0 SEEK_END)
   (var file-size size_t (ftell in-file))
   (rewind in-file)
-  (var-cast-to out-buffer (* char) (malloc file-size))
+  (var-cast-to out-buffer (* char) (malloc (+ 1 file-size)))
   (fread out-buffer file-size 1 in-file)
+  (set (at file-size out-buffer) 0)
   (return out-buffer))
 
 (defun write-string (out-file (* FILE) out-string (* (const char)))
