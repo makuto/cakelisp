@@ -39,6 +39,7 @@ CL.exe src/Tokenizer.cpp ^
  src/ModuleManager.cpp ^
  src/Logging.cpp ^
  src/Build.cpp ^
+ src/Metadata.cpp ^
  src/Main.cpp ^
  /EHsc /MP /DWINDOWS /DCAKELISP_EXPORTING ^
  /Fe"bin\cakelisp_bootstrap" /Zi /Fd"bin\cakelisp_bootstrap.pdb" /DEBUG:FASTLINK

@@ -2910,8 +2910,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"bit->>", bitwiseRightShift, ArraySize(bitwiseRightShift)},
 	    {"=", relationalEquality, ArraySize(relationalEquality)},
 	    {"!=", relationalNotEqual, ArraySize(relationalNotEqual)},
-	    {"eq", relationalEquality, ArraySize(relationalEquality)},
-	    {"neq", relationalNotEqual, ArraySize(relationalNotEqual)},
+	    // {"eq", relationalEquality, ArraySize(relationalEquality)},
+	    // {"neq", relationalNotEqual, ArraySize(relationalNotEqual)},
 	    {"<=", relationalLessThanEqual, ArraySize(relationalLessThanEqual)},
 	    {">=", relationalGreaterThanEqual, ArraySize(relationalGreaterThanEqual)},
 	    {"<", relationalLessThan, ArraySize(relationalLessThan)},
@@ -3085,7 +3085,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Bitwise
 	    "bit-or", "bit-and", "bit-xor", "bit-ones-complement", "bit-<<", "bit->>",
 	    // Relational
-	    "=", "!=", "eq", "neq", "<=", ">=", "<", ">",
+	    "=", "!=", /*"eq", "neq",*/ "<=", ">=", "<", ">",
 	    // Arithmetic
 	    "+", "-", "*", "/", "%", "mod", "++", "--", "incr", "decr"};
 	for (size_t i = 0; i < ArraySize(cStatementKeywords); ++i)

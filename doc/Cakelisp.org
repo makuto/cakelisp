@@ -432,6 +432,7 @@ If ~global~ is specified instead, all modules and build dependencies would inclu
  "ModuleManager.cpp"
  "Logging.cpp"
  "Build.cpp"
+ "Metadata.cpp"
  "Main.cpp")
 #+END_SRC
 

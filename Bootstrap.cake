@@ -18,6 +18,7 @@
  "ModuleManager.cpp"
  "Logging.cpp"
  "Build.cpp"
+ "Metadata.cpp"
  "Main.cpp")
 
 (add-build-options "-DUNIX" "-Wall" "-Werror" "-std=c++11")

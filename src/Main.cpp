@@ -4,7 +4,9 @@
 #include <vector>
 
 #include "FileUtilities.hpp"
+#include "Generators.hpp"
 #include "Logging.hpp"
+#include "Metadata.hpp"
 #include "ModuleManager.hpp"
 #include "RunProcess.hpp"
 #include "Utilities.hpp"
@@ -55,6 +57,7 @@ int main(int numArguments, char* arguments[])
 	bool executeOutput = false;
 	bool skipBuild = false;
 	bool listBuiltInGeneratorsThenQuit = false;
+	bool listBuiltInGeneratorMetadataThenQuit = false;
 	bool waitForDebugger = false;
 
 	const CommandLineOption options[] = {
@@ -70,6 +73,8 @@ int main(int numArguments, char* arguments[])
 	    {"--list-built-ins", &listBuiltInGeneratorsThenQuit,
 	     "List all built-in compile-time procedures, then exit. This list contains every procedure "
 	     "you can possibly call, until you import more or define your own"},
+	    {"--list-built-ins-details", &listBuiltInGeneratorMetadataThenQuit,
+	     "List all built-in compile-time procedures and a brief explanation of each, then exit."},
 	    {"--wait-for-debugger", &waitForDebugger,
 	     "Wait for a debugger to be attached before starting loading and evaluation"},
 	    // Logging
@@ -179,6 +184,15 @@ int main(int numArguments, char* arguments[])
 			Sleep(100);
 #endif
 		Log("attached\n");
+	}
+
+	if (listBuiltInGeneratorMetadataThenQuit)
+	{
+		EvaluatorEnvironment environment;
+		importFundamentalGenerators(environment);
+		printBuiltInGeneratorMetadata(&environment);
+
+		return 0;
 	}
 
 	if (listBuiltInGeneratorsThenQuit)

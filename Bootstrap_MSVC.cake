@@ -18,6 +18,7 @@
  "ModuleManager.cpp"
  "Logging.cpp"
  "Build.cpp"
+ "Metadata.cpp"
  "Main.cpp")
 
 (add-build-options "/nologo" "/DWINDOWS" "/DCAKELISP_EXPORTING" "/EHsc"

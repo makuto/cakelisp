@@ -157,6 +157,7 @@
     <ClCompile Include="..\..\src\Generators.cpp" />
     <ClCompile Include="..\..\src\Logging.cpp" />
     <ClCompile Include="..\..\src\Main.cpp" />
+	<ClCompile Include="..\..\src\Metadata.cpp" />
     <ClCompile Include="..\..\src\ModuleManager.cpp" />
     <ClCompile Include="..\..\src\OutputPreambles.cpp" />
     <ClCompile Include="..\..\src\RunProcess.cpp" />
