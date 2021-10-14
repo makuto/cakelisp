@@ -44,7 +44,7 @@ CAKELISP_API int getExpectedArgument(const char* message, const std::vector<Toke
                                      int endTokenIndex);
 // Expects startTokenIndex to be the invocation. The name of the invocation is included in the count
 // Note: Body arguments will not work properly with this
-int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
+CAKELISP_API int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 // Like getNumArguments, includes invocation
 CAKELISP_API bool ExpectNumArguments(const std::vector<Token>& tokens, int startTokenIndex,
                                      int endTokenIndex, int numExpectedArguments);
