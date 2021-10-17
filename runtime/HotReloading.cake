@@ -114,7 +114,7 @@
       (scope
        (def-function-signature global-initializer-signature ())
        (call (type-cast global-initializer global-initializer-signature)))
-      (printf "warning: global initializer 'hotReloadInitializeState' not found!"))
+      (fprintf stderr "warning: global initializer 'hotReloadInitializeState' not found!"))
 
   (for-in function-referent-it (& FunctionReferenceMapPair) registered-functions
           (var loaded-symbol (* void)
@@ -145,10 +145,10 @@
   (unless (!= find-it (call-on end registered-state-variables))
     (set variable-address-out nullptr)
     (when verbose-variables
-      (printf "Did not find variable %s\n" name))
+      (fprintf stderr "Did not find variable %s\n" name))
     (return false))
   (when verbose-variables
-    (printf "Found variable %s at %p.\n" name (path find-it > second)))
+    (fprintf stderr "Found variable %s at %p.\n" name (path find-it > second)))
   (set (deref variable-address-out) (path find-it > second))
   (return true))
 

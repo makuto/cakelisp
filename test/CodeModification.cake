@@ -4,10 +4,10 @@
 (defun secret-print ()
   (if false
       (return))
-  (printf "I got away\n"))
+  (fprintf stderr "I got away\n"))
 
 (defun main (&return int)
-  (printf "Hello Code modification!\n")
+  (fprintf stderr "Hello Code modification!\n")
 
   (simple-macro)
   (secret-print)
@@ -22,8 +22,8 @@
   (return (/ (- 4 2) 2)))
 
 (defmacro simple-macro ()
-  (printf "simple-macro: %d, %d!\n" (compile-time-call) (compile-time-call-before))
-  (tokenize-push output (printf "Hello, macros!\n") (magic-number))
+  (fprintf stderr "simple-macro: %d, %d!\n" (compile-time-call) (compile-time-call-before))
+  (tokenize-push output (fprintf stderr "Hello, macros!\n") (magic-number))
   (return true))
 
 (defun-comptime compile-time-call (&return int)
@@ -38,14 +38,14 @@
   (get-or-create-comptime-var test-var std::string)
   (get-or-create-comptime-var test-crazy-var (* (const (* (<> std::vector int)))))
   (set (deref test-var) "Yeah")
-  (tokenize-push output (printf "The magic number is 42\n"))
+  (tokenize-push output (fprintf stderr "The magic number is 42\n"))
   (return true))
 
 (defun-comptime sabotage-main-printfs (environment (& EvaluatorEnvironment)
                                                    was-code-modified (& bool)
                                                    &return bool)
   (get-or-create-comptime-var test-var std::string)
-  (printf "%s is the message\n" (call-on-ptr c_str test-var))
+  (fprintf stderr "%s is the message\n" (call-on-ptr c_str test-var))
   (var old-definition-tags (<> std::vector std::string))
   ;; Scope to ensure that definition-it and definition are not referred to after
   ;; ReplaceAndEvaluateDefinition is called, because they will be invalid
@@ -53,14 +53,14 @@
    (var definition-it (in ObjectDefinitionMap iterator)
         (call-on find (field environment definitions) "main"))
    (when (= definition-it (call-on end (field environment definitions)))
-     (printf "sabotage-main-printfs: could not find main!\n")
+     (fprintf stderr "sabotage-main-printfs: could not find main!\n")
      (return false))
 
-   (printf "sabotage-main-printfs: found main\n")
+   (fprintf stderr "sabotage-main-printfs: found main\n")
    (var definition (& ObjectDefinition) (path definition-it > second))
    (when (!= (FindInContainer (field definition tags) "sabotage-main-printfs-done")
              (call-on end (field definition tags)))
-     (printf "sabotage-main-printfs: already modified\n")
+     (fprintf stderr "sabotage-main-printfs: already modified\n")
      (return true))
 
    ;; Other modification functions should do this lazily, i.e. only create the expanded definition
@@ -80,12 +80,12 @@
    (var prev-token (* Token) null)
    (for-in token (& Token) (deref modified-main-tokens)
            (when (and prev-token
-                      (= 0 (call-on compare (path prev-token > contents) "printf"))
+                      (= 0 (call-on compare (path prev-token > contents) "stderr"))
                       (ExpectTokenType "sabotage-main-printfs" token TokenType_String))
              (set (field token contents) "I changed your print! Mwahahaha!\\n"))
            (set prev-token (addr token)))
 
-   (printf "sabotage-main-printfs: modified main!\n")
+   (fprintf stderr "sabotage-main-printfs: modified main!\n")
    ;; After
    (prettyPrintTokens (deref modified-main-tokens))
 
@@ -102,7 +102,7 @@
   (var definition-it (in ObjectDefinitionMap iterator)
         (call-on find (field environment definitions) "main"))
   (when (= definition-it (call-on end (field environment definitions)))
-    (printf "sabotage-main-printfs: could not find main after replacement!\n")
+    (fprintf stderr "sabotage-main-printfs: could not find main after replacement!\n")
     (return false))
   (PushBackAll (path definitionIt > second . tags) old-definition-tags)
   (call-on push_back (path definitionIt > second . tags) "sabotage-main-printfs-done")

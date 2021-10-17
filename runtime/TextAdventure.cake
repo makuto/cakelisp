@@ -24,30 +24,30 @@
 (var num-times-loaded int 0)
 
 (defun print-help ()
-  (printf "At any point, enter 'r' to reload the code, 'h' for help, or 'q' to quit\n")
-  (printf "Enter room number for desired room\n\n"))
+  (fprintf stderr "At any point, enter 'r' to reload the code, 'h' for help, or 'q' to quit\n")
+  (fprintf stderr "Enter room number for desired room\n\n"))
 
 (defun print-room (room-to-print (* (const room)))
-  (printf "You are at: %s.\n%s\n"
+  (fprintf stderr "You are at: %s.\n%s\n"
           (path room-to-print > name)
           (path room-to-print > description))
   (var room-index int 0)
   (for-in connected-room (& (const room)) (path room-to-print > connected-rooms)
-          (printf "%d: %s\n" room-index (field connected-room name))
+          (fprintf stderr "%d: %s\n" room-index (field connected-room name))
           (incr room-index))
   (when (call-on empty (path room-to-print > connected-rooms))
-    (printf "There are no connected rooms. This must be the end of the game!\n")))
+    (fprintf stderr "There are no connected rooms. This must be the end of the game!\n")))
 
 ;; Return true to hot-reload, or false to exit
 (defun reloadable-entry-point (&return bool)
-  (printf "CAKE ADVENTURE\n\n")
+  (fprintf stderr "CAKE ADVENTURE\n\n")
   (print-help)
 
   (var current-room (* (const room)) (addr (at 0 rooms)))
   (print-room current-room)
 
   (incr num-times-loaded)
-  (printf "Loaded %d times\n" num-times-loaded)
+  (fprintf stderr "Loaded %d times\n" num-times-loaded)
 
   (var input char 0)
   (var previous-room (* (const room)) current-room)
@@ -56,7 +56,7 @@
       (set previous-room current-room)
       (print-room current-room))
 
-    (printf "> ")
+    (fprintf stderr "> ")
     (set input (getchar))
 
     (cond
@@ -68,9 +68,9 @@
        (var room-request int (atoi (addr input)))
        (var num-rooms int (call-on size (path current-room > connected-rooms)))
        (unless (and num-rooms (< room-request num-rooms))
-         (printf "I don't know where that is. There are %d rooms\n" num-rooms)
+         (fprintf stderr "I don't know where that is. There are %d rooms\n" num-rooms)
          (continue))
-       (printf "Going to room %d\n" room-request)
+       (fprintf stderr "Going to room %d\n" room-request)
        (set current-room (addr (at room-request
                                    (path current-room > connected-rooms)))))
       (true

@@ -19,7 +19,7 @@
       (perror "realpath: ")
       (incr i)
       (continue))
-    (printf "%s = %s\n" (at i path-tests) result)
+    (fprintf stderr "%s = %s\n" (at i path-tests) result)
     (free (type-cast result (* void)))
     (incr i))
   (return 0))

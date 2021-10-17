@@ -51,7 +51,7 @@ This also means that adding Cakelisp to an existing C/C++ project should be virt
 Here are some example imports:
 #+BEGIN_SRC lisp
 (c-import "<vector>") ;; now just e.g. (var my-vec (<> std::vector int) (array 1 2 3))
-(c-import "<cstdio.h>") ;; (printf "Hello %s!\n" "Cakelisp")
+(c-import "<cstdio.h>") ;; (fprintf stderr "Hello %s!\n" "Cakelisp")
 (c-import "MyHeader.hpp") ;; (call-on updateState myGlobalVar 0.016)
 
 ;; Multiple imports are allowed per call:
@@ -131,7 +131,7 @@ The keyword ~&variable-arguments can be used to create a function with variadic 
     (var list va_list)
     (va_start list num-args)
     (each-in-range num-args i
-      (printf "%d\n" (va_arg list int)))
+      (fprintf stderr "%d\n" (va_arg list int)))
     (va_end list))
 
   (defun main (&return int)

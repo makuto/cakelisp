@@ -1,7 +1,7 @@
 (c-import "<stdio.h>")
 
 (defun main (&return int)
-  (printf "Hello, execute!\n" \
+  (fprintf stderr "Hello, execute!\n" \
           "This is a long message, broken " \
           "across multiple lines. " \ ;; Here's a comment on the same line
           "We can also just insert newlines,
@@ -12,15 +12,15 @@ though
 there
 are
 newlines. It's a trade-off.\n")
-  (printf "%d. How about That?
+  (fprintf stderr "%d. How about That?
 " 42)
-  (printf "\nMy shopping list:\n
+  (fprintf stderr "\nMy shopping list:\n
     eggs\n
     bacon\n
     sword\n
 "
           )
-  (printf #"#This is a "here-string". All the characters that I type should literally appear,
+  (fprintf stderr #"#This is a "here-string". All the characters that I type should literally appear,
           including that indentation#"#)
   (return 0))
 

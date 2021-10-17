@@ -65,8 +65,8 @@
     (return true))
   (set (deref modified-vars) true)
 
-  (printf "HotReloading: Modifying code for hot-reloading.\n")
-  (printf "Subsequent modifications will not be hot-reloading safe\n")
+  (fprintf stderr "HotReloading: Modifying code for hot-reloading.\n")
+  (fprintf stderr "Subsequent modifications will not be hot-reloading safe\n")
 
   (get-or-create-comptime-var modules-with-import (<> std::unordered_map std::string int))
 
@@ -98,7 +98,7 @@
         ((= 0 (call-on compare (path top-level-type > contents) "const"))
          (continue))))
 
-    (when verbose (printf ">>> Variable %s\n" (call-on c_str (field definition-pair first))))
+    (when verbose (fprintf stderr ">>> Variable %s\n" (call-on c_str (field definition-pair first))))
     (var definition (& ObjectDefinition) (field definition-pair second))
     (var var-to-modify modify-definition)
     (unless (CreateDefinitionCopyMacroExpanded definition
@@ -135,7 +135,7 @@
     (unless reference-found
       (continue))
 
-    (when verbose (printf ">>> Reference(s) found in %s\n"
+    (when verbose (fprintf stderr ">>> Reference(s) found in %s\n"
                           (call-on c_str (field definition-pair first))))
 
     (set (field def-to-modify module) (field definition context module))

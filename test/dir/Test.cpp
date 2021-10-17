@@ -8,5 +8,5 @@
 
 DEPENDENCY_API void test()
 {
-	printf("Hello from C!\n");
+	fprintf(stderr, "Hello from C!\n");
 }
