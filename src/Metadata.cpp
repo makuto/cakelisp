@@ -33,6 +33,7 @@ enum GeneratorCategory
 	GeneratorCategory_Build,
 	GeneratorCategory_ControlFlow,
 	GeneratorCategory_Memory,
+	GeneratorCategory_Definitions,
 };
 
 struct GeneratorMetadata
@@ -81,7 +82,7 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "add-build-options-global",
     },
-	{
+    {
         "add-cpp-build-dependency",
     },
     {
@@ -96,8 +97,34 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "add-compile-time-hook-module",
     },
-	{
+    {
         "add-linker-options",
+    },
+    {
+        "add-compiler-link-options",
+    },
+    {
+        "add-build-config-label",
+    },
+    {
+        "add-library-dependency",
+    },
+
+    {
+        "import",
+    },
+    {
+        "c-import",
+    },
+
+    {
+        "comptime-define-symbol",
+    },
+    {
+        "comptime-cond",
+    },
+    {
+        "ignore",
     },
 
     //
@@ -148,6 +175,9 @@ GeneratorMetadata g_generatorMetadata[] = {
      "Shift the bits in the first argument to the right by the number indicated by the second "
      "argument. E.g. (bit->> 4 2) = 1."},
     {
+        "bit-or",
+    },
+    {
         "bit-ones-complement",
     },
     {
@@ -167,28 +197,33 @@ GeneratorMetadata g_generatorMetadata[] = {
      (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 2,
      "Evaluate if the two arguments are not equal. Evaluates as true if not equal or false if "
      "equal."},
-    {
-        ">=",
-    },
-    {
-        "<=",
-    },
-    {
-        ">",
-    },
-    {
-        "<",
-    },
+    {">=", GeneratorCategory_Relational, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 2,
+     "Evaluate if the first argument is greater than or equal to the second argument."},
+    {"<=", GeneratorCategory_Relational, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 2,
+     "Evaluate if the first argument is less than or equal to the second argument."},
+    {">", GeneratorCategory_Relational, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 2,
+     "Evaluate if the first argument is greater than the second argument."},
+    {"<", GeneratorCategory_Relational, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 2,
+     "Evaluate if the first argument is less than the second argument."},
 
     //
     // Logical
     //
-    {
-        "and",
-    },
-    {
-        "or",
-    },
+    {"and", GeneratorCategory_Logic, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, MaxArgumentsUnlimited,
+     "Evaluate to true if all the expression arguments result in true. Lazily evaluates, "
+     "i.e. evaluation will stop as soon as any expression evaluates to false."},
+    {"or", GeneratorCategory_Logic, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, MaxArgumentsUnlimited,
+     "Evaluate to true if any of the expression arguments result in true. Lazily evaluates, "
+     "i.e. evaluation will stop as soon as any expression evaluates to true."},
+    {"not", GeneratorCategory_Logic, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 1, 1,
+     "Invert the boolean result of the argument. E.g. (not true) = false, (not false) = true"},
 
     //
     // Control flow
@@ -197,128 +232,31 @@ GeneratorMetadata g_generatorMetadata[] = {
      (EvaluationTime_CompileTime | EvaluationTime_Runtime), 0, 1,
      "Return from the current function. If a return value is specified, return that value to the "
      "caller."},
+    {"if", GeneratorCategory_ControlFlow, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 3,
+     "If the first argument (condition) evaluates to true, execute the second argument (true "
+     "block). If the first argument evaluates to false, execute the third argument (false block), "
+     "if specified. Use (scope) in order to specify more than one statement in the true or false "
+     "blocks."},
+    {"when", GeneratorCategory_ControlFlow, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 2,
+     "If the first argument (condition) evaluates to true, execute the second argument (true "
+     "block). This is a way to write e.g. (if condition (do-thing))"},
+    {"unless", GeneratorCategory_ControlFlow, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 2,
+     "If the first argument (condition) evaluates to false, execute the second argument (false "
+     "block). This is a cleaner way to write e.g. (if (not condition) (do-thing))"},
     {
-        "tokenize-push",
-    },
-    {
-        "if",
-    },
-    {
-        "var-static",
-    },
-    {
-        "at",
-    },
-    {
-        "defmacro",
-    },
-    {
-        "nth",
-    },
-    {
-        "not",
-    },
-    {
-        "type-cast",
-    },
-    {
-        "path",
-    },
-    {
-        "var-global",
-    },
-    {
-        "defun-local",
-    },
-    {
-        "bit-or",
-    },
-    {
-        "import",
-    },
-    {
-        "var",
-    },
-    {
-        "in",
+        "cond",
     },
     {
         "break",
     },
     {
-        "c-import",
-    },
-    {
-        "defun",
-    },
-    {
-        "add-library-dependency",
-    },
-    {
-        "defstruct-local",
-    },
-    {
-        "defun-nodecl",
-    },
-    {
-        "add-compiler-link-options",
-    },
-    {
-        "add-build-config-label",
-    },
-    {
-        "cond",
-    },
-    {
-        "defun-comptime",
-    },
-    {
         "while",
     },
     {
-        "def-function-signature",
-    },
-    {
-        "defgenerator",
-    },
-    {
         "?",
-    },
-    {
-        "call-on",
-    },
-    {
-        "when",
-    },
-    {
-        "def-type-alias-global",
-    },
-    {
-        "def-function-signature-global",
-    },
-    {
-        "scope",
-    },
-    {
-        "rename-builtin",
-    },
-    {
-        "comptime-cond",
-    },
-    {
-        "ignore",
-    },
-    {
-        "comptime-define-symbol",
-    },
-    {
-        "def-type-alias",
-    },
-    {
-        "array",
-    },
-    {
-        "set",
     },
     {
         "for-in",
@@ -326,17 +264,19 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "continue",
     },
+
     {
-        "unless",
+        "type-cast",
     },
-
-	//
-	// Definitions
-	//
-	{
-        "defstruct",
+    {
+        "call-on",
     },
-
+    {
+        "scope",
+    },
+    {
+        "rename-builtin",
+    },
     {
         "block",
     },
@@ -350,17 +290,99 @@ GeneratorMetadata g_generatorMetadata[] = {
         "call-on-ptr",
     },
     {
+        "comptime-error",
+    },
+
+    //
+    // Definitions
+    //
+    {"var", GeneratorCategory_Definitions, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 3,
+     "Define a variable. The first argument is the name, the second is the type, and the optional "
+     "third argument is the initial value. When used in module scope (i.e., not within any "
+     "function), the variable will be local to the module and initialized on application startup."},
+    {"var-global", GeneratorCategory_Definitions, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 3,
+     "Define a global variable. The first argument is the name, the second is the type, and the "
+     "optional third argument is the initial value. This is only valid in module scope (i.e., not "
+     "within any function). The variable will be exposed to other modules which import the current "
+     "module. It is initialized on application startup."},
+    {"var-static", GeneratorCategory_Definitions, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, 3,
+     "Define a static variable. The first argument is the name, the second is the type, and the "
+     "optional third argument is the initial value. This is only valid in body scope (i.e., within "
+     "a function). The variable will retain its value since the previous execution of the "
+     "function. It is initialized the first time the declaration is hit at runtime."},
+    {
+        "defgenerator",
+    },
+    {
+        "defmacro",
+    },
+    {
+        "defstruct",
+    },
+    {
+        "defstruct-local",
+    },
+    {
+        "def-function-signature",
+    },
+    {
+        "def-function-signature-global",
+    },
+    {
+        "defun",
+    },
+    {
+        "defun-local",
+    },
+    {
+        "defun-nodecl",
+    },
+	{
+        "defun-comptime",
+    },
+    {
+        "def-type-alias",
+    },
+    {
+        "def-type-alias-global",
+    },
+    {
+        "array",
+    },
+
+    //
+    // Memory
+    //
+	{
+        "set",
+    },
+    {
         "field",
     },
     {
-        "deref",
+        "path",
     },
     {
         "addr",
     },
-
 	{
-        "comptime-error",
+        "deref",
+    },
+    {
+        "at",
+    },
+    {
+        "nth",
+    },
+
+    //
+    // Code generation
+    //
+    {
+        "tokenize-push",
     },
 
     //
@@ -374,8 +396,11 @@ GeneratorMetadata g_generatorMetadata[] = {
     },
 
     //
-    // C++ helpers. TODO: Move to CppHelpers.cake instead
+    // C++ helpers. TODO: Move to CppHelpers.cake instead?
     //
+    {
+        "in",
+    },
     {"new", GeneratorCategory_Memory, LanguageRequirement_Cpp,
      (EvaluationTime_CompileTime | EvaluationTime_Runtime), 1, 1,
      "Run new on the first argument, a type. Returns a pointer to the memory allocated after the "
