@@ -240,8 +240,14 @@
   (tokenize-push output
     (scope
      (var token-contents-printf-buffer ([] 256 char) (array 0))
-     (snprintf token-contents-printf-buffer (sizeof token-contents-printf-buffer)
-               (token-splice format)
-               (token-splice-rest arguments tokens))
+     (var num-printed size_t
+       (snprintf token-contents-printf-buffer (sizeof token-contents-printf-buffer)
+                 (token-splice format)
+                 (token-splice-rest arguments tokens)))
+     (when (>= num-printed (sizeof token-contents-printf-buffer))
+       (fprintf stderr "error: token-contents-snprintf printed more characters than can fit in " \
+                "buffer of size %d (%d)\n"
+                (type-cast (sizeof token-contents-printf-buffer) int)
+                (type-cast num-printed int)))
      (set (field (token-splice token) contents) token-contents-printf-buffer)))
   (return true))
