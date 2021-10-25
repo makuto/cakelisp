@@ -2716,6 +2716,17 @@ bool ExportScopeGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 	newExport.startTokenIndex = startTokenIndex;
 	context.module->exportScopes.push_back(newExport);
 
+	// We also want to evaluate the scope in the current module
+	if (tokens[startTokenIndex + 1].contents.compare("export-and-evaluate") == 0)
+	{
+		EvaluatorContext exportEvaluateContext = context;
+		int numErrors =
+		    EvaluateGenerateAll_Recursive(environment, exportEvaluateContext, tokens,
+		                                  startTokenIndex + EXPORT_SCOPE_START_EVAL_OFFSET, output);
+		if (numErrors)
+			return false;
+	}
+
 	return true;
 }
 
@@ -3147,6 +3158,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["comptime-cond"] = ComptimeCondGenerator;
 	environment.generators["comptime-define-symbol"] = ComptimeDefineSymbolGenerator;
 	environment.generators["export"] = ExportScopeGenerator;
+	environment.generators["export-and-evaluate"] = ExportScopeGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

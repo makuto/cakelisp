@@ -131,7 +131,14 @@ GeneratorMetadata g_generatorMetadata[] = {
      EvaluationTime_EvaluatedOnImport, 1, 99,
      "When any other module imports the current module, evaluate the statements within this export "
      "scope in the context of the other module. This allows modules to e.g. 'infect' other modules "
-     "with settings necessary for the importer to build"},
+     "with settings necessary for the importer to build. Compare to (export-and-evaluate), which "
+     "evaluates both in the export-defining module and in importer contexts."},
+    {"export-and-evaluate", GeneratorCategory_Uncategorized, LanguageRequirement_Evaluated,
+     (EvaluationTime_EvaluatedImmediately | EvaluationTime_EvaluatedOnImport), 1, 99,
+     "Evaluate the contained statements. Additionally, when any other module imports the current "
+     "module, evaluate the statements within this export scope in the context of the other module. "
+     "This allows modules to e.g. 'infect' other modules with settings necessary for the importer "
+     "to build. Compare to (export), which only evaluates in importer contexts."},
 
     //
     // Math
