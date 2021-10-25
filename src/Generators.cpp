@@ -14,6 +14,9 @@
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
+// (export
+const int EXPORT_SCOPE_START_EVAL_OFFSET = 2;
+
 typedef bool (*ProcessCommandOptionFunc)(EvaluatorEnvironment& environment,
                                          const std::vector<Token>& tokens, int startTokenIndex,
                                          ProcessCommand* command);
@@ -703,6 +706,7 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 		         currentToken.contents.empty())
 			return false;
 
+		Module* importedModule = nullptr;
 		if (isCakeImport)
 		{
 			if (!environment.moduleManager)
@@ -733,10 +737,9 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 				                                   ArraySize(resolvedPathBuffer), currentToken))
 					return false;
 
-				// Evaluate the import!
-				Module* module = nullptr;
+				// Evaluate the import! Will only evaluate it on first import in this environment
 				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, resolvedPathBuffer,
-				                                  &module))
+				                                  &importedModule))
 				{
 					ErrorAtToken(currentToken, "failed to import Cakelisp module");
 					return false;
@@ -744,11 +747,11 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 
 				// Either we only want this file for its header or its macros. Don't build it into
 				// the runtime library/executable
-				if ((state == DeclarationsOnly || state == CompTimeOnly) && module)
+				if ((state == DeclarationsOnly || state == CompTimeOnly) && importedModule)
 				{
 					// TODO: This won't protect us from a module changing the environment, which may
 					// not be desired
-					module->skipBuild = true;
+					importedModule->skipBuild = true;
 				}
 			}
 		}
@@ -791,6 +794,38 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			}
 
 			addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
+		}
+
+		// Evaluate the import's exports in the current context (the importer module)
+		if (importedModule)
+		{
+			// We have imported the file. Prevent new exports being created to simplify things
+			importedModule->exportScopesLocked = true;
+
+			for (ModuleExportScope& exportScope : importedModule->exportScopes)
+			{
+				// Already processed this export. Is this even necessary?
+				if (exportScope.modulesEvaluatedExport.find(context.module->filename) !=
+				    exportScope.modulesEvaluatedExport.end())
+					continue;
+
+				int startEvalateTokenIndex =
+				    exportScope.startTokenIndex + EXPORT_SCOPE_START_EVAL_OFFSET;
+
+				EvaluatorContext exportModuleContext = context;
+				int numErrors = EvaluateGenerateAll_Recursive(environment, exportModuleContext,
+				                                              *exportScope.tokens,
+				                                              startEvalateTokenIndex, output);
+				if (numErrors)
+				{
+					NoteAtToken((*exportScope.tokens)[exportScope.startTokenIndex],
+					            "while evaluating export");
+					NoteAtToken(tokens[startTokenIndex], "export came from this import");
+					return false;
+				}
+
+				exportScope.modulesEvaluatedExport[context.module->filename] = 1;
+			}
 		}
 
 		output.imports.push_back({currentToken.contents,
@@ -2644,6 +2679,46 @@ bool ComptimeDefineSymbolGenerator(EvaluatorEnvironment& environment,
 	return true;
 }
 
+// Export works like a delayed evaluate where it is evaluated within each importing module
+bool ExportScopeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime/runtime
+	if (!ExpectEvaluatorScope("export", tokens[startTokenIndex], context, EvaluatorScope_Module))
+		return false;
+
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex], "modules not supported (internal code error?)");
+		return false;
+	}
+
+	// See this member's comment to understand why this is here
+	if (context.module->exportScopesLocked)
+	{
+		ErrorAtToken(
+		    tokens[startTokenIndex],
+		    "export has been added, but other modules have already evaluated past exports of this "
+		    "module. Try to move this export out of comptime blocks or do not macro-generate it");
+		return false;
+	}
+
+	const Token& startEvalToken = tokens[startTokenIndex + EXPORT_SCOPE_START_EVAL_OFFSET];
+	if (startEvalToken.type == TokenType_CloseParen)
+	{
+		ErrorAtToken(startEvalToken, "expected statements to export");
+		return false;
+	}
+
+	ModuleExportScope newExport;
+	newExport.tokens = &tokens;
+	newExport.startTokenIndex = startTokenIndex;
+	context.module->exportScopes.push_back(newExport);
+
+	return true;
+}
+
 // Give the user a replacement suggestion
 typedef std::unordered_map<std::string, const char*> DeprecatedHelpStringMap;
 DeprecatedHelpStringMap s_deprecatedHelpStrings;
@@ -3071,6 +3146,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["comptime-error"] = ComptimeErrorGenerator;
 	environment.generators["comptime-cond"] = ComptimeCondGenerator;
 	environment.generators["comptime-define-symbol"] = ComptimeDefineSymbolGenerator;
+	environment.generators["export"] = ExportScopeGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {

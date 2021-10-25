@@ -18,6 +18,7 @@
      (array "Code modification" "test/CodeModification.cake")
      ;; (array "Build options" "test/BuildOptions.cake")
      (array "Execute" "test/Execute.cake")
+     (array "Export" "test/ExportTest.cake")
      (array "Defines" "test/Defines.cake")
      (array "Multi-line strings" "test/MultiLineStrings.cake")
      (array "Build helpers" "test/BuildHelpers.cake")

@@ -22,6 +22,7 @@ enum EvaluationTime
 	EvaluationTime_EvaluatedImmediately = 1 << 0,
 	EvaluationTime_CompileTime = 1 << 1,
 	EvaluationTime_Runtime = 1 << 2,
+	EvaluationTime_EvaluatedOnImport = 1 << 3,
 };
 
 enum GeneratorCategory
@@ -126,6 +127,11 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "ignore",
     },
+    {"export", GeneratorCategory_Uncategorized, LanguageRequirement_Evaluated,
+     EvaluationTime_EvaluatedOnImport, 1, 99,
+     "When any other module imports the current module, evaluate the statements within this export "
+     "scope in the context of the other module. This allows modules to e.g. 'infect' other modules "
+     "with settings necessary for the importer to build"},
 
     //
     // Math
@@ -340,7 +346,7 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "defun-nodecl",
     },
-	{
+    {
         "defun-comptime",
     },
     {
@@ -356,7 +362,7 @@ GeneratorMetadata g_generatorMetadata[] = {
     //
     // Memory
     //
-	{
+    {
         "set",
     },
     {
@@ -368,7 +374,7 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "addr",
     },
-	{
+    {
         "deref",
     },
     {

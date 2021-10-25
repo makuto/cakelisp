@@ -21,6 +21,15 @@ struct ModuleDependency
 extern const char* g_modulePreBuildHookSignature;
 typedef bool (*ModulePreBuildHook)(ModuleManager& manager, Module* module);
 
+struct ModuleExportScope
+{
+	const std::vector<Token>* tokens;
+	int startTokenIndex; // Start of (export) invocation, not eval statements (for easier errors)
+
+	// Prevent double-evaluation
+	std::unordered_map<std::string, int> modulesEvaluatedExport;
+};
+
 // A module is typically associated with a single file. Keywords like local mean in-module only
 struct Module
 {
@@ -29,6 +38,12 @@ struct Module
 	GeneratorOutput* generatedOutput;
 	std::string sourceOutputName;
 	std::string headerOutputName;
+
+	std::vector<ModuleExportScope> exportScopes;
+	// As soon as the first importer evaluates any exports from this module, we can no longer add
+	// new exports, because then we would have to go back to the importing modules and re-evaluate.
+	// We could make it smart enough to do this, but it doesn't seem worth the effort now
+	bool exportScopesLocked;
 
 	// Build system
 	std::vector<ModuleDependency> dependencies;
