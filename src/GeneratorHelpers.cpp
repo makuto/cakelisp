@@ -3,6 +3,7 @@
 #include <cctype>  // isdigit
 
 #include "Evaluator.hpp"
+#include "ModuleManager.hpp"
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
@@ -1352,4 +1353,39 @@ bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definiti
 	}
 
 	return true;
+}
+
+const char* RequiresFeatureToString(RequiredFeature requiredFeatures)
+{
+	if (requiredFeatures == RequiredFeature_CppInDeclaration)
+		return "C++ in declaration (which naturally requires C++ in definition)";
+	else if (requiredFeatures == RequiredFeature_CppInDefinition)
+		return "C++ in definition";
+	else if (requiredFeatures == RequiredFeature_Cpp)
+		return "C++ in both declaration and definition";
+	else
+		return "error: cannot describe RequiredFeature";
+}
+
+void RequiresFeature(Module* module, ObjectDefinition* objectDefinition,
+                     RequiredFeature requiredFeatures, const Token* blameToken)
+{
+	RequiredFeatureReason newRequiredReason;
+	newRequiredReason.blameToken = blameToken;
+	newRequiredReason.requiredFeatures = requiredFeatures;
+
+	module->requiredFeatures =
+	    (RequiredFeature)((int)module->requiredFeatures | (int)requiredFeatures);
+	module->requiredFeaturesReasons.push_back(newRequiredReason);
+
+	if (objectDefinition->type != ObjectType_CompileTimeMacro &&
+	    objectDefinition->type != ObjectType_CompileTimeGenerator &&
+	    objectDefinition->type != ObjectType_CompileTimeFunction)
+	{
+		objectDefinition->requiredFeatures =
+		    (RequiredFeature)((int)objectDefinition->requiredFeatures | (int)requiredFeatures);
+		objectDefinition->requiredFeaturesReasons.push_back(newRequiredReason);
+	}
+
+	// NoteAtTokenf(*blameToken, "required feature %s", RequiresFeatureToString(requiredFeatures));
 }

@@ -183,3 +183,7 @@ CAKELISP_API void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceC
 CAKELISP_API bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,
                                       uint32_t tokensCrc, TokenizePushContext* spliceContext,
                                       std::vector<Token>& output);
+
+struct Module;
+CAKELISP_API void RequiresFeature(Module* module, ObjectDefinition* objectDefinition,
+                                  RequiredFeature requiredFeatures, const Token* blameToken);

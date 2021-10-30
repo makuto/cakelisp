@@ -158,6 +158,13 @@ struct MacroExpansion
 typedef std::unordered_map<uint32_t, const Token*> TokenizePushTokensMap;
 typedef std::pair<const uint32_t, const Token*> TokenizePushTokensPair;
 
+struct RequiredFeatureReason
+{
+	const Token* blameToken;
+	RequiredFeature requiredFeatures;
+};
+typedef std::vector<RequiredFeatureReason> RequiredFeatureReasonList;
+
 struct ObjectDefinition
 {
 	std::string name;
@@ -209,6 +216,9 @@ struct ObjectDefinition
 	// At evaluate time, the tokens are loaded to these lists. At macro run-time (comptime) these
 	// lists are used to copy tokens to the macro output
 	TokenizePushTokensMap tokenizePushTokens;
+
+	RequiredFeature requiredFeatures;
+	RequiredFeatureReasonList requiredFeaturesReasons;
 };
 
 struct ObjectReferencePool

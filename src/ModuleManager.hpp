@@ -45,6 +45,11 @@ struct Module
 	// We could make it smart enough to do this, but it doesn't seem worth the effort now
 	bool exportScopesLocked;
 
+	// This could be determined by going definition-by-definition, but I'd rather also have a quick
+	// high-level version for performance and ease of use
+	RequiredFeature requiredFeatures;
+	RequiredFeatureReasonList requiredFeaturesReasons;
+
 	// Build system
 	std::vector<ModuleDependency> dependencies;
 

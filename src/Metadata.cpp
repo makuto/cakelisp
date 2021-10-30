@@ -387,9 +387,6 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "at",
     },
-    {
-        "nth",
-    },
 
     //
     // Code generation
