@@ -235,7 +235,11 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 		}
 	}
 
-	ErrorAtToken(tokens[optionNameIndex], "unrecognized option");
+	ErrorAtToken(tokens[optionNameIndex], "unrecognized option. Available options:");
+	for (unsigned int i = 0; i < ArraySize(stringOptions); ++i)
+		Logf("\t%s\n", stringOptions[i].option);
+	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
+		Logf("\t%s\n", commandOptions[i].optionName);
 	return false;
 }
 
