@@ -1980,7 +1980,7 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 
 	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
 
-	addStringOutput(outputDest, "struct", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+	addStringOutput(outputDest, "typedef struct", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_ConvertTypeName,
 	                &tokens[nameIndex]);
@@ -2050,6 +2050,8 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 	}
 
 	addLangTokenOutput(outputDest, StringOutMod_CloseBlock, &tokens[endInvocationIndex]);
+	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_ConvertTypeName,
+	                &tokens[nameIndex]);
 	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 
 	return true;

@@ -162,7 +162,7 @@
   (var output-dest (& (<> std::vector StringOutput))
     (? is-global (field output header) (field output source)))
 
-  (addStringOutput output-dest "enum" StringOutMod_SpaceAfter name)
+  (addStringOutput output-dest "typedef enum" StringOutMod_SpaceAfter name)
   (addStringOutput output-dest (path name > contents) StringOutMod_ConvertTypeName name)
   (addLangTokenOutput output-dest StringOutMod_OpenBlock name)
 
@@ -179,6 +179,7 @@
 
   (addLangTokenOutput output-dest StringOutMod_NewlineAfter name)
   (addLangTokenOutput output-dest StringOutMod_CloseBlock name)
+  (addStringOutput output-dest (path name > contents) StringOutMod_ConvertTypeName name)
   (addLangTokenOutput output-dest StringOutMod_EndStatement name)
   (return true))
 
