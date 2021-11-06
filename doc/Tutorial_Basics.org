@@ -284,7 +284,7 @@ Cakelisp doesn't know where ~ComptimeHelpers.cake~ is. We need to add its direct
   (import &comptime-only "ComptimeHelpers.cake")
 #+END_SRC
 
-This allows you to move things around as you like without having to update all the imports. You would otherwise need relative or absolute paths to find files.
+This allows you to move things around as you like without having to update all the imports. You would otherwise need relative or absolute paths to find files. You only need to add the directory once. The entire Environment and any additional imports will use the same search paths.
 
 Next, let's invoke the variable creation macro. You can look at its signature to see what you need to provide:
 
@@ -295,7 +295,7 @@ Next, let's invoke the variable creation macro. You can look at its signature to
 
 It looks just like a regular variable declaration, only this one will share the variable's value during the entire compile-time phase.
 
-Let's create our lookup list. We'll use a C++ ~std::vector~, as it is common in Cakelisp internally and accessible from any macro or generator (TODO: This will change once the interface becomes C-compatible):
+Let's create our lookup list. We'll use a C++ ~std::vector~, as it is common in Cakelisp internally and accessible from any macro or generator (*TODO*: This will change once the interface becomes C-compatible):
 
 #+BEGIN_SRC lisp
   (defmacro defcommand (command-name symbol arguments array &rest body any)
@@ -321,3 +321,14 @@ Finally, let's invoke our ~defcommand~ macro to test it:
 If we build and run this, nothing visibly changes! We are storing the ~command-table~, but not outputting it anywhere useful.
 
 ** Compile-time hooks
+~defcommand~ is collating a list of command names in ~command-table~. We want to take that table and convert it to a static array for use at runtime.
+
+The problem is we don't know when ~defcommand~ commands are going to finish being defined. We don't know the right time to output the table, because more commands might be discovered during compile-time evaluation.
+
+The solution to this is to use a /compile-time hook/. These hooks are special points in Cakelisp's build procedure where you can insert arbitrary compile-time code.
+
+In this case, we want to use the ~'post-references-resolved~ hook. This hook is invoked when Cakelisp runs out of missing references, which are things like an invocation of a macro which hasn't yet been defined.
+
+This hook is the perfect time to add more code for Cakelisp to evaluate.
+
+*It can be executed more than once*. This is because we might add more references that need to be resolved from our hook. Cakelisp will continue to run this phase until the dust settles and no more new code is added.
