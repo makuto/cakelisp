@@ -33,6 +33,7 @@ The ~runtime/~ directory stores ~.cake~ files which provide various features:
 - ~CHelpers.cake~ provide various helper macros and generators for writing C/C++ code
 - ~CppHelpers.cake~ provide C++-only features
 - ~Cakelisp.cake~ makes it possible to run cakelisp while within another cakelisp compile-time phase
+- ~ComptimeHelpers.cake~ gives powerful tools for writing macros, generators, and other compile-time-only code
 
 ...and more. With the C/CPP helpers files, they have any language feature that wasn't essential to include in ~Generators.cpp~ as "built-ins".
 
@@ -194,7 +195,7 @@ Invoke the macro in ~main~:
     (return 0))
 #+END_SRC
 
-And observe that /"Hello from macro land!"/ is now output.
+And observe that "Hello from macro land!" is now output.
 
 *** Why use a macro?
 
@@ -224,6 +225,13 @@ We now take arguments to the macro, which are defined similarly to function argu
 
 The arguments say ~defcommand~ must take at least three arguments, where the last argument may mark the start of more than three arguments (it will take the rest, hence ~&rest~).
 
+There are only a few types which can be used to validate macro arguments:
+
+- ~symbol~, e.g. ~my-thing~, ~4.f~, ~'my-flag~, or even ~'a'~
+- ~array~, always an open parenthesis
+- ~string~, e.g. ~"This is a string"~
+- ~any~, which will take any of the above types. This is useful in cases where the macro can accept a variety of types
+
 The first argument is going to be the name of the command. We chose type ~symbol~ because we want the command definition to look just like a function:
 
 #+BEGIN_SRC lisp
@@ -239,9 +247,77 @@ The first argument is going to be the name of the command. We chose type ~symbol
   ;; error: command-name expected Symbol, but got String
 #+END_SRC
 
-There are only a few types which can be used to validate macro arguments:
+In this example, ~defcommand~ will output the following in its place:
 
-- ~symbol~, e.g. ~my-thing~, ~4.f~, ~'my-flag~, or even ~'a'~
-- ~array~, always an open parenthesis
-- ~string~, e.g. ~"This is a string"~
-- ~any~, which will take any of the above types. This is useful in cases where the macro can accept a variety of types
+#+BEGIN_SRC lisp
+  (defun hello-from-command ()
+    (fprintf stderr "Hello from command land!\n"))
+#+END_SRC
+
+** Compile-time variables
+Okay, but a C macro could slap some strings around like that! Let's do something a C macro could not: create the lookup table automatically.
+
+We need to add the command to a compile-time list so that code can be generated for runtime to look up the function by name.
+
+For this, we need some external help, because we don't know how to save data for later during compile-time. Add this to the top of your ~Hello.cake~:
+
+#+BEGIN_SRC lisp
+  (import &comptime-only "ComptimeHelpers.cake")
+#+END_SRC
+
+This ~ComptimeHelpers.cake~ file provides a handy macro, ~get-or-create-comptime-var~. We ~import~ it to tell Cakelisp that we need that file to be loaded into the environment. We include ~&comptime-only~ because we know we won't use any code in it at runtime.
+
+However, if we try to build now, we get an error:
+
+#+BEGIN_SRC output
+  Hello.cake:1:24: error: file not found! Checked the following paths:
+  Checked if relative to Hello.cake
+  Checked search paths:
+      .
+  error: failed to evaluate Hello.cake
+#+END_SRC
+
+Cakelisp doesn't know where ~ComptimeHelpers.cake~ is. We need to add its directory to our search paths before the import:
+
+#+BEGIN_SRC lisp
+  (add-cakelisp-search-directory "runtime")
+  (import &comptime-only "ComptimeHelpers.cake")
+#+END_SRC
+
+This allows you to move things around as you like without having to update all the imports. You would otherwise need relative or absolute paths to find files.
+
+Next, let's invoke the variable creation macro. You can look at its signature to see what you need to provide:
+
+#+BEGIN_SRC lisp
+  (defmacro get-or-create-comptime-var (bound-var-name (ref symbol) var-type (ref any)
+                                      &optional initializer-index (index any))
+#+END_SRC
+
+It looks just like a regular variable declaration, only this one will share the variable's value during the entire compile-time phase.
+
+Let's create our lookup list. We'll use a C++ ~std::vector~, as it is common in Cakelisp internally and accessible from any macro or generator (TODO: This will change once the interface becomes C-compatible):
+
+#+BEGIN_SRC lisp
+  (defmacro defcommand (command-name symbol arguments array &rest body any)
+
+    (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
+    (call-on-ptr push_back command-table command-name)
+
+    (tokenize-push output
+      (defun (token-splice command-name) (token-splice arguments)
+        (token-splice-rest body tokens)))
+    (return true))
+#+END_SRC
+
+We take a pointer to ~const Token~ to contain our command function name.
+
+Finally, let's invoke our ~defcommand~ macro to test it:
+
+#+BEGIN_SRC lisp
+  (defcommand say-your-name ()
+    (fprintf stderr "your name."))
+#+END_SRC
+
+If we build and run this, nothing visibly changes! We are storing the ~command-table~, but not outputting it anywhere useful.
+
+** Compile-time hooks
