@@ -1,0 +1,65 @@
+#+title: Cakelisp tutorial: basics
+
+* Prerequisites
+- Experience writing C or C++ programs. If you're just learning how to program, you should a different language rather than Cakelisp for now.
+
+* Setup
+First, [[https://github.com/makuto/cakelisp/archive/refs/heads/master.zip][download Cakelisp]]. You can also clone it through git. The URL is [[https://github.com/makuto/cakelisp]].
+
+Unzip the ~master.zip~ file, if you downloaded it manually.
+
+* Cakelisp's repository
+The following section may be skipped. It serves as a quick introduction to the collection of files you downloaded.
+
+Cakelisp consists of the following major components:
+
+** A collection of C++ files
+The core of Cakelisp itself is in the ~src/~ directory.
+
+These files define the functionality of Cakelisp:
+
+- Tokenizer: Turns ~.cake~ text files into arrays of tokens, which is easier to work with
+- Evaluator: Uses the arrays of tokens as instructions on how to manipulate the "Environment"
+- Generators: Invoked by the evaluator, generators create C/C++ text output
+- Writer: Writes generated outputs to C/C++-language text files
+- Module manager: Handles the separation of files into modules and performs the high-level procedure
+- Build system: Invokes the compiler, linker, and dynamic loader as necessary to build your program
+
+You don't need to know exactly what these do for now.
+
+** Runtime
+The ~runtime/~ directory stores ~.cake~ files which provide various features:
+
+- ~CHelpers.cake~ provide various helper macros and generators for writing C/C++ code
+- ~CppHelpers.cake~ provide C++-only features
+- ~Cakelisp.cake~ makes it possible to run cakelisp while within another cakelisp compile-time phase
+
+...and more. With the C/CPP helpers files, they have any language feature that wasn't essential to include in ~Generators.cpp~ as "built-ins".
+
+** Supplementary things
+- ~doc/~ folder contains Cakelisp documentation
+- ~tools/~ holds 3rd-party configuration files for making other tools work with Cakelisp
+- ~test/~ consists of several ~.cake~ files used to test the language while it is developed
+
+* Preparing your environment
+Cakelisp relies on a C++ compiler and linker to perform various things. Your system needs to have a C++ toolchain set up.
+
+- On Windows, download and install [[https://visualstudio.microsoft.com/downloads/][Visual Studio]] for best results
+- On Linux, your system should already have ~g++~ or ~clang++~ installed
+- On Mac, you need ~clang++~
+
+Once these prerequisites are satisfied, do the following:
+
+- Windows: Run ~Build.bat~
+- Linux: Run ~Build.sh~
+- Mac: (TODO) Run ~Build_Mac.sh~
+
+If the script fails, please email ~macoy@macoy.me~ so he can help you and make this build step more robust.
+
+If they succeed, you now have a working ~cakelisp~ binary in the ~bin/~ directory!
+
+** A note on installs
+The language is changing fast enough that I recommend against doing a system-wide installation of ~cakelisp~. If you are using version control, you should check in the entirety of Cakelisp as a submodule so that you always have the compatible version for that project.
+
+* First program
+
