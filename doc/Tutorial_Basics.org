@@ -36,6 +36,8 @@ The ~runtime/~ directory stores ~.cake~ files which provide various features:
 
 ...and more. With the C/CPP helpers files, they have any language feature that wasn't essential to include in ~Generators.cpp~ as "built-ins".
 
+Nothing in ~runtime/~ will actually affect your program unless you explicitly ~import~ them.
+
 ** Supplementary things
 - ~doc/~ folder contains Cakelisp documentation
 - ~tools/~ holds 3rd-party configuration files for making other tools work with Cakelisp
@@ -54,7 +56,7 @@ Once these prerequisites are satisfied, do the following:
 - Linux: Run ~Build.sh~
 - Mac: (TODO) Run ~Build_Mac.sh~
 
-If the script fails, please email ~macoy@macoy.me~ so he can help you and make this build step more robust.
+If the script fails, please email ~macoy@macoy.me~ so I can help you and make this build step more robust.
 
 If they succeed, you now have a working ~cakelisp~ binary in the ~bin/~ directory!
 
@@ -63,3 +65,44 @@ The language is changing fast enough that I recommend against doing a system-wid
 
 * First program
 
+Let's make sure everything is working. Create a new file ~Hello.cake~ and edit it to have the following:
+
+#+BEGIN_SRC lisp
+  (c-import "<stdio.h>")
+
+  (defun main (&return int)
+    (fprintf stderr "Hello, Cakelisp!\n")
+    (return 0))
+#+END_SRC
+
+If you're familiar with C (which you probably should be; I will basically assume you are in this tutorial), this should be pretty simple.
+
+We're just getting started though; this language is much more than C with more parentheses.
+
+Build the file with the following command (adjust to add ~.exe~ on Windows if necessary):
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp --execute Hello.cake
+#+END_SRC
+
+If everything is set up properly, you should see:
+
+#+BEGIN_SRC sh
+  Successfully built and linked a.out
+  Hello, Cakelisp!
+#+END_SRC
+
+You can see that it not only built, but ran the output executable for us, thanks to that ~--execute~ option.
+
+If you run that same command again, you'll see slightly different output:
+
+#+BEGIN_SRC sh
+  No changes needed for a.out
+  Hello, Cakelisp!
+#+END_SRC
+
+Cakelisp's build system automatically caches build artifacts and only rebuilds things when you make changes.
+
+* Special sauce
+
+"Hello World" is pretty boring. Let's write a program that would be difficult to write in a language without Cakelisp's features.
