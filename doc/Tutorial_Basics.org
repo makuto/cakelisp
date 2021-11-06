@@ -133,7 +133,7 @@ By convention, names are written in Kebab style, e.g. ~num-arguments~ rather tha
 
 Now, if we build, we should see the following:
 
-#+BEGIN_SRC sh
+#+BEGIN_SRC output
   Successfully built and linked a.out
   Expected command argument
   /home/macoy/Repositories/cakelisp/a.out
@@ -152,16 +152,16 @@ Doing the build on the same command as your execution will make sure that you do
 
 You should now see:
 
-#+BEGIN_SRC sh
+#+BEGIN_SRC output
   Hello, Cakelisp!
 #+END_SRC
 
-** Creating commands
+** Getting our macro feet wet
 In order to associate a function with a string input by the user, we need a lookup table. The table will have a string as a key and a function pointer as a value.
 
 However, we need to follow our rule that no human should have to write boilerplate like this, because that would make it more difficult than writing a function.
 
-We will accomplish this by creating a /macro/. Macros in Cakelisp let you execute arbitrary code at compile time and generate new tokens for the evaluator to evaluate.
+We will accomplish this by creating a /macro/. Macros in Cakelisp let you execute arbitrary code *at compile time* and generate new tokens for the evaluator to evaluate.
 
 These are unlike C macros, which only do string pasting.
 
@@ -195,3 +195,53 @@ Invoke the macro in ~main~:
 #+END_SRC
 
 And observe that /"Hello from macro land!"/ is now output.
+
+*** Why use a macro?
+
+In this simple example, our macro should just be a function. It would look exactly the same, though wouldn't need a ~return~ or ~tokenize-push~:
+
+#+BEGIN_SRC lisp
+  (defun hello-from-function ()
+    (fprintf stderr "Hello from function land!\n"))
+#+END_SRC
+
+We're going to use the macro to generate additional boilerplate, which is what a function cannot do.
+
+** Making our macro do more
+Let's make a new macro for defining commands:
+
+#+BEGIN_SRC lisp
+  (defmacro defcommand (command-name symbol arguments array &rest body any)
+    (tokenize-push output
+      (defun (token-splice command-name) (token-splice arguments)
+        (token-splice-rest body tokens)))
+    (return true))
+#+END_SRC
+
+This macro now defines a function (~defun~) with name ~command-name~ spliced in for the name token, as well as function arguments and a body.
+
+We now take arguments to the macro, which are defined similarly to function arguments, but do not use C types.
+
+The arguments say ~defcommand~ must take at least three arguments, where the last argument may mark the start of more than three arguments (it will take the rest, hence ~&rest~).
+
+The first argument is going to be the name of the command. We chose type ~symbol~ because we want the command definition to look just like a function:
+
+#+BEGIN_SRC lisp
+  (defun hello-from-function () ;; hello-from-function is a symbol
+    (fprintf stderr "Hello from function land!\n"))
+
+  (defcommand hello-from-command () ;; hello-from-command is also a symbol
+    (fprintf stderr "Hello from command land!\n"))
+
+  ;;(defcommand "hello-from-bad-command" () ;; "hello-from-bad-command" is a string
+  ;;  (fprintf stderr "Hello from command land!\n"))
+  ;; This would cause our macro to error:
+  ;; error: command-name expected Symbol, but got String
+#+END_SRC
+
+There are only a few types which can be used to validate macro arguments:
+
+- ~symbol~, e.g. ~my-thing~, ~4.f~, ~'my-flag~, or even ~'a'~
+- ~array~, always an open parenthesis
+- ~string~, e.g. ~"This is a string"~
+- ~any~, which will take any of the above types. This is useful in cases where the macro can accept a variety of types
