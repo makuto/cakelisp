@@ -79,7 +79,7 @@ If you're familiar with C (which you probably should be; I will basically assume
 
 We're just getting started though; this language is much more than C with more parentheses.
 
-Build the file with the following command (adjust to add ~.exe~ on Windows if necessary):
+Build the file with the following command (adjust to make it ~cakelisp.exe~ on Windows, if necessary):
 
 #+BEGIN_SRC sh
   ./bin/cakelisp --execute Hello.cake
@@ -87,7 +87,7 @@ Build the file with the following command (adjust to add ~.exe~ on Windows if ne
 
 If everything is set up properly, you should see:
 
-#+BEGIN_SRC sh
+#+BEGIN_SRC output
   Successfully built and linked a.out
   Hello, Cakelisp!
 #+END_SRC
@@ -96,7 +96,7 @@ You can see that it not only built, but ran the output executable for us, thanks
 
 If you run that same command again, you'll see slightly different output:
 
-#+BEGIN_SRC sh
+#+BEGIN_SRC output
   No changes needed for a.out
   Hello, Cakelisp!
 #+END_SRC
