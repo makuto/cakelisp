@@ -106,3 +106,92 @@ Cakelisp's build system automatically caches build artifacts and only rebuilds t
 * Special sauce
 
 "Hello World" is pretty boring. Let's write a program that would be difficult to write in a language without Cakelisp's features.
+
+Let's write a program which takes the name of a command and executes it, much like ~git~ does (e.g. ~git add~ or ~git commit~, where ~add~ and ~commit~ are commands).
+
+However, to show off Cakelisp, we're going to have the following rule:
+
+/Adding a command should be as easy as writing a function./
+
+This means no boilerplate is allowed.
+
+** Taking user input
+Modify our ~main~ function to take command-line arguments:
+
+#+BEGIN_SRC lisp
+  (defun main (num-arguments int
+               arguments ([] (* char))
+               &return int)
+    (unless (= 2 num-arguments)
+      (fprintf stderr "Expected command argument\n")
+      (return 1))
+    (fprintf stderr "Hello, Cakelisp!\n")
+    (return 0))
+#+END_SRC
+
+By convention, names are written in Kebab style, e.g. ~num-arguments~ rather than ~numArguments~ or ~num_arguments~. This is purely up to you to follow or ignore, however.
+
+Now, if we build, we should see the following:
+
+#+BEGIN_SRC sh
+  Successfully built and linked a.out
+  Expected command argument
+  /home/macoy/Repositories/cakelisp/a.out
+  error: execution of a.out returned non-zero exit code 256
+#+END_SRC
+
+You can see that Cakelisp ~--execute~ output additional info because we returned a non-zero exit code. This is useful if you are using ~--execute~ in a process chain to run Cakelisp code just like a script.
+
+*TODO*: Currently, Cakelisp ~--execute~ has no way to forward arguments to your output executable. From now on, remove the ~--execute~ and run it like so, adjusting accordingly for your platform (e.g. ~output.exe~ instead of ~a.out~):
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp Hello.cake && ./a.out MyArgument
+#+END_SRC
+
+Doing the build on the same command as your execution will make sure that you don't forget to build after making changes.
+
+You should now see:
+
+#+BEGIN_SRC sh
+  Hello, Cakelisp!
+#+END_SRC
+
+** Creating commands
+In order to associate a function with a string input by the user, we need a lookup table. The table will have a string as a key and a function pointer as a value.
+
+However, we need to follow our rule that no human should have to write boilerplate like this, because that would make it more difficult than writing a function.
+
+We will accomplish this by creating a /macro/. Macros in Cakelisp let you execute arbitrary code at compile time and generate new tokens for the evaluator to evaluate.
+
+These are unlike C macros, which only do string pasting.
+
+Let's write our first macro:
+
+#+BEGIN_SRC lisp
+  (defmacro hello-from-macro ()
+    (tokenize-push output
+      (fprintf stderr "Hello from macro land!\n"))
+    (return true))
+#+END_SRC
+
+~tokenize-push~ is a generator where the first argument is a token array to output to, and the rest are tokens to output.
+
+We will learn more about it as we go through this tutorial.
+
+Every macro can decide whether it succeeded or failed, which is why we ~(return true)~ to finish the macro. This gives you the chance to perform input validation, which isn't possible in C macros.
+
+Invoke the macro in ~main~:
+
+#+BEGIN_SRC lisp
+  (defun main (num-arguments int
+               arguments ([] (* char))
+               &return int)
+    (unless (= 2 num-arguments)
+      (fprintf stderr "Expected command argument\n")
+      (return 1))
+    (fprintf stderr "Hello, Cakelisp!\n")
+    (hello-from-macro)
+    (return 0))
+#+END_SRC
+
+And observe that /"Hello from macro land!"/ is now output.
