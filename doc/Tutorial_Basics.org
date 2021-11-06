@@ -332,3 +332,18 @@ In this case, we want to use the ~'post-references-resolved~ hook. This hook is 
 This hook is the perfect time to add more code for Cakelisp to evaluate.
 
 *It can be executed more than once*. This is because we might add more references that need to be resolved from our hook. Cakelisp will continue to run this phase until the dust settles and no more new code is added.
+
+* Take a deep breath
+If you are feeling overwhelmed, it's okay. Most languages do not expose you to these types of features.
+
+This tutorial threw you into the deep end of the most advanced Cakelisp feature. This is to showcase the language and to reassure you—If you can understand compile-time code generation, you can understand Cakelisp!
+
+It can take some time to appreciate the power that compile-time code generation and code modification give you. It really is a different way of thinking. Here are some examples where it really was a killer feature:
+
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/ProfilerAutoInstrument.cake][ProfilerAutoInstrument.cake]] automatically instruments every function in the environment, effectively mitigating the big disadvantage of a instrumenting profiler vs. a sampling one (having to do the work to instrument everything)
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/Introspection.cake][Introspection.cake]] generates metadata for structs to provide automatic plain-text serialization and a [[https://macoy.me/blog/programming/TypeIntrospection][plethora of other features]]
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/TaskSystem.cake][TaskSystem.cake]] allows for a much more [[https://macoy.me/blog/programming/InterfaceFriction][ergonomic interface]] to multi-threaded task systems
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/AutoTest.cake][AutoTest.cake]] does very similarly to our ~defcommand~ in order to collect and execute test functions
+- [[https://github.com/makuto/cakelisp/blob/master/runtime/HotReloadingCodeModifier.cake][HotReloadingCodeModifier.cake]] converts module-local and global variables into heap-allocated variables automatically, which is an essential step to making hot-reloadable code possible
+
+You can see that this one feature makes possible many things which would be very cumbersome to do without it.
