@@ -1,5 +1,5 @@
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "ComptimeHelpers.cake")
+(import &comptime-only "ComptimeHelpers.cake" "CHelpers.cake")
 
 (c-import "<stdio.h>")
 
@@ -40,14 +40,36 @@
              (token-splice command-name))))
 
   (prettyPrintTokens (deref command-data))
-  (return true))
+
+  (var command-table-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
+  (call-on push_back (field environment comptimeTokens) command-table-tokens)
+  (tokenize-push (deref command-table-tokens)
+    (var command-table ([] command-metadata)
+      (array (token-splice-array (deref command-data)))))
+  (prettyPrintTokens (deref command-table-tokens))
+
+  (return (ClearAndEvaluateAtSplicePoint environment "command-lookup-table" command-table-tokens)))
 
 (add-compile-time-hook post-references-resolved
                        create-command-lookup-table)
 
+;; Our command functions take no arguments and return nothing
+(def-function-signature command-function ())
+
+(defstruct-local command-metadata
+  name (* (const char))
+  command command-function)
+
+(splice-point command-lookup-table)
+
 (defun main (num-arguments int
              arguments ([] (* char))
              &return int)
+  (fprintf stderr "Available commands:\n")
+  (each-in-array command-table i
+    (fprintf stderr "  %s\n"
+             (field (at i command-table) name)))
+
   (unless (= 2 num-arguments)
     (fprintf stderr "Expected command argument\n")
     (return 1))
