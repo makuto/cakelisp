@@ -400,7 +400,9 @@ GeneratorMetadata g_generatorMetadata[] = {
     {"splice-point", GeneratorCategory_CodeGeneration, LanguageRequirement_Evaluated,
      EvaluationTime_EvaluatedImmediately, 1, 1,
      "Define a new named splice point. This point can be used at compile-time by functions like "
-     "ClearAndEvaluateAtSplicePoint() to evaluate code at specific locations in the module."},
+     "ClearAndEvaluateAtSplicePoint() to evaluate code at specific locations in the module. A "
+     "similar function is ReplaceAndEvaluateDefinition(), which is required when replacing a "
+     "definition in order to notify the Environment to remove the old definition."},
 
     //
     // Misc. C helpers
