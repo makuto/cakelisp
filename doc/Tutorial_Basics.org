@@ -353,6 +353,20 @@ It's time to create a compile-time function which will create our runtime comman
 
 Each hook has a pre-defined signature, which is what the ~environment~ and other arguments are. If you use the wrong signature, you will get a helpful error saying what the expected signature was.
 
+From our previous note on ~post-references-resolved~ we learned that our hook can be invoked multiple times. Let's store a comptime var to prevent it from being called more than once:
+
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
+                                               was-code-modified (& bool) &return bool)
+    (get-or-create-comptime-var command-table-already-created bool false)
+    (when (deref command-table-already-created)
+      (return true))
+    (set (deref command-table-already-created) true)
+    (return true))
+#+END_SRC
+
+We have to make the decision to do this ourselves because we might actually want a hook to respond to many iterations of ~post-references-resolved~. In this case however, we want it to run only once.
+
 Our compile-time function is now hooked up and running when all references are resolved, but it's doing nothing.
 
 Let's get our command table and make a loop to iterate over it, printing each command:
@@ -360,6 +374,11 @@ Let's get our command table and make a loop to iterate over it, printing each co
 #+BEGIN_SRC lisp
   (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
                                              was-code-modified (& bool) &return bool)
+    (get-or-create-comptime-var command-table-already-created bool false)
+    (when (deref command-table-already-created)
+      (return true))
+    (set (deref command-table-already-created) true)
+
     (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
     (for-in command-name (* (const Token)) (deref command-table)
       (printFormattedToken stderr (deref command-name))
@@ -425,6 +444,11 @@ Let's output the generated command data to the console to make sure it's good. H
 #+BEGIN_SRC lisp
   (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
                                                was-code-modified (& bool) &return bool)
+    (get-or-create-comptime-var command-table-already-created bool false)
+    (when (deref command-table-already-created)
+      (return true))
+    (set (deref command-table-already-created) true)
+
     (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
 
     (var command-data (* (<> std::vector Token)) (new (<> std::vector Token)))
@@ -511,9 +535,10 @@ We use a /splice point/ to save a spot to insert code later. Define a splice poi
   (splice-point command-lookup-table)
 #+END_SRC
 
-Finally, let's evaluate our generated code, outputting it to the splice point. We'll change ~create-command-lookup-table~ to return the result of the evaluation:
+Finally, let's evaluate our generated code, outputting it to the splice point. We'll change ~create-command-lookup-table~ to return the result of the evaluation. We set ~was-code-modified~ to tell Cakelisp that we actually made changes that may need more processing.
 
 #+BEGIN_SRC lisp
+  (set was-code-modified true)
   (return (ClearAndEvaluateAtSplicePoint environment "command-lookup-table" command-table-tokens))
 #+END_SRC
 

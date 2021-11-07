@@ -23,6 +23,11 @@
 
 (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
                                              was-code-modified (& bool) &return bool)
+  (get-or-create-comptime-var command-table-already-created bool false)
+  (when (deref command-table-already-created)
+    (return true))
+  (set (deref command-table-already-created) true)
+
   (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
 
   (var command-data (* (<> std::vector Token)) (new (<> std::vector Token)))
@@ -48,6 +53,7 @@
       (array (token-splice-array (deref command-data)))))
   (prettyPrintTokens (deref command-table-tokens))
 
+  (set was-code-modified true)
   (return (ClearAndEvaluateAtSplicePoint environment "command-lookup-table" command-table-tokens)))
 
 (add-compile-time-hook post-references-resolved
