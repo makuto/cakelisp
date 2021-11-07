@@ -1,4 +1,4 @@
-#+title: Cakelisp tutorial: basics
+#+title: Cakelisp tutorial: basics of compile-time code execution
 
 This tutorial will introduce you to Cakelisp's most unique feature, compile-time code generation. I'm not going to introduce fundamental programming constructs like variables or conditional logic—I'm going to focus on what makes Cakelisp special. This is the most important thing to cover because it is the least familiar to new users from other languages.
 
