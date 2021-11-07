@@ -317,7 +317,7 @@ Finally, let's invoke our ~defcommand~ macro to test it:
 
 #+BEGIN_SRC lisp
   (defcommand say-your-name ()
-    (fprintf stderr "your name."))
+    (fprintf stderr "your name.\n"))
 #+END_SRC
 
 If we build and run this, nothing visibly changes! We are storing the ~command-table~, but not outputting it anywhere useful.
@@ -550,9 +550,79 @@ And check the output:
 
 Try adding another ~defcommand~ to make sure it is added to the list.
 
-You can see it's now as easy to define a command as defining a new function, so we achieved our goal. We had to do work up-front to generate the code, but that work is amortized over all the time saved each time we add a new command. It also [[https://macoy.me/blog/programming/InterfaceFriction][changes how willing we are to make commands]].
+** Running commands
+Let's finish up by actually taking the user input and calling the appropriate command.
 
-* Take a deep breath
+We need ~strcmp~, so we'll update our ~c-import~ to include it straight from the C standard library:
+
+#+BEGIN_SRC lisp
+  (c-import "<stdio.h>" "<string.h>")
+#+END_SRC
+
+And, in ~main~, after we've confirmed we have enough arguments, we check the command table and run the command!
+
+#+BEGIN_SRC lisp
+  (var found bool false)
+  (each-in-array command-table i
+    (when (= 0 (strcmp (field (at i command-table) name) (at 1 arguments)))
+      (call (field (at i command-table) command))
+      (set found true)
+      (break)))
+  (unless found
+    (fprintf stderr "error: could not find command '%s'\n" (at 1 arguments))
+    (return 1))
+#+END_SRC
+
+Now, we can see our output in different scenarios.
+
+Building only:
+
+#+BEGIN_SRC output
+  > ./bin/cakelisp test/Tutorial_Basics.cake
+    say-your-name
+    (array "say-your-name" say-your-name)
+    (var command-table ([] command-metadata)
+      (array (array "say-your-name" say-your-name)))
+    Successfully built and linked a.out
+#+END_SRC
+
+Running with no arguments:
+
+#+BEGIN_SRC output
+  > ./a.out
+    Available commands:
+      say-your-name
+    Expected command argument
+#+END_SRC
+
+Running with an invalid command:
+
+#+BEGIN_SRC output
+  > ./a.out foo
+    Available commands:
+      say-your-name
+    Hello, Cakelisp!
+    Hello from macro land!
+    error: could not find command 'foo'
+#+END_SRC
+
+And finally, running a valid command:
+
+#+BEGIN_SRC output
+  > ./a.out say-your-name
+    Available commands:
+      say-your-name
+    Hello, Cakelisp!
+    Hello from macro land!
+    your name.
+#+END_SRC
+
+** Conclusion
+You can see it's now as easy to define a command as defining a new function, so we achieved our goal.
+
+We had to do work up-front to generate the code, but that work is amortized over all the time saved each time we add a new command. It also [[https://macoy.me/blog/programming/InterfaceFriction][changes how willing we are to make commands]].
+
+* You made it!
 If you are feeling overwhelmed, it's okay. Most languages do not expose you to these types of features.
 
 This tutorial threw you into the deep end of the most advanced Cakelisp feature. This is to showcase the language and to reassure you—If you can understand compile-time code generation, you can understand Cakelisp!

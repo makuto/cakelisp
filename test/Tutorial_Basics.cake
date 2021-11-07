@@ -1,7 +1,7 @@
 (add-cakelisp-search-directory "runtime")
 (import &comptime-only "ComptimeHelpers.cake" "CHelpers.cake")
 
-(c-import "<stdio.h>")
+(c-import "<stdio.h>" "<string.h>")
 
 (defmacro hello-from-macro ()
   (tokenize-push output
@@ -19,7 +19,7 @@
   (return true))
 
 (defcommand say-your-name ()
-  (fprintf stderr "your name."))
+  (fprintf stderr "your name.\n"))
 
 (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
                                              was-code-modified (& bool) &return bool)
@@ -73,6 +73,17 @@
   (unless (= 2 num-arguments)
     (fprintf stderr "Expected command argument\n")
     (return 1))
+
   (fprintf stderr "Hello, Cakelisp!\n")
   (hello-from-macro)
+
+  (var found bool false)
+  (each-in-array command-table i
+    (when (= 0 (strcmp (field (at i command-table) name) (at 1 arguments)))
+      (call (field (at i command-table) command))
+      (set found true)
+      (break)))
+  (unless found
+    (fprintf stderr "error: could not find command '%s'\n" (at 1 arguments))
+    (return 1))
   (return 0))
