@@ -24,7 +24,8 @@
      (array "Build helpers" "test/BuildHelpers.cake")
      (array "Hooks" "test/CompileTimeHooks.cake")
      (array "Build dependencies" "test/BuildDependencies.cake")
-     (array "Cpp helpers" "test/CppHelpersTest.cake")))
+     (array "Cpp helpers" "test/CppHelpersTest.cake")
+     (array "Tutorial: Basics" "test/Tutorial_Basics.cake")))
 
   (var platform-config (* (const char))
     (comptime-cond

@@ -72,7 +72,9 @@
 
   (unless (= 2 num-arguments)
     (fprintf stderr "Expected command argument\n")
-    (return 1))
+    ;; Commented for easy integration in RunTests.cake only
+    ;;(return 1))
+    (return 0))
 
   (fprintf stderr "Hello, Cakelisp!\n")
   (hello-from-macro)

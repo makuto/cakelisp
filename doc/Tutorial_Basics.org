@@ -618,10 +618,18 @@ And finally, running a valid command:
 #+END_SRC
 
 ** Conclusion
+The complete tutorial code can be found in ~test/Tutoral_Basics.cake~.
+
 You can see it's now as easy to define a command as defining a new function, so we achieved our goal.
 
 We had to do work up-front to generate the code, but that work is amortized over all the time saved each time we add a new command. It also [[https://macoy.me/blog/programming/InterfaceFriction][changes how willing we are to make commands]].
 
+*** Going further
+There are a number of different things you could do with this:
+
+- Commands could optionally provide a help string
+- /Code modification/ could be used to read all functions rather than requiring the use of ~defcommand~
+- Support for arguments could be added
 * You made it!
 If you are feeling overwhelmed, it's okay. Most languages do not expose you to these types of features.
 
