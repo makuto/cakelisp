@@ -327,12 +327,131 @@ The problem is we don't know when ~defcommand~ commands are going to finish bein
 
 The solution to this is to use a /compile-time hook/. These hooks are special points in Cakelisp's build procedure where you can insert arbitrary compile-time code.
 
-In this case, we want to use the ~'post-references-resolved~ hook. This hook is invoked when Cakelisp runs out of missing references, which are things like an invocation of a macro which hasn't yet been defined.
+In this case, we want to use the ~post-references-resolved~ hook. This hook is invoked when Cakelisp runs out of missing references, which are things like an invocation of a macro which hasn't yet been defined.
 
 This hook is the perfect time to add more code for Cakelisp to evaluate.
 
 *It can be executed more than once*. This is because we might add more references that need to be resolved from our hook. Cakelisp will continue to run this phase until the dust settles and no more new code is added.
 
+** Creating our compile-time code generator
+We use a special generator, ~defun-comptime~, to tell Cakelisp to compile and load the function for compile-time execution.
+
+We attach the compile-time function to compile-time hooks, or call from macros or generators.
+
+It's time to create a compile-time function which will create our runtime command look-up table.
+
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
+                                               was-code-modified (& bool) &return bool)
+    (return true))
+
+  (add-compile-time-hook post-references-resolved
+                         create-command-lookup-table)
+#+END_SRC
+
+Each hook has a pre-defined signature, which is what the ~environment~ and other arguments are. If you use the wrong signature, you will get a helpful error saying what the expected signature was.
+
+Our compile-time function is now hooked up and running when all references are resolved, but it's doing nothing.
+
+Let's get our command table and make a loop to iterate over it, printing each command:
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
+                                             was-code-modified (& bool) &return bool)
+    (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
+    (for-in command-name (* (const Token)) (deref command-table)
+      (printFormattedToken stderr (deref command-name))
+      (fprintf stderr "\n"))
+    (return true))
+#+END_SRC
+
+You can see we called ~printFormattedToken~, which is a function available to any compile-time code. It uses a camelCase style to tell you it is defined in C/C++, not Cakelisp.
+
+If all goes well, we should see this output:
+
+#+BEGIN_SRC output
+  say-your-name
+  No changes needed for a.out
+  Hello, Cakelisp!
+  Hello from macro land!
+#+END_SRC
+
+You can see it lists the name /before/ the "No changes needed for a.out" line. This is a sign it is running during compile-time, because the "No changes" line doesn't output until the build system stage.
+
+** It's Tokens all the way down
+At this point, we know it's printing successfully, so we have our list. We now need to get this list from compile-time to generated code for runtime.
+
+To do this, we will generate a new array of Tokens and tell Cakelisp to evaluate them, which results in generating the code to define the lookup table.
+
+We need to create the Token array such that it can always be referred back to in case there are errors. We do this by making sure to allocate it on the heap so that it does not go away on function return or scope exit:
+
+#+BEGIN_SRC lisp
+  (var command-data (* (<> std::vector Token)) (new (<> std::vector Token)))
+  (call-on push_back (field environment comptimeTokens) command-data)
+#+END_SRC
+
+We add to the Environment's ~comptimeTokens~ list so that the Environment will helpfully clean up the tokens for us at the end of the process.
+
+We know we need two things for each command:
+
+- Name of the command, as a string
+- Function pointer to the command, so it can be called at runtime
+
+We're going to use the name provided to ~defcommand~ for the name, but we need to turn it into a ~string~ so that it is properly written:
+#+BEGIN_SRC lisp
+  (var command-name-string Token (deref command-name))
+  (set (field command-name-string type) TokenType_String)
+#+END_SRC
+
+We copy ~command-name~ into ~command-name-string~, which copies the contents of ~command-name~ and various other data. We then change the type of ~command-name-string~ to ~TokenType_String~ so that it is parsed and written to have double quotation marks.
+
+The function pointer will actually just be ~command-name~ spliced in, because the name of the command is the same as the function that defines it.
+
+We can use ~tokenize-push~ to create the data needed for each command:
+
+#+BEGIN_SRC lisp
+  (tokenize-push (deref command-data)
+    (array (token-splice-addr command-name-string)
+           (token-splice command-name)))
+#+END_SRC
+
+We use ~token-splice-addr~ because ~command-name-string~ is a ~Token~, not a /pointer/ to a ~Token~ like ~command-name~.
+
+Let's output the generated command data to the console to make sure it's good. Here's the full ~create-command-lookup-table~ so far:
+
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
+                                               was-code-modified (& bool) &return bool)
+    (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
+
+    (var command-data (* (<> std::vector Token)) (new (<> std::vector Token)))
+    (call-on push_back (field environment comptimeTokens) command-data)
+
+    (for-in command-name (* (const Token)) (deref command-table)
+      (printFormattedToken stderr (deref command-name))
+      (fprintf stderr "\n")
+
+      (var command-name-string Token (deref command-name))
+      (set (field command-name-string type) TokenType_String)
+
+      (tokenize-push (deref command-data)
+        (array (token-splice-addr command-name-string)
+               (token-splice command-name))))
+
+    (prettyPrintTokens (deref command-data))
+    (return true))
+#+END_SRC
+
+And our full output:
+
+#+BEGIN_SRC output
+  say-your-name
+  (array "say-your-name" say-your-name)
+  No changes needed for a.out
+  Hello, Cakelisp!
+  Hello from macro land!
+#+END_SRC
+
+** Evaluating the new code
 * Take a deep breath
 If you are feeling overwhelmed, it's okay. Most languages do not expose you to these types of features.
 
