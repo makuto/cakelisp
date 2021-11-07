@@ -630,6 +630,7 @@ There are a number of different things you could do with this:
 - Commands could optionally provide a help string
 - /Code modification/ could be used to read all functions rather than requiring the use of ~defcommand~
 - Support for arguments could be added
+
 * You made it!
 If you are feeling overwhelmed, it's okay. Most languages do not expose you to these types of features.
 
@@ -644,3 +645,29 @@ It can take some time to appreciate the power that compile-time code generation 
 - [[https://github.com/makuto/cakelisp/blob/master/runtime/HotReloadingCodeModifier.cake][HotReloadingCodeModifier.cake]] converts module-local and global variables into heap-allocated variables automatically, which is an essential step to making hot-reloadable code possible
 
 You can see that this one feature makes possible many things which would be very cumbersome to do without it.
+
+* Learning more
+** Reading documentation
+The ~doc/~ folder contains many files of interest, especially [[file:Cakelisp.org][Cakelisp.org]]. There you will find much more detailed documentation than this tutorial provides.
+
+** Cakelisp self-documentation
+Cakelisp provides some features to inspect its built-in generators. From the command line:
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp --list-built-ins
+#+END_SRC
+
+...lists all the possible generators built in to Cakelisp. This is especially useful when you forget the exact name of a built-in.
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp --list-built-ins-details
+#+END_SRC
+
+This version will list all built-ins as well as provide details for them.
+
+** Reading code
+The best way to learn Cakelisp is to read existing code.
+
+There are examples in ~test/~ and ~runtime/~. You can find extensive real-world usage of Cakelisp on [[https://macoy.me/code/macoy][macoy.me]].
+
+[[https://macoy.me/code/macoy/gamelib][GameLib]] is the closest thing to a package manager you will find in Cakelisp land. It provides powerful features as well as easy importing for a number of 3rd-party C and C++ libraries.
