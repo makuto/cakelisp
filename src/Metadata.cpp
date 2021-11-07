@@ -35,6 +35,7 @@ enum GeneratorCategory
 	GeneratorCategory_ControlFlow,
 	GeneratorCategory_Memory,
 	GeneratorCategory_Definitions,
+	GeneratorCategory_CodeGeneration,
 };
 
 struct GeneratorMetadata
@@ -393,7 +394,13 @@ GeneratorMetadata g_generatorMetadata[] = {
     //
     {
         "tokenize-push",
+        GeneratorCategory_CodeGeneration,
     },
+
+    {"splice-point", GeneratorCategory_CodeGeneration, LanguageRequirement_Evaluated,
+     EvaluationTime_EvaluatedImmediately, 1, 1,
+     "Define a new named splice point. This point can be used at compile-time by functions like "
+     "ClearAndEvaluateAtSplicePoint() to evaluate code at specific locations in the module."},
 
     //
     // Misc. C helpers

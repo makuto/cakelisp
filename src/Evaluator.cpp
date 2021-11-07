@@ -648,6 +648,30 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 	return result;
 }
 
+bool ClearAndEvaluateAtSplicePoint(EvaluatorEnvironment& environment, const char* splicePointName,
+                                   const std::vector<Token>* newSpliceTokens)
+{
+	SplicePointTableIterator findIt = environment.splicePoints.find(splicePointName);
+	if (findIt == environment.splicePoints.end())
+	{
+		Logf("error: splice point %s not found\n", splicePointName);
+		return false;
+	}
+
+	SplicePoint* splicePoint = &findIt->second;
+
+	bool result = EvaluateGenerateAll_Recursive(environment, splicePoint->context, *newSpliceTokens,
+	                                            /*startTokenIndex=*/0, *splicePoint->output) == 0;
+
+	if (!result)
+	{
+		Log("note: encountered error while evaluating the following splice:\n");
+		prettyPrintTokens(*newSpliceTokens);
+	}
+
+	return result;
+}
+
 // Determine what needs to be built, iteratively
 // TODO This can be made faster. I did the most naive version first, for now
 static void PropagateRequiredToReferences(EvaluatorEnvironment& environment)
@@ -1890,6 +1914,11 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 		delete output;
 	}
 	environment.orphanedOutputs.clear();
+
+	for (SplicePointTablePair& splicePointPair : environment.splicePoints)
+	{
+		delete splicePointPair.second.output;
+	}
 
 	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
 		delete comptimeTokens;

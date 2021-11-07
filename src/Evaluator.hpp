@@ -291,6 +291,17 @@ typedef std::unordered_map<std::string, bool> CompileTimeSymbolTable;
 
 typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTable;
 
+struct SplicePoint
+{
+	GeneratorOutput* output;
+	EvaluatorContext context;
+	const Token* blameToken;
+};
+
+typedef std::unordered_map<std::string, SplicePoint> SplicePointTable;
+typedef std::pair<const std::string, SplicePoint> SplicePointTablePair;
+typedef SplicePointTable::iterator SplicePointTableIterator;
+
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
 // if things resize.
@@ -330,6 +341,9 @@ struct EvaluatorEnvironment
 	// definition's output is still used, but no longer has a definition to keep track of it. We'll
 	// make sure the orphans get destroyed
 	std::vector<GeneratorOutput*> orphanedOutputs;
+
+	// Create a named splice point for later output splicing. Used so the user can insert things
+	SplicePointTable splicePoints;
 
 	ObjectDefinitionMap definitions;
 	ObjectReferencePoolMap referencePools;
@@ -432,6 +446,13 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 CAKELISP_API bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
                                                const char* definitionToReplaceName,
                                                const std::vector<Token>& newDefinitionTokens);
+
+// Clears the output of the splice (if any) and evaluates the newSpliceTokens into the splice point
+// Note that this cannot undo the effects of a previous splice evaluation on the environment, it can
+// only undo the generated output.
+CAKELISP_API bool ClearAndEvaluateAtSplicePoint(EvaluatorEnvironment& environment,
+                                                const char* splicePointName,
+                                                const std::vector<Token>* newSpliceTokens);
 
 // Returns whether all references were resolved successfully
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment);

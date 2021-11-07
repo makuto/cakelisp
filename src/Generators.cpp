@@ -2736,6 +2736,46 @@ bool ExportScopeGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 	return true;
 }
 
+bool SplicePointGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime/runtime
+	if (!ExpectEvaluatorScope("splice-point", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int spliceNameIndex = getExpectedArgument("splice-point expected name of splice point", tokens,
+											  startTokenIndex, 1, endInvocationIndex);
+	if (spliceNameIndex == -1 ||
+	    !ExpectTokenType("splice-point name", tokens[spliceNameIndex], TokenType_Symbol))
+		return false;
+
+	const Token* spliceName = &tokens[spliceNameIndex];
+
+	SplicePointTableIterator findIt = environment.splicePoints.find(spliceName->contents);
+	if (findIt != environment.splicePoints.end())
+	{
+		ErrorAtToken(*spliceName,
+		             "splice point redefined. Splice points must have unique names, and may only "
+		             "be evaluated once");
+		return false;
+	}
+
+	GeneratorOutput* spliceOutput = new GeneratorOutput;
+	addSpliceOutput(output, spliceOutput, &tokens[startTokenIndex]);
+
+	SplicePoint newSplicePoint;
+	newSplicePoint.output = spliceOutput;
+	newSplicePoint.context = context;
+	newSplicePoint.blameToken = &tokens[startTokenIndex];
+
+	environment.splicePoints[spliceName->contents] = newSplicePoint;
+
+	return true;
+}
+
 // Give the user a replacement suggestion
 typedef std::unordered_map<std::string, const char*> DeprecatedHelpStringMap;
 DeprecatedHelpStringMap s_deprecatedHelpStrings;
@@ -3144,6 +3184,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["tokenize-push"] = TokenizePushGenerator;
 
 	environment.generators["rename-builtin"] = RenameBuiltinGenerator;
+
+	environment.generators["splice-point"] = SplicePointGenerator;
 
 	// Cakelisp options
 	environment.generators["set-cakelisp-option"] = SetCakelispOption;
