@@ -602,8 +602,8 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		outputSettings.footer = &footer;
 
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
-		const char* extension =
-		    module->requiredFeatures & RequiredFeature_CppInDefinition ? "cpp" : "c";
+		const char* extension = "cpp";
+		    // module->requiredFeatures & RequiredFeature_CppInDefinition ? "cpp" : "c";
 		if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(),
 		                                      outputSettings.sourceCakelispFilename, extension,
 		                                      sourceOutputName, sizeof(sourceOutputName)))
