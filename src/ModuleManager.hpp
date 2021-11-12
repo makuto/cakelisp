@@ -30,6 +30,14 @@ struct ModuleExportScope
 	std::unordered_map<std::string, int> modulesEvaluatedExport;
 };
 
+struct CakelispDeferredImport
+{
+	const Token* fileToImportToken;
+	CakelispImportOutput outputTo;
+	GeneratorOutput* spliceOutput;
+	Module* importedModule;
+};
+
 // A module is typically associated with a single file. Keywords like local mean in-module only
 struct Module
 {
@@ -38,6 +46,8 @@ struct Module
 	GeneratorOutput* generatedOutput;
 	std::string sourceOutputName;
 	std::string headerOutputName;
+
+	std::vector<CakelispDeferredImport> cakelispImports;
 
 	std::vector<ModuleExportScope> exportScopes;
 	// As soon as the first importer evaluates any exports from this module, we can no longer add

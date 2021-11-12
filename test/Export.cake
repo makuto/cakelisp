@@ -1,7 +1,7 @@
 (skip-build)
 (export
  (add-cakelisp-search-directory "runtime")
- (import &comptime-only "CHelpers.cake"))
+ (import "CHelpers.cake"))
 
 (export
  (declare-extern-function test ())

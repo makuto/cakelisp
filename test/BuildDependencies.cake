@@ -1,5 +1,5 @@
 (add-cakelisp-search-directory "runtime")
-(import "Duplicate.cake" &comptime-only "CHelpers.cake")
+(import "Duplicate.cake" "CHelpers.cake")
 
 (c-import "<stdio.h>")
 

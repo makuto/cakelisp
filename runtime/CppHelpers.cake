@@ -1,5 +1,5 @@
 (skip-build)
-(import &comptime-only "CHelpers.cake")
+(import "CHelpers.cake")
 
 (defmacro std-str-equals (std-string-var any str any)
   (tokenize-push output

@@ -2,7 +2,7 @@
         ;; realpath
         "<stdlib.h>")
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "ComptimeHelpers.cake")
+(import "ComptimeHelpers.cake")
 
 (defun main (&return int)
   (var path-tests ([] (* (const char))) (array

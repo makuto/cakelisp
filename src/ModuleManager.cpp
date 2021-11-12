@@ -240,6 +240,11 @@ void moduleManagerDestroyKeepDynLibs(ModuleManager& manager)
 		delete module->generatedOutput;
 		free((void*)module->filename);
 		delete module;
+
+		for (CakelispDeferredImport& import : module->cakelispImports)
+		{
+			delete import.spliceOutput;
+		}
 	}
 	manager.modules.clear();
 }
@@ -597,6 +602,37 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 				     module->filename);
 		}
 
+		for (const CakelispDeferredImport& import : module->cakelispImports)
+		{
+			if (!StringOutputHasAnyMeaningfulOutput(&import.importedModule->generatedOutput->header,
+			                                        true))
+			{
+				if (logging.buildProcess)
+					NoteAtToken(*import.fileToImportToken, "Not importing: Header is empty");
+				continue;
+			}
+
+			// All cakelisp generated files get dumped into a flat directory, so we need to
+			// strip any existing path
+			char relativeFileBuffer[MAX_PATH_LENGTH] = {0};
+			getFilenameFromPath(import.fileToImportToken->contents.c_str(), relativeFileBuffer,
+			                    sizeof(relativeFileBuffer));
+			char cakelispExtensionBuffer[MAX_PATH_LENGTH] = {0};
+			// TODO: .h vs. .hpp
+			PrintfBuffer(cakelispExtensionBuffer, "%s.hpp", relativeFileBuffer);
+
+			// TODO Support outputting to both in one
+			std::vector<StringOutput>& outputDestination =
+			    import.outputTo == CakelispImportOutput_Header ? import.spliceOutput->header :
+			                                                     import.spliceOutput->source;
+			addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter,
+			                import.fileToImportToken);
+			addStringOutput(outputDestination, cakelispExtensionBuffer,
+			                StringOutMod_SurroundWithQuotes, import.fileToImportToken);
+			addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter,
+			                   import.fileToImportToken);
+		}
+
 		makeRunTimeHeaderFooter(header, footer, blameToken);
 		outputSettings.heading = &header;
 		outputSettings.footer = &footer;
@@ -867,8 +903,20 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 			}
 		}
 
-		if (module->skipBuild)
+		// We do this late so that the file can still affect the build arguments without getting
+		// built itself
+		if (!StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->source, false))
+		{
+			if (logging.buildProcess)
+				Logf("note: not building module %s because it has no meaningful output\n",
+				     module->sourceOutputName.c_str());
 			continue;
+		}
+		// Explicitly marked to not build
+		if (module->skipBuild)
+		{
+			continue;
+		}
 
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
 		if (!outputFilenameFromSourceFilename(

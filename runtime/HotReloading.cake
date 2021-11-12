@@ -1,7 +1,7 @@
 (set-cakelisp-option use-c-linkage true)
 
 (import "DynamicLoader.cake"
-        &comptime-only "ComptimeHelpers.cake" "CHelpers.cake")
+        "ComptimeHelpers.cake" "CHelpers.cake")
 (c-import "<unordered_map>" "<vector>" "<string>")
 
 (comptime-cond

@@ -1,4 +1,4 @@
-(import &comptime-only "Export.cake")
+(import "Export.cake")
 
 (c-import "<stdio.h>")
 

@@ -1,5 +1,5 @@
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "CHelpers.cake")
+(import "CHelpers.cake")
 (c-import "<stdio.h>" "<stdarg.h>")
 
 (defun varargs (num-args int &variable-arguments)

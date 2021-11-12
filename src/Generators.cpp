@@ -767,37 +767,39 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			std::vector<StringOutput>& outputDestination =
 			    state == WithDefinitions ? output.source : output.header;
 
-			addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter, &currentToken);
-
 			// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
 			if (currentToken.contents[0] == '<')
 			{
+				addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter, &currentToken);
 				addStringOutput(outputDestination, currentToken.contents, StringOutMod_None,
 				                &currentToken);
+				addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
 			}
 			else
 			{
 				if (isCakeImport)
 				{
-					// All cakelisp generated files get dumped into a flat directory, so we need to
-					// strip any existing path
-					char relativeFileBuffer[MAX_PATH_LENGTH] = {0};
-					getFilenameFromPath(currentToken.contents.c_str(), relativeFileBuffer,
-					                    sizeof(relativeFileBuffer));
-					char cakelispExtensionBuffer[MAX_PATH_LENGTH] = {0};
-					// TODO: .h vs. .hpp
-					PrintfBuffer(cakelispExtensionBuffer, "%s.hpp", relativeFileBuffer);
-					addStringOutput(outputDestination, cakelispExtensionBuffer,
-					                StringOutMod_SurroundWithQuotes, &currentToken);
+					// Defer the import until we know what language requirements it has and whether
+					// it even needs to be imported (e.g., whether it's all macros, so it would
+					// generate no runtime header)
+					CakelispDeferredImport newCakelispImport;
+					newCakelispImport.fileToImportToken = &currentToken;
+					// TODO: Should be an easy add for outputting to both
+					newCakelispImport.outputTo = WithDeclarations ? CakelispImportOutput_Header :
+					                                                CakelispImportOutput_Source;
+					newCakelispImport.spliceOutput = new GeneratorOutput;
+					newCakelispImport.importedModule = importedModule;
+					addSpliceOutput(output, newCakelispImport.spliceOutput, &currentToken);
+					context.module->cakelispImports.push_back(newCakelispImport);
 				}
 				else
 				{
+					addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter, &currentToken);
 					addStringOutput(outputDestination, currentToken.contents,
 					                StringOutMod_SurroundWithQuotes, &currentToken);
+					addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
 				}
 			}
-
-			addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
 		}
 
 		// Evaluate the import's exports in the current context (the importer module)
