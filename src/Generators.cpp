@@ -770,7 +770,8 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
 			if (currentToken.contents[0] == '<')
 			{
-				addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter, &currentToken);
+				addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter,
+				                &currentToken);
 				addStringOutput(outputDestination, currentToken.contents, StringOutMod_None,
 				                &currentToken);
 				addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
@@ -785,8 +786,9 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 					CakelispDeferredImport newCakelispImport;
 					newCakelispImport.fileToImportToken = &currentToken;
 					// TODO: Should be an easy add for outputting to both
-					newCakelispImport.outputTo = WithDeclarations ? CakelispImportOutput_Header :
-					                                                CakelispImportOutput_Source;
+					newCakelispImport.outputTo = state == WithDeclarations ?
+					                                 CakelispImportOutput_Header :
+					                                 CakelispImportOutput_Source;
 					newCakelispImport.spliceOutput = new GeneratorOutput;
 					newCakelispImport.importedModule = importedModule;
 					addSpliceOutput(output, newCakelispImport.spliceOutput, &currentToken);
@@ -794,7 +796,8 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 				}
 				else
 				{
-					addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter, &currentToken);
+					addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter,
+					                &currentToken);
 					addStringOutput(outputDestination, currentToken.contents,
 					                StringOutMod_SurroundWithQuotes, &currentToken);
 					addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
