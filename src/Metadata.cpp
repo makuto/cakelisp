@@ -57,8 +57,8 @@ GeneratorMetadata g_generatorMetadata[] = {
     //
     {"skip-build", GeneratorCategory_Build, LanguageRequirement_Evaluated,
      EvaluationTime_EvaluatedImmediately, 0, 0,
-     "Mark the current module to be excluded from the runtime build process. This is necessary "
-     "when the module does not provide any runtime code. For example, a module with only "
+     "[DEPRECATED] Mark the current module to be excluded from the runtime build process. This is "
+     "necessary when the module does not provide any runtime code. For example, a module with only "
      "compile-time function definitions would need to skip building."},
     {
         "add-c-search-directory-global",

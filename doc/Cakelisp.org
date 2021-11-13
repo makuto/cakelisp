@@ -27,15 +27,14 @@ The ~local~ keyword or suffix is typically relative to module scope. It tells Ca
 ** Importing modules
 The ~import~ function adds the specified file to the environment:
 #+BEGIN_SRC lisp
-(import "MyFile.cake" "AnotherFile.cake")
+  (import "MyFile.cake" "AnotherFile.cake")
 
-;; Include MyForwardDeclares.cake's generated header in the current module's generated header
-;; You might need to do this if you have non-module-local types/signatures which rely on other types
-(import &with-decls "MyForwardDeclares.cake")
+  ;; Include MyForwardDeclares.cake's generated header in the current module's generated header
+  ;; You might need to do this if you have non-module-local types/signatures which rely on other types
+  (import &with-decls "MyForwardDeclares.cake")
 
-;; Do not include in any generated code. This is essential for comptime-only modules, which won't
-;; even generate headers
-(import &comptime-only "ComptimeHelpers.cake")
+  ;; Do not build the module, only include its header (its declarations)
+  (import &decls-only "OnlyHeader.cake")
 #+END_SRC
 
 By default, ~&with-defs~ is specified, meaning the generated header will be included in the generated source file only.
@@ -398,11 +397,6 @@ Cakelisp's build system is powerful enough at this point to serve as a general-p
 Basic projects don't need any build customization at all. Cakelisp uses its module system to automatically determine how to link ~.cake~ files together and build them.
 ** Example: Bootstrap
 For example, Cakelisp itself consists of C++ code. [[file:../Bootstrap.cake][Bootstrap.cake]] builds Cakelisp, and serves as a good demonstration of the build system. I'll explain it here.
-
-#+BEGIN_SRC lisp
-(skip-build)
-#+END_SRC
-This indicates the current module should not be built, nor be linked into the final executable. ~Bootstrap.cake~ doesn't contain any runtime code, so we omit it. Modules which contain only compile-time functions like macros should also ~skip-build~.
 
 #+BEGIN_SRC lisp
 (set-cakelisp-option executable-output "bin/cakelisp")

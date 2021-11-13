@@ -1,4 +1,4 @@
-(import &comptime-only "CppHelpers.cake")
+(import "CppHelpers.cake")
 
 ;; Binds the variable's address to the named var
 ;; Note that this causes the caller's function to return false if the binding failed

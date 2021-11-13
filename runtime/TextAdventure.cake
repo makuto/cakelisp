@@ -2,8 +2,6 @@
 ;; This is meant to be a dead simple "game" which you can modify while it is running.
 ;; This is to test hot-reloading
 
-;; (import &comptime-only "ComptimeHelpers.cake")
-
 (c-import "<stdio.h>"
           "cctype" ;; For isdigit
           "<stdlib.h>" ;; atoi

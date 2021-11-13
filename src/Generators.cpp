@@ -635,6 +635,7 @@ enum ImportState
 	WithDeclarations,
 	CompTimeOnly,
 	DeclarationsOnly,
+	// TODO: Remove?
 	DefinitionsOnly
 };
 
@@ -3197,7 +3198,9 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["set-module-option"] = SetModuleOption;
 
 	// All things build
+	s_deprecatedHelpStrings["skip-build"] = "you should not need to specify skip-build any more";
 	environment.generators["skip-build"] = SkipBuildGenerator;
+
 	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
 	environment.generators["add-c-build-dependency"] = AddDependencyGenerator;
 	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;

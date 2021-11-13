@@ -264,10 +264,10 @@ We need to add the command to a compile-time list so that code can be generated 
 For this, we need some external help, because we don't know how to save data for later during compile-time. Add this to the top of your ~Hello.cake~:
 
 #+BEGIN_SRC lisp
-  (import &comptime-only "ComptimeHelpers.cake")
+  (import "ComptimeHelpers.cake")
 #+END_SRC
 
-This ~ComptimeHelpers.cake~ file provides a handy macro, ~get-or-create-comptime-var~. We ~import~ it to tell Cakelisp that we need that file to be loaded into the environment. We include ~&comptime-only~ because we know we won't use any code in it at runtime.
+This ~ComptimeHelpers.cake~ file provides a handy macro, ~get-or-create-comptime-var~. We ~import~ it to tell Cakelisp that we need that file to be loaded into the environment.
 
 However, if we try to build now, we get an error:
 
@@ -283,7 +283,7 @@ Cakelisp doesn't know where ~ComptimeHelpers.cake~ is. We need to add its direct
 
 #+BEGIN_SRC lisp
   (add-cakelisp-search-directory "runtime")
-  (import &comptime-only "ComptimeHelpers.cake")
+  (import "ComptimeHelpers.cake")
 #+END_SRC
 
 This allows you to move things around as you like without having to update all the imports. You would otherwise need relative or absolute paths to find files. You only need to add the directory once. The entire Environment and any additional imports will use the same search paths.
@@ -547,7 +547,7 @@ And to make sure it works, we will reference ~command-table~ in ~main~. We will 
 Update our ~import~ to include ~CHelpers.cake~, which has a handy macro for iterating over static arrays:
 
 #+BEGIN_SRC lisp
-  (import &comptime-only "ComptimeHelpers.cake" "CHelpers.cake")
+  (import "ComptimeHelpers.cake" "CHelpers.cake")
 #+END_SRC
 
 In ~main~, add the code to list commands. Put it at the very start of the function so it always occurs:
