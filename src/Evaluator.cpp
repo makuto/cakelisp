@@ -2113,11 +2113,23 @@ bool AddCompileTimeHook(EvaluatorEnvironment& environment, std::vector<CompileTi
 bool StringOutputHasAnyMeaningfulOutput(const std::vector<StringOutput>* stringOutput,
                                         bool isHeader)
 {
-	// Gross special case where every header has an empty splice
-	return !stringOutput->empty() &&
-	       (stringOutput->size() > 1 || (*stringOutput)[0].modifiers != StringOutMod_Splice ||
-	        (isHeader ? StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->header,
-	                                                       isHeader) :
-	                    StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->source,
-	                                                       isHeader)));
+	if (stringOutput->empty())
+		return false;
+
+	for (const StringOutput& output : *stringOutput)
+	{
+		if (output.modifiers == StringOutMod_Splice)
+		{
+			bool spliceHadMeaningfulOutput =
+			    (isHeader ?
+			         StringOutputHasAnyMeaningfulOutput(&output.spliceOutput->header, isHeader) :
+			         StringOutputHasAnyMeaningfulOutput(&output.spliceOutput->source, isHeader));
+			if (spliceHadMeaningfulOutput)
+				return true;
+		}
+		else  // Anything else should actually output
+			return true;
+	}
+
+	return false;
 }

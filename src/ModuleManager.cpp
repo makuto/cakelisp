@@ -608,7 +608,8 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 			                                        true))
 			{
 				if (logging.buildProcess)
-					NoteAtToken(*import.fileToImportToken, "Not importing: Header is empty");
+					NoteAtTokenf(*import.fileToImportToken, "Not importing: Header for %s is empty",
+					             import.fileToImportToken->contents.c_str());
 				continue;
 			}
 
