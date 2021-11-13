@@ -2120,12 +2120,20 @@ bool StringOutputHasAnyMeaningfulOutput(const std::vector<StringOutput>* stringO
 	{
 		if (output.modifiers == StringOutMod_Splice)
 		{
-			bool spliceHadMeaningfulOutput =
-			    (isHeader ?
-			         StringOutputHasAnyMeaningfulOutput(&output.spliceOutput->header, isHeader) :
-			         StringOutputHasAnyMeaningfulOutput(&output.spliceOutput->source, isHeader));
-			if (spliceHadMeaningfulOutput)
-				return true;
+			if (output.spliceOutput)
+			{
+				const std::vector<StringOutput>* outputToCheck =
+				    isHeader ? &output.spliceOutput->header : &output.spliceOutput->source;
+				bool spliceHadMeaningfulOutput =
+				    StringOutputHasAnyMeaningfulOutput(outputToCheck, isHeader);
+				if (spliceHadMeaningfulOutput)
+					return true;
+			}
+		}
+		else if (output.modifiers & (StringOutMod_NewlineAfter | StringOutMod_SpaceAfter |
+		                             StringOutMod_SpaceBefore | StringOutMod_None))
+		{
+			// Not actually meaningful output
 		}
 		else  // Anything else should actually output
 			return true;

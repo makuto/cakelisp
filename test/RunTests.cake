@@ -1,5 +1,3 @@
-;; (skip-build)
-
 (add-cakelisp-search-directory "runtime")
 (import "BuildTools.cake" "ComptimeHelpers.cake" "CHelpers.cake" "Cakelisp.cake")
 

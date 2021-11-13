@@ -577,6 +577,15 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		WriterOutputSettings outputSettings;
 		outputSettings.sourceCakelispFilename = module->filename;
 
+		if (!StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->source, false))
+		{
+			if (logging.buildProcess)
+				Logf("note: not writing module %s because it has no meaningful output\n",
+				     module->filename);
+			module->skipBuild = true;
+			continue;
+		}
+
 		GeneratorOutput header;
 		GeneratorOutput footer;
 		// Something to attach the reason for generating this output
@@ -906,17 +915,20 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 
 		// We do this late so that the file can still affect the build arguments without getting
 		// built itself
-		if (!StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->source, false))
 		{
-			if (logging.buildProcess)
-				Logf("note: not building module %s because it has no meaningful output\n",
-				     module->sourceOutputName.c_str());
-			continue;
-		}
-		// Explicitly marked to not build
-		if (module->skipBuild)
-		{
-			continue;
+			// Explicitly marked to not build or automatically excluded
+			if (module->skipBuild)
+			{
+				continue;
+			}
+
+			if (!StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->source, false))
+			{
+				if (logging.buildProcess)
+					Logf("note: not building module %s because it has no meaningful output\n",
+					     module->sourceOutputName.c_str());
+				continue;
+			}
 		}
 
 		char buildObjectName[MAX_PATH_LENGTH] = {0};

@@ -1,5 +1,3 @@
-(skip-build)
-
 (import &comptime-only "CppHelpers.cake")
 
 ;; Binds the variable's address to the named var

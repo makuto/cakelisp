@@ -1,4 +1,3 @@
-(skip-build)
 (import "CHelpers.cake")
 
 (defmacro std-str-equals (std-string-var any str any)

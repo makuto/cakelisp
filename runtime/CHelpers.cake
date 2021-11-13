@@ -1,5 +1,3 @@
-(skip-build)
-
 (import "ComptimeHelpers.cake")
 
 ;; Unlike scope, this does not create a scope, which is useful when you don't want a scope but do

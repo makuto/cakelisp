@@ -1,4 +1,3 @@
-(skip-build)
 (export
  (add-cakelisp-search-directory "runtime")
  (import "CHelpers.cake"))

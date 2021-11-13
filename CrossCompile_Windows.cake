@@ -1,5 +1,3 @@
-(skip-build)
-
 (set-cakelisp-option executable-output "bin/cakelisp.exe")
 
 (add-c-search-directory-module "src")
