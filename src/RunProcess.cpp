@@ -589,4 +589,5 @@ const char** MakeProcessArgumentsFromCommand(const char* fileToExecute,
 	return newArguments;
 }
 
-const int maxProcessesRecommendedSpawned = 8;
+#include <thread>
+const int maxProcessesRecommendedSpawned = std::thread::hardware_concurrency();
