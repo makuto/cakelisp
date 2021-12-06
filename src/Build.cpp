@@ -15,6 +15,7 @@
 #ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include "FindVisualStudio.hpp"
 
 // TODO: These should change based on compiler, i.e. you should be able to build things via mingw on
 // Windows, using the Unix extensions
@@ -258,62 +259,86 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 	// See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
 	if (_stricmp(fileToExecute, "cl.exe") == 0 || _stricmp(fileToExecute, "link.exe") == 0)
 	{
-		LPTSTR vcInstallDir = nullptr;
-		LPTSTR vcHostArchitecture = nullptr;
-		LPTSTR vcTargetArchitecture = nullptr;
-		const int bufferSize = 4096;
-		struct
+		if (false) // TODO: Enable once I can completely build without vcvars
 		{
-			const char* variableName;
-			LPTSTR* outputString;
-		} msvcVariables[] = {{"VCToolsInstallDir", &vcInstallDir},
-		                     {"VSCMD_ARG_HOST_ARCH", &vcHostArchitecture},
-		                     {"VSCMD_ARG_TGT_ARCH", &vcTargetArchitecture}};
-		bool variablesFound = true;
-		for (int i = 0; i < ArraySize(msvcVariables); ++i)
-		{
-			*msvcVariables[i].outputString = (LPTSTR)malloc(bufferSize * sizeof(TCHAR));
-			if (!GetEnvironmentVariable(msvcVariables[i].variableName,
-			                            *msvcVariables[i].outputString, bufferSize))
-			{
-				Logf(
-				    "error: could not find environment variable '%s'.\n Please read the "
-				    "following "
-				    "URL:\nhttps://docs.microsoft.com/en-us/cpp/build/"
-				    "building-on-the-command-line?view=msvc-160\nYou must run Cakelisp in a "
-				    "command prompt which has already run vcvars* scripts.\nSee "
-				    "cakelisp/Build.bat for an example.\nYou can define variables when running "
-				    "Cakelisp from Visual Studio via Project -> Properties -> Configuration "
-				    "Properties -> Debugging -> Environment\n",
-				    msvcVariables[i].variableName);
-
-				Log("The following vars need to be defined in the environment to be read from "
-				    "Cakelisp directly:\n");
-				for (int n = 0; n < ArraySize(msvcVariables); ++n)
-					Logf("\t%s\n", msvcVariables[n].variableName);
-				Log("Note that MSVC relies on more variables which vcvars*.bat define, so you need "
-				    "to define those as well (if you do not use vcvars script).\n");
-
-				variablesFound = false;
-
-				break;
-			}
-		}
-
-		if (variablesFound)
-		{
-			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%sbin\\Host%s\\%s\\%s",
-			             vcInstallDir, vcHostArchitecture, vcTargetArchitecture, fileToExecute);
-
+			Find_Result result = find_visual_studio_and_windows_sdk();
+			// Logf(
+			//     "SDK version:      %d\n"
+			//     "SDK root:         %ws\n"
+			//     "SDK UM library:   %ws\n"
+			//     "SDK UCRT library: %ws\n"
+			//     "VS exe path:      %ws\n"
+			//     "VS library path:  %ws\n",
+			//     result.windows_sdk_version, result.windows_sdk_root,
+			//     result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path,
+			//     result.vs_exe_path, result.vs_library_path);
+			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%ws\\%s", result.vs_exe_path,
+			             fileToExecute);
 			if (logging.processes)
 				Logf("\nOverriding command to:\n%s\n\n", resolvedPathOut);
+			free_resources(&result);
+			return true;
 		}
+		else
+		{
+			LPTSTR vcInstallDir = nullptr;
+			LPTSTR vcHostArchitecture = nullptr;
+			LPTSTR vcTargetArchitecture = nullptr;
+			const int bufferSize = 4096;
+			struct
+			{
+				const char* variableName;
+				LPTSTR* outputString;
+			} msvcVariables[] = {{"VCToolsInstallDir", &vcInstallDir},
+			                     {"VSCMD_ARG_HOST_ARCH", &vcHostArchitecture},
+			                     {"VSCMD_ARG_TGT_ARCH", &vcTargetArchitecture}};
+			bool variablesFound = true;
+			for (int i = 0; i < ArraySize(msvcVariables); ++i)
+			{
+				*msvcVariables[i].outputString = (LPTSTR)malloc(bufferSize * sizeof(TCHAR));
+				if (!GetEnvironmentVariable(msvcVariables[i].variableName,
+				                            *msvcVariables[i].outputString, bufferSize))
+				{
+					Logf(
+					    "error: could not find environment variable '%s'.\n Please read the "
+					    "following "
+					    "URL:\nhttps://docs.microsoft.com/en-us/cpp/build/"
+					    "building-on-the-command-line?view=msvc-160\nYou must run Cakelisp in a "
+					    "command prompt which has already run vcvars* scripts.\nSee "
+					    "cakelisp/Build.bat for an example.\nYou can define variables when running "
+					    "Cakelisp from Visual Studio via Project -> Properties -> Configuration "
+					    "Properties -> Debugging -> Environment\n",
+					    msvcVariables[i].variableName);
 
-		for (int n = 0; n < ArraySize(msvcVariables); ++n)
-			if (*msvcVariables[n].outputString)
-				free(*msvcVariables[n].outputString);
+					Log("The following vars need to be defined in the environment to be read from "
+					    "Cakelisp directly:\n");
+					for (int n = 0; n < ArraySize(msvcVariables); ++n)
+						Logf("\t%s\n", msvcVariables[n].variableName);
+					Log("Note that MSVC relies on more variables which vcvars*.bat define, so you "
+					    "need "
+					    "to define those as well (if you do not use vcvars script).\n");
 
-		return variablesFound;
+					variablesFound = false;
+
+					break;
+				}
+			}
+
+			if (variablesFound)
+			{
+				SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%sbin\\Host%s\\%s\\%s",
+				             vcInstallDir, vcHostArchitecture, vcTargetArchitecture, fileToExecute);
+
+				if (logging.processes)
+					Logf("\nOverriding command to:\n%s\n\n", resolvedPathOut);
+			}
+
+			for (int n = 0; n < ArraySize(msvcVariables); ++n)
+				if (*msvcVariables[n].outputString)
+					free(*msvcVariables[n].outputString);
+
+			return variablesFound;
+		}
 	}
 #endif
 
