@@ -109,6 +109,10 @@ struct ModuleManager
 	// If any artifact no longer matches its crc in cachedCommandCrcs, the change will appear here
 	ArtifactCrcTable newCommandCrcs;
 
+	// Cause the final output to be re-linked no matter what. Useful for things which change link
+	// without using build objects
+	bool forceRelink;
+
 	CAKELISP_API ~ModuleManager() = default;
 };
 
