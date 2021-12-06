@@ -45,6 +45,9 @@ CL.exe src/Tokenizer.cpp ^
  src/Build.cpp ^
  src/Metadata.cpp ^
  src/Main.cpp ^
+ 3rdPartySrc/FindVisualStudio.cpp ^
+ Advapi32.lib Ole32.lib OleAut32.lib ^
+ /I 3rdPartySrc ^
  /EHsc /MP /DWINDOWS /DCAKELISP_EXPORTING ^
  /Fe"bin\cakelisp_bootstrap" /Zi /Fd"bin\cakelisp_bootstrap.pdb" /DEBUG:FASTLINK
  echo %ERRORLEVEL%
