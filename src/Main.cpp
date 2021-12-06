@@ -14,6 +14,7 @@
 #ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include "windows.h"
+#include "FindVisualStudio.hpp"
 #endif
 
 struct CommandLineOption
@@ -59,6 +60,7 @@ int main(int numArguments, char* arguments[])
 	bool listBuiltInGeneratorsThenQuit = false;
 	bool listBuiltInGeneratorMetadataThenQuit = false;
 	bool waitForDebugger = false;
+	bool listVisualStudioThenQuit = false;
 
 	const CommandLineOption options[] = {
 	    {"--ignore-cache", &ignoreCachedFiles,
@@ -77,6 +79,10 @@ int main(int numArguments, char* arguments[])
 	     "List all built-in compile-time procedures and a brief explanation of each, then exit."},
 	    {"--wait-for-debugger", &waitForDebugger,
 	     "Wait for a debugger to be attached before starting loading and evaluation"},
+#ifdef WINDOWS
+	    {"--find-visual-studio", &listVisualStudioThenQuit,
+	     "List where Visual Studio is and what the current Windows SDK is."},
+#endif
 	    // Logging
 	    {"--verbose-phases", &logging.phases,
 	     "Output labels for each major phase Cakelisp goes through"},
@@ -185,6 +191,24 @@ int main(int numArguments, char* arguments[])
 #endif
 		Log("attached\n");
 	}
+
+#ifdef WINDOWS
+	if (listVisualStudioThenQuit)
+	{
+		Find_Result result = find_visual_studio_and_windows_sdk();
+		Logf(
+		    "SDK version:      %d\n"
+		    "SDK root:         %ws\n"
+		    "SDK UM library:   %ws\n"
+		    "SDK UCRT library: %ws\n"
+		    "VS exe path:      %ws\n"
+		    "VS library path:  %ws\n",
+		    result.windows_sdk_version, result.windows_sdk_root, result.windows_sdk_um_library_path,
+		    result.windows_sdk_ucrt_library_path, result.vs_exe_path, result.vs_library_path);
+		free_resources(&result);
+		return 0;
+	}
+#endif
 
 	if (listBuiltInGeneratorMetadataThenQuit)
 	{
