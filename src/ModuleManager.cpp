@@ -84,14 +84,22 @@ void moduleManagerInitialize(ModuleManager& manager)
 		// By doing this, we no longer need VCVars
 		char msvcIncludePath[1024] = {0};
 		char ucrtIncludePath[1024] = {0};
+		char umIncludePath[1024] = {0};
+		char windowsSharedIncludePath[1024] = {0};
 		char ucrtLibPath[1024] = {0};
 		char umLibPath[1024] = {0};
 		char msvcLibPath[1024] = {0};
 		{
 			Find_Result result = find_visual_studio_and_windows_sdk();
-			SafeSnprintf(msvcIncludePath, sizeof(msvcIncludePath), "\"%ws\"", result.vs_include_path);
+			SafeSnprintf(msvcIncludePath, sizeof(msvcIncludePath), "\"%ws\"",
+			             result.vs_include_path);
 			SafeSnprintf(ucrtIncludePath, sizeof(ucrtIncludePath), "\"%ws\\ucrt\"",
 			             result.windows_sdk_include_path);
+			SafeSnprintf(umIncludePath, sizeof(umIncludePath), "\"%ws\\um\"",
+			             result.windows_sdk_include_path);
+			SafeSnprintf(windowsSharedIncludePath, sizeof(windowsSharedIncludePath),
+			             "\"%ws\\shared\"", result.windows_sdk_include_path);
+
 			SafeSnprintf(ucrtLibPath, sizeof(ucrtLibPath), "/LIBPATH:\"%ws\"",
 			             result.windows_sdk_ucrt_library_path);
 			SafeSnprintf(umLibPath, sizeof(umLibPath), "/LIBPATH:\"%ws\"",
@@ -128,6 +136,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, msvcIncludePath},
 		    {ProcessCommandArgumentType_String, "/I"},
 		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, umIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, windowsSharedIncludePath},
 		};
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
@@ -166,6 +178,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, msvcIncludePath},
 		    {ProcessCommandArgumentType_String, "/I"},
 		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, umIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, windowsSharedIncludePath},
 		};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
@@ -182,6 +198,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, msvcIncludePath},
 		    {ProcessCommandArgumentType_String, "/I"},
 		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, umIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, windowsSharedIncludePath},
 		};
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "link.exe";
