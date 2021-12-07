@@ -60,7 +60,9 @@ int main(int numArguments, char* arguments[])
 	bool listBuiltInGeneratorsThenQuit = false;
 	bool listBuiltInGeneratorMetadataThenQuit = false;
 	bool waitForDebugger = false;
+#ifdef WINDOWS
 	bool listVisualStudioThenQuit = false;
+#endif
 
 	const CommandLineOption options[] = {
 	    {"--ignore-cache", &ignoreCachedFiles,

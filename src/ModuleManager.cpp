@@ -856,14 +856,6 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
                                            std::vector<BuildObject*>& buildObjects,
                                            SharedBuildOptions& sharedBuildOptions)
 {
-	sharedBuildOptions.cSearchDirectories = &manager.environment.cSearchDirectories;
-	sharedBuildOptions.buildCommand = &manager.environment.buildTimeBuildCommand;
-	sharedBuildOptions.linkCommand = &manager.environment.buildTimeLinkCommand;
-	sharedBuildOptions.executableOutput = &manager.environment.executableOutput;
-	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
-	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
-	sharedBuildOptions.compilerAdditionalOptions = &manager.environment.compilerAdditionalOptions;
-
 	int numModules = manager.modules.size();
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
@@ -1066,6 +1058,15 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 			object->filename = buildObjectName;
 		}
 	}
+
+	// Set these late so hooks can override them as desired
+	sharedBuildOptions.cSearchDirectories = &manager.environment.cSearchDirectories;
+	sharedBuildOptions.buildCommand = &manager.environment.buildTimeBuildCommand;
+	sharedBuildOptions.linkCommand = &manager.environment.buildTimeLinkCommand;
+	sharedBuildOptions.executableOutput = &manager.environment.executableOutput;
+	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
+	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
+	sharedBuildOptions.compilerAdditionalOptions = &manager.environment.compilerAdditionalOptions;
 
 	return true;
 }
