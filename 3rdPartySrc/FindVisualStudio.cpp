@@ -12,6 +12,9 @@
 // See the comments for how to use this library just below the includes.
 //
 
+// Modified by Macoy Madson. macoy@macoy.me
+// Added VS and SDK include paths
+
 
 #include <windows.h>
 #include <stdlib.h>
@@ -56,9 +59,11 @@ struct Find_Result {
     wchar_t *windows_sdk_root              = NULL;
     wchar_t *windows_sdk_um_library_path   = NULL;
     wchar_t *windows_sdk_ucrt_library_path = NULL;
-    
+    wchar_t *windows_sdk_include_path      = NULL;
+
     wchar_t *vs_exe_path = NULL;
     wchar_t *vs_library_path = NULL;
+    wchar_t *vs_include_path = NULL;
 };
 
 Find_Result find_visual_studio_and_windows_sdk();
@@ -66,9 +71,11 @@ Find_Result find_visual_studio_and_windows_sdk();
 void free_resources(Find_Result *result) {
     free(result->windows_sdk_root);
     free(result->windows_sdk_um_library_path);
-    free(result->windows_sdk_ucrt_library_path);
+	free(result->windows_sdk_ucrt_library_path);
+	free(result->windows_sdk_include_path);
     free(result->vs_exe_path);
-    free(result->vs_library_path);
+	free(result->vs_library_path);
+	free(result->vs_include_path);
 }
 
 //
@@ -367,11 +374,20 @@ void find_windows_kit_root(Find_Result *result) {
         Version_Data data = {0};
         auto windows10_lib = concat(windows10_root, L"Lib");
         defer { free(windows10_lib); };
-        
+
         visit_files_w(windows10_lib, &data, win10_best);
         if (data.best_name) {
             result->windows_sdk_version = 10;
             result->windows_sdk_root = data.best_name;
+        }
+
+		Version_Data data2 = {0};
+		auto windows10_include = concat(windows10_root, L"Include");
+        defer { free(windows10_include); };
+
+        visit_files_w(windows10_include, &data2, win10_best);
+        if (data2.best_name) {
+            result->windows_sdk_include_path = data2.best_name;
             return;
         }
     }
@@ -390,6 +406,15 @@ void find_windows_kit_root(Find_Result *result) {
         if (data.best_name) {
             result->windows_sdk_version = 8;
             result->windows_sdk_root = data.best_name;
+        }
+
+        Version_Data data2 = {0};
+		auto windows8_include = concat(windows8_root, L"Include");
+        defer { free(windows8_include); };
+
+        visit_files_w(windows8_include, &data2, win8_best);
+        if (data2.best_name) {
+            result->windows_sdk_include_path = data2.best_name;
             return;
         }
     }
@@ -470,12 +495,14 @@ bool find_visual_studio_2017_by_fighting_through_microsoft_craziness(Find_Result
         if (version_tail)  *version_tail = 0;  // Stomp the data, because nobody cares about it.
 
         auto library_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", version, L"\\lib\\x64");
-        auto library_file = concat(library_path, L"\\vcruntime.lib");  // @Speed: Could have library_path point to this string, with a smaller count, to save on memory flailing!
+		auto base_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", version);
+		auto library_file = concat(library_path, L"\\vcruntime.lib");  // @Speed: Could have library_path point to this string, with a smaller count, to save on memory flailing!
 
         if (os_file_exists(library_file)) {
             auto link_exe_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", version, L"\\bin\\Hostx64\\x64");
             result->vs_exe_path     = link_exe_path;
-            result->vs_library_path = library_path;
+			result->vs_library_path = library_path;
+			result->vs_include_path = concat(base_path, L"\\include");
             return true;
         }
 
@@ -522,7 +549,9 @@ void find_visual_studio_by_fighting_through_microsoft_craziness(Find_Result *res
 
         if (os_file_exists(vcruntime_filename)) {
             result->vs_exe_path     = concat(buffer, L"VC\\bin\\amd64");
-            result->vs_library_path = lib_path;
+			result->vs_library_path = lib_path;
+			// TODO: Macoy: Probably won't work!
+			result->vs_include_path = concat(buffer, L"VC\\include");
             return;
         }
         
@@ -540,7 +569,7 @@ Find_Result find_visual_studio_and_windows_sdk() {
 
     if (result.windows_sdk_root) {
         result.windows_sdk_um_library_path   = concat(result.windows_sdk_root, L"\\um\\x64");
-        result.windows_sdk_ucrt_library_path = concat(result.windows_sdk_root, L"\\ucrt\\x64");
+		result.windows_sdk_ucrt_library_path = concat(result.windows_sdk_root, L"\\ucrt\\x64");
     }
 
     find_visual_studio_by_fighting_through_microsoft_craziness(&result);

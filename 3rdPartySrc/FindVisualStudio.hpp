@@ -6,9 +6,11 @@ struct Find_Result {
     wchar_t *windows_sdk_root              = NULL;
     wchar_t *windows_sdk_um_library_path   = NULL;
     wchar_t *windows_sdk_ucrt_library_path = NULL;
-    
+    wchar_t *windows_sdk_include_path      = NULL;
+
     wchar_t *vs_exe_path = NULL;
     wchar_t *vs_library_path = NULL;
+	wchar_t *vs_include_path = NULL;
 };
 
 Find_Result find_visual_studio_and_windows_sdk();

@@ -199,12 +199,24 @@ int main(int numArguments, char* arguments[])
 		Logf(
 		    "SDK version:      %d\n"
 		    "SDK root:         %ws\n"
+		    "SDK include:      %ws\n"
 		    "SDK UM library:   %ws\n"
 		    "SDK UCRT library: %ws\n"
 		    "VS exe path:      %ws\n"
+		    "VS include path:  %ws\n"
 		    "VS library path:  %ws\n",
-		    result.windows_sdk_version, result.windows_sdk_root, result.windows_sdk_um_library_path,
-		    result.windows_sdk_ucrt_library_path, result.vs_exe_path, result.vs_library_path);
+		    result.windows_sdk_version, result.windows_sdk_root, result.windows_sdk_include_path,
+		    result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path,
+		    result.vs_exe_path, result.vs_include_path, result.vs_library_path);
+		// Includes
+		// C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\include
+		// C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt
+
+		// Lib
+		// C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\lib\x64
+		// C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\ucrt\x64
+		// C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x64
+
 		free_resources(&result);
 		return 0;
 	}
