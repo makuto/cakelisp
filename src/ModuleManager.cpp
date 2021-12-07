@@ -19,6 +19,10 @@
 #include "Utilities.hpp"
 #include "Writer.hpp"
 
+#ifdef WINDOWS
+#include "FindVisualStudio.hpp"
+#endif
+
 // The ' symbols tell the signature validator that the actual contents of those symbols can be
 // user-defined (just like C letting you specify arguments without names)
 const char* g_modulePreBuildHookSignature =
@@ -77,6 +81,26 @@ void moduleManagerInitialize(ModuleManager& manager)
 #ifdef WINDOWS
 		manager.environment.isMsvcCompiler = true;
 
+		// By doing this, we no longer need VCVars
+		char msvcIncludePath[1024] = {0};
+		char ucrtIncludePath[1024] = {0};
+		char ucrtLibPath[1024] = {0};
+		char umLibPath[1024] = {0};
+		char msvcLibPath[1024] = {0};
+		{
+			Find_Result result = find_visual_studio_and_windows_sdk();
+			SafeSnprintf(msvcIncludePath, sizeof(msvcIncludePath), "\"%ws\"", result.vs_include_path);
+			SafeSnprintf(ucrtIncludePath, sizeof(ucrtIncludePath), "\"%ws\\ucrt\"",
+			             result.windows_sdk_include_path);
+			SafeSnprintf(ucrtLibPath, sizeof(ucrtLibPath), "/LIBPATH:\"%ws\"",
+			             result.windows_sdk_ucrt_library_path);
+			SafeSnprintf(umLibPath, sizeof(umLibPath), "/LIBPATH:\"%ws\"",
+			             result.windows_sdk_um_library_path);
+			SafeSnprintf(msvcLibPath, sizeof(msvcLibPath), "/LIBPATH:\"%ws\"",
+			             result.vs_library_path);
+			free_resources(&result);
+		}
+
 		// MSVC by default
 		// Our lives could be easier by using Clang or MinGW, but it wouldn't be the ideal for
 		// hardcore Windows users, who we should support
@@ -99,7 +123,12 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
-		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, msvcIncludePath},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+		};
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.compileTimeLinkCommand.arguments = {
@@ -114,7 +143,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    // Debug only
 		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
+		    {ProcessCommandArgumentType_String, ucrtLibPath},
+		    {ProcessCommandArgumentType_String, umLibPath},
+		    {ProcessCommandArgumentType_String, msvcLibPath}};
 
 		// TODO Precompiled headers on windows. See
 		// https://docs.microsoft.com/en-us/cpp/build/creating-precompiled-header-files?view=msvc-160
@@ -129,7 +161,12 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
-		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, msvcIncludePath},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+		};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
 		manager.environment.buildTimeBuildCommand.arguments = {
@@ -140,7 +177,12 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
-		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, msvcIncludePath},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+		};
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.buildTimeLinkCommand.arguments = {
@@ -151,7 +193,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_LibrarySearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_Libraries, EmptyString},
 		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
-		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
+		    {ProcessCommandArgumentType_LinkerArguments, EmptyString},
+		    {ProcessCommandArgumentType_String, ucrtLibPath},
+		    {ProcessCommandArgumentType_String, umLibPath},
+		    {ProcessCommandArgumentType_String, msvcLibPath}};
 #else
 		// 13.2 seconds Debug; 10.25 no debug
 		// manager.environment.comptimeUsePrecompiledHeaders = false;

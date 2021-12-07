@@ -257,29 +257,26 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 	// We need to do some extra legwork to find which compiler they actually want to use, based on
 	// the current environment variables set by vcvars*.bat
 	// See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
-	if (_stricmp(fileToExecute, "cl.exe") == 0 || _stricmp(fileToExecute, "link.exe") == 0)
+	if (_stricmp(fileToExecute, "cl.exe") == 0 || _stricmp(fileToExecute, "link.exe") == 0 ||
+	    _stricmp(fileToExecute, "rc.exe") == 0)
 	{
-		if (false) // TODO: Enable once I can completely build without vcvars
+		if (true)  // Use FindVS to get proper paths
 		{
-			Find_Result result = find_visual_studio_and_windows_sdk();
-			// Logf(
-			//     "SDK version:      %d\n"
-			//     "SDK root:         %ws\n"
-			//     "SDK UM library:   %ws\n"
-			//     "SDK UCRT library: %ws\n"
-			//     "VS exe path:      %ws\n"
-			//     "VS library path:  %ws\n",
-			//     result.windows_sdk_version, result.windows_sdk_root,
-			//     result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path,
-			//     result.vs_exe_path, result.vs_library_path);
-			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%ws\\%s", result.vs_exe_path,
+			static char visualStudioExePath[2048] = {0};
+			if (!visualStudioExePath[0])
+			{
+				Find_Result result = find_visual_studio_and_windows_sdk();
+				SafeSnprintf(visualStudioExePath, sizeof(visualStudioExePath), "%ws",
+				             result.vs_exe_path);
+				free_resources(&result);
+			}
+			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s\\%s", visualStudioExePath,
 			             fileToExecute);
 			if (logging.processes)
 				Logf("\nOverriding command to:\n%s\n\n", resolvedPathOut);
-			free_resources(&result);
 			return true;
 		}
-		else
+		else  // Use environment variables set by e.g. vcvars scripts
 		{
 			LPTSTR vcInstallDir = nullptr;
 			LPTSTR vcHostArchitecture = nullptr;
