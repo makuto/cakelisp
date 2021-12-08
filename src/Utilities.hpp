@@ -10,7 +10,7 @@
 #endif
 
 #define MAX_NAME_LENGTH 256
-#define MAX_PATH_LENGTH 256
+#define MAX_PATH_LENGTH 1024
 
 #ifdef WINDOWS
 #define FORMAT_SIZE_T "%zu"
