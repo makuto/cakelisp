@@ -467,6 +467,7 @@ bool AddStringOptionsGenerator(EvaluatorEnvironment& environment, const Evaluato
 	    {"add-library-dependency", &context.module->libraryDependencies},
 	    {"add-compiler-link-options", &context.module->compilerLinkOptions},
 	    {"add-linker-options", &context.module->toLinkerOptions},
+	    {"add-static-link-objects", &environment.additionalStaticLinkObjects},
 	    {"add-build-options", &context.module->additionalBuildOptions},
 	    {"add-build-options-global", &environment.compilerAdditionalOptions},
 	    {"add-build-config-label", &environment.buildConfigurationLabels}};
@@ -3215,6 +3216,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["add-library-dependency"] = AddStringOptionsGenerator;
 	environment.generators["add-compiler-link-options"] = AddStringOptionsGenerator;
 	environment.generators["add-linker-options"] = AddStringOptionsGenerator;
+	environment.generators["add-static-link-objects"] = AddStringOptionsGenerator;
 	environment.generators["add-build-config-label"] = AddBuildConfigLabelGenerator;
 
 	// Compile-time conditionals, erroring, etc.

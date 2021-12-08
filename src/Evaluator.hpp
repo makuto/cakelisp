@@ -404,6 +404,9 @@ struct EvaluatorEnvironment
 	// Once set, no label changes are allowed (the output is being written)
 	bool buildConfigurationLabelsAreFinal;
 
+	// Files in this list will be checked and cause re-links
+	std::vector<std::string> additionalStaticLinkObjects;
+
 	// When using the default build system, the path to output the final executable
 	std::string executableOutput;
 

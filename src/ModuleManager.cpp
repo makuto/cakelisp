@@ -845,7 +845,8 @@ struct SharedBuildOptions
 	std::vector<std::string>* compilerAdditionalOptions;
 
 	// Link options
-	std::vector<std::string> linkLibraries;
+	std::vector<std::string> linkLibraries; // dynamic library/shared objects
+	std::vector<std::string> staticLinkObjects; // static objects/resources/archives
 	std::vector<std::string> librarySearchDirs;
 	std::vector<std::string> libraryRuntimeSearchDirs;
 	std::vector<std::string> compilerLinkOptions;
@@ -1288,6 +1289,27 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 		// If all our objects are older than our executable, don't even link!
 		objectsDirty |= !canUseCachedFile(manager.environment, object->filename.c_str(),
 		                                  outputExecutableName.c_str());
+	}
+
+	for (const std::string& staticLinkObject : buildOptions.staticLinkObjects)
+	{
+		char foundFilePath[MAX_PATH_LENGTH] = {0};
+		if (searchForFileInPaths(staticLinkObject.c_str(), nullptr, buildOptions.librarySearchDirs,
+		                         foundFilePath, sizeof(foundFilePath)))
+		{
+			objectsDirty |= fileIsMoreRecentlyModified(foundFilePath, outputExecutableName.c_str());
+		}
+		else
+		{
+			Logf(
+			    "warning: could not find static link object %s. Your build may become stale if "
+			    "that object has changed recently. It was looked for in the following paths:\n",
+			    staticLinkObject.c_str());
+			for (const std::string& searchPath : buildOptions.librarySearchDirs)
+			{
+				Logf("\t%s\n", searchPath.c_str());
+			}
+		}
 	}
 
 	std::string finalOutputName;

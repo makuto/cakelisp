@@ -102,6 +102,11 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "add-linker-options",
     },
+    {"add-static-link-objects", GeneratorCategory_Build, LanguageRequirement_Evaluated,
+     EvaluationTime_EvaluatedImmediately, 0, MaxArgumentsUnlimited,
+     "Link additional objects, static libraries, or (on Windows) compiled resources. Modification "
+     "times of the files in this list will be checked and cause a re-link if they are newer than "
+     "the cached executable."},
     {
         "add-compiler-link-options",
     },
@@ -129,13 +134,14 @@ GeneratorMetadata g_generatorMetadata[] = {
         "ignore",
     },
     {"export", GeneratorCategory_Uncategorized, LanguageRequirement_Evaluated,
-     EvaluationTime_EvaluatedOnImport, 1, 99,
+     EvaluationTime_EvaluatedOnImport, 1, MaxArgumentsUnlimited,
      "When any other module imports the current module, evaluate the statements within this export "
      "scope in the context of the other module. This allows modules to e.g. 'infect' other modules "
      "with settings necessary for the importer to build. Compare to (export-and-evaluate), which "
      "evaluates both in the export-defining module and in importer contexts."},
     {"export-and-evaluate", GeneratorCategory_Uncategorized, LanguageRequirement_Evaluated,
-     (EvaluationTime_EvaluatedImmediately | EvaluationTime_EvaluatedOnImport), 1, 99,
+     (EvaluationTime_EvaluatedImmediately | EvaluationTime_EvaluatedOnImport), 1,
+     MaxArgumentsUnlimited,
      "Evaluate the contained statements. Additionally, when any other module imports the current "
      "module, evaluate the statements within this export scope in the context of the other module. "
      "This allows modules to e.g. 'infect' other modules with settings necessary for the importer "
