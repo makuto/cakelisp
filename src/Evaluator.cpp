@@ -465,6 +465,9 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 	// Note that in most cases, we will continue evaluation in order to turn up more errors
 	int numErrors = 0;
 
+	if (!tokens.empty())
+		environment.wasCodeEvaluatedThisPhase = true;
+
 	const Token& token = tokens[startTokenIndex];
 
 	if (token.type == TokenType_OpenParen)
@@ -1684,7 +1687,6 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	}
 
 	int numBuildResolveErrors = 0;
-	bool codeModified = false;
 	do
 	{
 		// Keep propagating and evaluating until no more references are resolved. This must be done
@@ -1709,13 +1711,16 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		if (numBuildResolveErrors)
 			break;
 
+		// We've finished resolving everything this phase. Reset evaluate flag so it can cause
+		// another resolve if necessary
+		environment.wasCodeEvaluatedThisPhase = false;
+
 		if (logging.buildProcess)
 			Log("Run post references resolved hooks\n");
 
 		// At this point, all known references are resolved. Time to let the user do arbitrary code
 		// generation and modification. These changes will need to be evaluated and their references
 		// resolved, so we need to repeat the whole process until no more changes are made
-		codeModified = false;
 		for (const CompileTimeHook& hook : environment.postReferencesResolvedHooks)
 		{
 			bool codeModifiedByHook = false;
@@ -1725,13 +1730,15 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 				numBuildResolveErrors += 1;
 				break;
 			}
-
-			codeModified |= codeModifiedByHook;
 		}
+
+		if ((logging.buildProcess || true) && environment.wasCodeEvaluatedThisPhase)
+			Log("Code was evaluated. Running another phase in case new references need to be "
+			    "resolved\n");
 
 		if (numBuildResolveErrors)
 			break;
-	} while (codeModified);
+	} while (environment.wasCodeEvaluatedThisPhase);
 
 	// Check whether everything is resolved
 	if (logging.phases)

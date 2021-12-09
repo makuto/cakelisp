@@ -375,6 +375,9 @@ struct EvaluatorEnvironment
 	// the source file hasn't been modified more recently)
 	bool useCachedFiles;
 
+	// Heuristic to track whether additional resolve phases need to be executed
+	bool wasCodeEvaluatedThisPhase;
+
 	// Save a huge amount of time by precompiling Cakelisp headers
 	bool comptimeUsePrecompiledHeaders;
 	bool comptimeHeadersPrepared;
