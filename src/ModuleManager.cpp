@@ -846,7 +846,7 @@ struct SharedBuildOptions
 
 	// Link options
 	std::vector<std::string> linkLibraries; // dynamic library/shared objects
-	std::vector<std::string> staticLinkObjects; // static objects/resources/archives
+	std::vector<std::string>* staticLinkObjects; // static objects/resources/archives
 	std::vector<std::string> librarySearchDirs;
 	std::vector<std::string> libraryRuntimeSearchDirs;
 	std::vector<std::string> compilerLinkOptions;
@@ -1068,6 +1068,7 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
 	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
 	sharedBuildOptions.compilerAdditionalOptions = &manager.environment.compilerAdditionalOptions;
+	sharedBuildOptions.staticLinkObjects = &manager.environment.additionalStaticLinkObjects;
 
 	return true;
 }
@@ -1277,21 +1278,18 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 	}
 	outputExecutableName = outputExecutableCachePath;
 
-	int numObjectsToLink = 0;
 	bool objectsDirty = false;
 	for (BuildObject* object : buildObjects)
 	{
 		if (logging.buildProcess)
 			Logf("Need to link %s\n", object->filename.c_str());
 
-		++numObjectsToLink;
-
 		// If all our objects are older than our executable, don't even link!
 		objectsDirty |= !canUseCachedFile(manager.environment, object->filename.c_str(),
 		                                  outputExecutableName.c_str());
 	}
 
-	for (const std::string& staticLinkObject : buildOptions.staticLinkObjects)
+	for (const std::string& staticLinkObject : *buildOptions.staticLinkObjects)
 	{
 		char foundFilePath[MAX_PATH_LENGTH] = {0};
 		if (searchForFileInPaths(staticLinkObject.c_str(), nullptr, buildOptions.librarySearchDirs,
@@ -1312,6 +1310,8 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 		}
 	}
 
+	int numObjectsToLink = buildObjects.size() + buildOptions.staticLinkObjects->size();
+
 	std::string finalOutputName;
 	if (!buildOptions.executableOutput->empty())
 		finalOutputName = *buildOptions.executableOutput;
@@ -1321,12 +1321,15 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 	bool succeededBuild = false;
 	if (numObjectsToLink)
 	{
-		std::vector<const char*> objectsToLink(numObjectsToLink);
-		for (int i = 0; i < numObjectsToLink; ++i)
+		std::vector<const char*> objectsToLink;
+		objectsToLink.reserve(numObjectsToLink);
+		for (BuildObject* object : buildObjects)
 		{
-			BuildObject* object = buildObjects[i];
-
-			objectsToLink[i] = object->filename.c_str();
+			objectsToLink.push_back(object->filename.c_str());
+		}
+		for (const std::string& staticLinkObject : *buildOptions.staticLinkObjects)
+		{
+			objectsToLink.push_back(staticLinkObject.c_str());
 		}
 
 		// Copy it so hooks can modify it
