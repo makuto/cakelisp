@@ -1405,7 +1405,7 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 		    manager.cachedCommandCrcs, finalOutputName.c_str(), linkArgumentList, &commandCrc);
 
 		// Check if we can use the cached version
-		if (!objectsDirty && commandEqualsCached && !manager.forceRelink)
+		if (!objectsDirty && commandEqualsCached)
 		{
 			if (logging.buildProcess)
 				Log("Skipping linking (no built objects are newer than cached executable, command "
