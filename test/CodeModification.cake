@@ -42,8 +42,7 @@
   (return true))
 
 (defun-comptime sabotage-main-printfs (environment (& EvaluatorEnvironment)
-                                                   was-code-modified (& bool)
-                                                   &return bool)
+                                       &return bool)
   (get-or-create-comptime-var test-var std::string)
   (fprintf stderr "%s is the message\n" (call-on-ptr c_str test-var))
   (var old-definition-tags (<> std::vector std::string))
@@ -94,8 +93,7 @@
 
    ;; Definition references invalid after this!
    (unless (ReplaceAndEvaluateDefinition environment "main" (deref modified-main-tokens))
-     (return false))
-   (set was-code-modified true))
+     (return false)))
 
   ;; Find the new (replacement) definition and add a tag saying it is done replacement
   ;; Note that I also push the tags of the old definition

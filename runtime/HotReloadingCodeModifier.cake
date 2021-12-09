@@ -56,7 +56,6 @@
 ;;       (would also need to keep track of modified references...yikes)
 ;; TODO: Need to take scope into account before changing a symbol (was it actually a module-private var)
 (defun-comptime make-code-hot-reloadable (environment (& EvaluatorEnvironment)
-                                          was-code-modified (& bool)
                                           &return bool)
   (var verbose bool false)
 
@@ -243,7 +242,7 @@
     (unless (ReplaceAndEvaluateDefinition environment (call-on c_str (field var-name contents))
                                           (deref new-var-tokens))
       (return false))
-    (set was-code-modified true)
+
     (scope ;; Evaluate initializer
      (unless module
        (return false))
@@ -308,8 +307,7 @@
     ;; Replace it!
     (unless (ReplaceAndEvaluateDefinition environment (call-on c_str (field def-to-modify name))
                                           (deref new-definition))
-      (return false))
-    (set was-code-modified true))
+      (return false)))
 
   ;; Create global initializer function to initialize all pointers on load/reload
   ;; Import all modules so that their initializers are exposed
@@ -343,8 +341,7 @@
 
    (unless (ReplaceAndEvaluateDefinition environment
                                          "hot-reload-initialize-state" (deref new-initializer-def))
-     (return false))
-   (set was-code-modified true))
+     (return false)))
 
   (return true))
 

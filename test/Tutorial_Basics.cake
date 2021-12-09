@@ -21,8 +21,7 @@
 (defcommand say-your-name ()
   (fprintf stderr "your name.\n"))
 
-(defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
-                                             was-code-modified (& bool) &return bool)
+(defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
   (get-or-create-comptime-var command-table-already-created bool false)
   (when (deref command-table-already-created)
     (return true))
@@ -53,7 +52,6 @@
       (array (token-splice-array (deref command-data)))))
   (prettyPrintTokens (deref command-table-tokens))
 
-  (set was-code-modified true)
   (return (ClearAndEvaluateAtSplicePoint environment "command-lookup-table" command-table-tokens)))
 
 (add-compile-time-hook post-references-resolved

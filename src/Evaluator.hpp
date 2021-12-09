@@ -251,8 +251,7 @@ extern const char* g_environmentPreLinkHookSignature;
 typedef bool (*PreLinkHook)(ModuleManager& manager, ProcessCommand& linkCommand,
                             ProcessCommandInput* linkTimeInputs, int numLinkTimeInputs);
 extern const char* g_environmentPostReferencesResolvedHookSignature;
-typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment,
-                                           bool& wasCodeModifiedOut);
+typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment);
 
 struct CompileTimeHook
 {

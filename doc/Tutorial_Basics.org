@@ -343,8 +343,7 @@ We attach the compile-time function to compile-time hooks, or call from macros o
 It's time to create a compile-time function which will create our runtime command look-up table.
 
 #+BEGIN_SRC lisp
-  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
-                                               was-code-modified (& bool) &return bool)
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
     (return true))
 
   (add-compile-time-hook post-references-resolved
@@ -356,8 +355,7 @@ Each hook has a pre-defined signature, which is what the ~environment~ and other
 From our previous note on ~post-references-resolved~ we learned that our hook can be invoked multiple times. Let's store a comptime var to prevent it from being called more than once:
 
 #+BEGIN_SRC lisp
-  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
-                                               was-code-modified (& bool) &return bool)
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
     (get-or-create-comptime-var command-table-already-created bool false)
     (when (deref command-table-already-created)
       (return true))
@@ -372,8 +370,7 @@ Our compile-time function is now hooked up and running when all references are r
 Let's get our command table and make a loop to iterate over it, printing each command:
 
 #+BEGIN_SRC lisp
-  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
-                                             was-code-modified (& bool) &return bool)
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
     (get-or-create-comptime-var command-table-already-created bool false)
     (when (deref command-table-already-created)
       (return true))
@@ -442,8 +439,7 @@ We use ~token-splice-addr~ because ~command-name-string~ is a ~Token~, not a /po
 Let's output the generated command data to the console to make sure it's good. Here's the full ~create-command-lookup-table~ so far:
 
 #+BEGIN_SRC lisp
-  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment)
-                                               was-code-modified (& bool) &return bool)
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
     (get-or-create-comptime-var command-table-already-created bool false)
     (when (deref command-table-already-created)
       (return true))
@@ -535,10 +531,9 @@ We use a /splice point/ to save a spot to insert code later. Define a splice poi
   (splice-point command-lookup-table)
 #+END_SRC
 
-Finally, let's evaluate our generated code, outputting it to the splice point. We'll change ~create-command-lookup-table~ to return the result of the evaluation. We set ~was-code-modified~ to tell Cakelisp that we actually made changes that may need more processing.
+Finally, let's evaluate our generated code, outputting it to the splice point. We'll change ~create-command-lookup-table~ to return the result of the evaluation.
 
 #+BEGIN_SRC lisp
-  (set was-code-modified true)
   (return (ClearAndEvaluateAtSplicePoint environment "command-lookup-table" command-table-tokens))
 #+END_SRC
 

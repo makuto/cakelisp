@@ -27,7 +27,7 @@ const char* g_environmentPreLinkHookSignature =
     "('manager (& ModuleManager) 'link-command (& ProcessCommand) 'link-time-inputs (* "
     "ProcessCommandInput) 'num-link-time-inputs int &return bool)";
 const char* g_environmentPostReferencesResolvedHookSignature =
-    "('environment (& EvaluatorEnvironment) 'was-code-modified (& bool) &return bool)";
+    "('environment (& EvaluatorEnvironment) &return bool)";
 
 static const char* g_environmentCompileTimeVariableDestroySignature = "('data (* void))";
 
@@ -1723,8 +1723,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		// resolved, so we need to repeat the whole process until no more changes are made
 		for (const CompileTimeHook& hook : environment.postReferencesResolvedHooks)
 		{
-			bool codeModifiedByHook = false;
-			if (!((PostReferencesResolvedHook)hook.function)(environment, codeModifiedByHook))
+			if (!((PostReferencesResolvedHook)hook.function)(environment))
 			{
 				Log("error: hook returned failure\n");
 				numBuildResolveErrors += 1;
