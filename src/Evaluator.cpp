@@ -1982,11 +1982,11 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
                           const std::vector<std::string>& searchPaths, char* foundFilePathOut,
                           int foundFilePathOutSize)
 {
-	// Check if the path is relative to the execution
-	if (logging.fileSearch)
+	// Check if the path is relative to the execution, or a full path already
 	{
 		SafeSnprintf(foundFilePathOut, foundFilePathOutSize, "%s", shortPath);
-		Logf("File exists? %s (", foundFilePathOut);
+		if (logging.fileSearch)
+			Logf("File exists? %s (", foundFilePathOut);
 		if (fileExists(foundFilePathOut))
 		{
 			if (logging.fileSearch)
