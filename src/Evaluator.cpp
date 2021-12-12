@@ -1731,7 +1731,7 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 			}
 		}
 
-		if ((logging.buildProcess || true) && environment.wasCodeEvaluatedThisPhase)
+		if (logging.buildProcess && environment.wasCodeEvaluatedThisPhase)
 			Log("Code was evaluated. Running another phase in case new references need to be "
 			    "resolved\n");
 
