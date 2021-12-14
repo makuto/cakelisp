@@ -1,5 +1,4 @@
-(skip-build)
-(import &comptime-only "CHelpers.cake")
+(import "CHelpers.cake")
 
 (defmacro std-str-equals (std-string-var any str any)
   (tokenize-push output
@@ -12,6 +11,11 @@
 ;; type name(constructor-arguments);
 (defgenerator var-construct (name (arg-index symbol) type (arg-index any)
                              &rest constructor-arguments (arg-index any))
+  (RequiresFeature
+   (field context module)
+   (findObjectDefinition environment (call-on c_str (path context . definitionName > contents)))
+   RequiredFeature_CppInDefinition name)
+
   (var constructor-var-statement (const ([] CStatementOperation))
     (array
      (array TypeNoArray null type)
@@ -31,6 +35,11 @@
 ;; member functions, which should be possible from Cakelisp.
 (defgenerator defclass (name symbol &rest class-body (index any))
   (var is-local bool false) ;; TODO
+
+  (RequiresFeature
+   (field context module)
+   (findObjectDefinition environment (call-on c_str (path context . definitionName > contents)))
+   RequiredFeature_Cpp name)
 
   ;; Class declaration
   (var class-declaration-output (& (<> (in std vector) StringOutput))

@@ -1,4 +1,3 @@
-(skip-build)
 (comptime-define-symbol 'Windows)
 
 ;; TODO: Remove. These are only to ease testing via cross-compilation

@@ -4,10 +4,10 @@
 (c-import "<stdio.h>")
 
 (defun-nodecl my-test ()
-  (printf "Does nothing\n"))
+  (fprintf stderr "Does nothing\n"))
 
 (defun main (&return int)
-  (printf "Hello, build tools!\n")
+  (fprintf stderr "Hello, build tools!\n")
   (return 0))
 
 (defun-comptime run-3rd-party-build (manager (& ModuleManager) module (* Module) &return bool)

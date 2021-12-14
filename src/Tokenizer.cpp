@@ -16,6 +16,7 @@ enum TokenizeState
 	TokenizeState_StringMerge,
 	TokenizeState_StringContinue,
 	TokenizeState_InQuote,
+	TokenizeState_HereString,
 };
 
 int g_totalLinesTokenized = 0;
@@ -37,6 +38,8 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 			tokenizeState = TokenizeState_StringContinue;
 		else if (tokensOut.back().type == TokenType_StringMerge)
 			tokenizeState = TokenizeState_StringMerge;
+		else if (tokensOut.back().type == TokenType_HereString)
+			tokenizeState = TokenizeState_HereString;
 	}
 
 	char previousChar = 0;
@@ -114,6 +117,18 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				{
 					tokensOut.back().type = TokenType_StringMerge;
 					tokenizeState = TokenizeState_StringMerge;
+				}
+				// "Here string" is e.g. #"#Blah blah "Look ma, no escape chars!"#"#
+				else if (*currentChar == '#' && *(currentChar + 1) == '\"' &&
+				         *(currentChar + 2) == '#')
+				{
+					Token startHereString = {
+					    TokenType_HereString, EmptyString,   source,
+					    lineNumber,           currentColumn, currentColumn + 1};
+					tokensOut.push_back(startHereString);
+					currentChar += 2;
+					tokenizeState = TokenizeState_HereString;
+					columnStart = currentColumn + 2;
 				}
 				else
 				{
@@ -288,6 +303,25 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 					WriteContents(*currentChar);
 				}
 				break;
+			case TokenizeState_HereString:
+				if (*currentChar == '#' && *(currentChar + 1) == '\"' && *(currentChar + 2) == '#')
+				{
+					Token& previousToken = tokensOut.back();
+					if (previousToken.type != TokenType_HereString)
+						return "Here String mode was entered, but previous token is not a here-string";
+
+					std::string appendString;
+					CopyContentsAndReset(appendString);
+					previousToken.contents.append(appendString);
+					previousToken.type = TokenType_String;
+					tokenizeState = TokenizeState_Normal;
+					currentChar += 2;
+				}
+				else
+				{
+					WriteContents(*currentChar);
+				}
+				break;
 			default:
 				return "Unknown state! Aborting";
 		}
@@ -316,6 +350,15 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 				break;
 			}
 			break;
+			case TokenizeState_HereString:
+			{
+				Token& previousToken = tokensOut.back();
+				std::string appendString;
+				CopyContentsAndReset(appendString);
+				previousToken.contents.append(appendString);
+				previousToken.type = TokenType_HereString;
+				break;
+			}
 			case TokenizeState_InString:
 			{
 				if (!tokensOut.empty())
@@ -397,11 +440,13 @@ bool validateTokens(const std::vector<Token>& tokens)
 				return false;
 			}
 		}
-		else if (token.type == TokenType_StringContinue || token.type == TokenType_StringMerge)
+		else if (token.type == TokenType_StringContinue || token.type == TokenType_StringMerge ||
+		         token.type == TokenType_HereString)
 		{
 			ErrorAtToken(token,
 			             "multi-line string malformed. Is it missing a closing quote? Does it "
-			             "have a trailing \\, despite being the last string?");
+			             "have a trailing \\, despite being the last string? Is it a here-string "
+			             "with missing matching #\"#?");
 			return false;
 		}
 	}

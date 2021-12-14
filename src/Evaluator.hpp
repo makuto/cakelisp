@@ -158,6 +158,13 @@ struct MacroExpansion
 typedef std::unordered_map<uint32_t, const Token*> TokenizePushTokensMap;
 typedef std::pair<const uint32_t, const Token*> TokenizePushTokensPair;
 
+struct RequiredFeatureReason
+{
+	const Token* blameToken;
+	RequiredFeature requiredFeatures;
+};
+typedef std::vector<RequiredFeatureReason> RequiredFeatureReasonList;
+
 struct ObjectDefinition
 {
 	std::string name;
@@ -209,6 +216,9 @@ struct ObjectDefinition
 	// At evaluate time, the tokens are loaded to these lists. At macro run-time (comptime) these
 	// lists are used to copy tokens to the macro output
 	TokenizePushTokensMap tokenizePushTokens;
+
+	RequiredFeature requiredFeatures;
+	RequiredFeatureReasonList requiredFeaturesReasons;
 };
 
 struct ObjectReferencePool
@@ -241,8 +251,7 @@ extern const char* g_environmentPreLinkHookSignature;
 typedef bool (*PreLinkHook)(ModuleManager& manager, ProcessCommand& linkCommand,
                             ProcessCommandInput* linkTimeInputs, int numLinkTimeInputs);
 extern const char* g_environmentPostReferencesResolvedHookSignature;
-typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment,
-                                           bool& wasCodeModifiedOut);
+typedef bool (*PostReferencesResolvedHook)(EvaluatorEnvironment& environment);
 
 struct CompileTimeHook
 {
@@ -280,6 +289,17 @@ typedef RequiredCompileTimeFunctionReasonsTable::iterator
 typedef std::unordered_map<std::string, bool> CompileTimeSymbolTable;
 
 typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTable;
+
+struct SplicePoint
+{
+	GeneratorOutput* output;
+	EvaluatorContext context;
+	const Token* blameToken;
+};
+
+typedef std::unordered_map<std::string, SplicePoint> SplicePointTable;
+typedef std::pair<const std::string, SplicePoint> SplicePointTablePair;
+typedef SplicePointTable::iterator SplicePointTableIterator;
 
 // Unlike context, which can't be changed, environment can be changed.
 // Keep in mind that calling functions which can change the environment may invalidate your pointers
@@ -321,6 +341,9 @@ struct EvaluatorEnvironment
 	// make sure the orphans get destroyed
 	std::vector<GeneratorOutput*> orphanedOutputs;
 
+	// Create a named splice point for later output splicing. Used so the user can insert things
+	SplicePointTable splicePoints;
+
 	ObjectDefinitionMap definitions;
 	ObjectReferencePoolMap referencePools;
 
@@ -351,6 +374,9 @@ struct EvaluatorEnvironment
 	// the source file hasn't been modified more recently)
 	bool useCachedFiles;
 
+	// Heuristic to track whether additional resolve phases need to be executed
+	bool wasCodeEvaluatedThisPhase;
+
 	// Save a huge amount of time by precompiling Cakelisp headers
 	bool comptimeUsePrecompiledHeaders;
 	bool comptimeHeadersPrepared;
@@ -364,6 +390,7 @@ struct EvaluatorEnvironment
 	std::vector<std::string> searchPaths;
 
 	std::vector<std::string> cSearchDirectories;
+	std::vector<std::string> compilerAdditionalOptions;
 
 	// Build configurations are e.g. Debug vs. Release, which have e.g. different compiler flags
 	// Anything which changes the output vs. another configuration should have a label. Examples:
@@ -378,6 +405,9 @@ struct EvaluatorEnvironment
 
 	// Once set, no label changes are allowed (the output is being written)
 	bool buildConfigurationLabelsAreFinal;
+
+	// Files in this list will be checked and cause re-links
+	std::vector<std::string> additionalStaticLinkObjects;
 
 	// When using the default build system, the path to output the final executable
 	std::string executableOutput;
@@ -421,6 +451,13 @@ int EvaluateGenerateAll_Recursive(EvaluatorEnvironment& environment,
 CAKELISP_API bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
                                                const char* definitionToReplaceName,
                                                const std::vector<Token>& newDefinitionTokens);
+
+// Clears the output of the splice (if any) and evaluates the newSpliceTokens into the splice point
+// Note that this cannot undo the effects of a previous splice evaluation on the environment, it can
+// only undo the generated output.
+CAKELISP_API bool ClearAndEvaluateAtSplicePoint(EvaluatorEnvironment& environment,
+                                                const char* splicePointName,
+                                                const std::vector<Token>* newSpliceTokens);
 
 // Returns whether all references were resolved successfully
 bool EvaluateResolveReferences(EvaluatorEnvironment& environment);

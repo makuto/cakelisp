@@ -144,7 +144,6 @@ struct StringOutputState
 	FILE* fileOut;
 };
 
-// TODO Have writer scan strings for \n?
 static void Writer_Writef(StringOutputState& state, const char* format, ...)
 {
 	va_list args;
@@ -225,7 +224,26 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 		Writer_Writef(state, "%s", convertedName);
 	}
 	else if (outputOperation.modifiers & StringOutMod_SurroundWithQuotes)
-		Writer_Writef(state, "\"%s\"", outputOperation.output.c_str());
+	{
+		const char* stringToOutput = outputOperation.output.c_str();
+		Writer_Writef(state, "\"");
+		char previousChar = 0;
+		for (const char* currentChar = stringToOutput; *currentChar; ++currentChar)
+		{
+			// Escape quotes
+			if (*currentChar == '\"' && previousChar != '\\')
+			{
+				Writer_Writef(state, "\\\"");
+			}
+			// Handle multiline strings
+			else if (*currentChar == '\n')
+				Writer_Writef(state, "\\n\"\n\"");
+			else
+				Writer_Writef(state, "%c", *currentChar);
+			previousChar = *currentChar;
+		}
+		Writer_Writef(state, "\"");
+	}
 	// Just by changing these we can change the output formatting
 	else if (outputOperation.modifiers & StringOutMod_OpenBlock)
 	{

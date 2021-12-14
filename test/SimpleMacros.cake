@@ -5,19 +5,19 @@
   (return true))
 
 (defmacro my-print (message string)
-  (printf "Compile-time print!\n")
-  (tokenize-push output (printf "%s\n" (token-splice message)))
+  (fprintf stderr "Compile-time print!\n")
+  (tokenize-push output (fprintf stderr "%s\n" (token-splice message)))
   (tokenize-push output
-    (printf "%s\n" (token-splice message))
-    (printf "Second one %s\n" (token-splice message)))
+    (fprintf stderr "%s\n" (token-splice message))
+    (fprintf stderr "Second one %s\n" (token-splice message)))
 
   (var numbers (<> (in std vector) Token))
   (tokenize-push numbers 1 2 3)
-  (tokenize-push output (printf "%d %d %d\n" (token-splice-array numbers)))
+  (tokenize-push output (fprintf stderr "%d %d %d\n" (token-splice-array numbers)))
   (return true))
 
 (defun main (&return int)
-  (printf "Hello, world! From Cakelisp!\n")
+  (fprintf stderr "Hello, world! From Cakelisp!\n")
   (my-print "Printed thanks to a macro!")
   (argument-indices "test")
   (argument-indices "test" "test 2")

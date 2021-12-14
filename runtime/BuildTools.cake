@@ -1,8 +1,7 @@
 ;; Build Tools - useful macros/functions for compile-time code
 ;; These rely on Cakelisp, so don't expect it to work outside comptime
 
-(skip-build)
-(import &comptime-only "ComptimeHelpers.cake")
+(import "ComptimeHelpers.cake")
 
 ;; Returns exit code (0 = success)
 (defun-comptime run-process-wait-for-completion (run-arguments (* RunProcessArguments)

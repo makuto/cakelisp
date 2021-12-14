@@ -1,8 +1,10 @@
-(skip-build)
-
 (set-cakelisp-option executable-output "bin/cakelisp.exe")
 
 (add-c-search-directory-module "src")
+(add-c-search-directory-module "3rdPartySrc")
+
+(add-linker-options "Advapi32.lib" "Ole32.lib" "OleAut32.lib")
+
 (add-cpp-build-dependency
  "Tokenizer.cpp"
  "Evaluator.cpp"
@@ -18,6 +20,8 @@
  "ModuleManager.cpp"
  "Logging.cpp"
  "Build.cpp"
+ "Metadata.cpp"
+ "FindVisualStudio.cpp"
  "Main.cpp")
 
 (add-build-options "/nologo" "/DWINDOWS" "/DCAKELISP_EXPORTING" "/EHsc"

@@ -1,0 +1,693 @@
+#+title: Cakelisp tutorial: basics of compile-time code execution
+
+This tutorial will introduce you to Cakelisp's most unique feature, compile-time code generation. I'm not going to introduce fundamental programming constructs like variables or conditional logic—I'm going to focus on what makes Cakelisp special. This is the most important thing to cover because it is the least familiar to new users from other languages.
+
+* Prerequisites
+- Experience writing C or C++ programs. If you're just learning how to program, you should learn a different language rather than Cakelisp for now.
+
+* Setup
+First, [[https://github.com/makuto/cakelisp/archive/refs/heads/master.zip][download Cakelisp]]. You can also clone it through git. The URL is [[https://github.com/makuto/cakelisp]].
+
+Unzip the ~master.zip~ file, if you downloaded it manually.
+
+* Cakelisp's repository
+The following section may be skipped. It serves as a quick introduction to the collection of files you downloaded.
+
+Cakelisp consists of the following major components:
+
+** A collection of C++ files
+The core of Cakelisp itself is in the ~src/~ directory.
+
+These files define the functionality of Cakelisp:
+
+- Tokenizer: Turns ~.cake~ text files into arrays of tokens, which is easier to work with
+- Evaluator: Uses the arrays of tokens as instructions on how to manipulate the "Environment"
+- Generators: Invoked by the evaluator, generators create C/C++ text output
+- Writer: Writes generated outputs to C/C++-language text files
+- Module manager: Handles the separation of files into modules and performs the high-level procedure
+- Build system: Invokes the compiler, linker, and dynamic loader as necessary to build your program
+
+You don't need to know exactly what these do for now.
+
+** Runtime
+The ~runtime/~ directory stores ~.cake~ files which provide various features:
+
+- ~CHelpers.cake~ provide various helper macros and generators for writing C/C++ code
+- ~CppHelpers.cake~ provide C++-only features
+- ~Cakelisp.cake~ makes it possible to run cakelisp while within another cakelisp compile-time phase
+- ~ComptimeHelpers.cake~ gives powerful tools for writing macros, generators, and other compile-time-only code
+
+...and more. With the C/CPP helpers files, they have any language feature that wasn't essential to include in ~Generators.cpp~ as "built-ins".
+
+Nothing in ~runtime/~ will actually affect your program unless you explicitly ~import~ them.
+
+** Supplementary things
+- ~doc/~ folder contains Cakelisp documentation
+- ~tools/~ holds 3rd-party configuration files for making other tools work with Cakelisp
+- ~test/~ consists of several ~.cake~ files used to test the language while it is developed
+
+* Preparing your environment
+Cakelisp relies on a C++ compiler and linker to perform various things. Your system needs to have a C++ toolchain set up.
+
+- On Windows, download and install [[https://visualstudio.microsoft.com/downloads/][Visual Studio]] for best results
+- On Linux, your system should already have ~g++~ or ~clang++~ installed
+- On Mac, you need ~clang++~
+
+Once these prerequisites are satisfied, do the following:
+
+- Windows: Run ~Build.bat~
+- Linux: Run ~Build.sh~
+- Mac: (TODO) Run ~Build_Mac.sh~
+
+If the script fails, please email ~macoy@macoy.me~ so I can help you and make this build step more robust.
+
+If they succeed, you now have a working ~cakelisp~ binary in the ~bin/~ directory!
+
+** A note on installs
+The language is changing fast enough that I recommend against doing a system-wide installation of ~cakelisp~. If you are using version control, you should check in the entirety of Cakelisp as a submodule so that you always have the compatible version for that project.
+
+* First program
+
+Let's make sure everything is working. Create a new file ~Hello.cake~ and edit it to have the following:
+
+#+BEGIN_SRC lisp
+  (c-import "<stdio.h>")
+
+  (defun main (&return int)
+    (fprintf stderr "Hello, Cakelisp!\n")
+    (return 0))
+#+END_SRC
+
+If you're familiar with C (which you probably should be; I will basically assume you are in this tutorial), this should be pretty simple.
+
+We're just getting started though; this language is much more than C with more parentheses.
+
+Build the file with the following command (adjust to make it ~cakelisp.exe~ on Windows, if necessary):
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp --execute Hello.cake
+#+END_SRC
+
+If everything is set up properly, you should see:
+
+#+BEGIN_SRC output
+  Successfully built and linked a.out
+  Hello, Cakelisp!
+#+END_SRC
+
+You can see that it not only built, but ran the output executable for us, thanks to that ~--execute~ option.
+
+If you run that same command again, you'll see slightly different output:
+
+#+BEGIN_SRC output
+  No changes needed for a.out
+  Hello, Cakelisp!
+#+END_SRC
+
+Cakelisp's build system automatically caches build artifacts and only rebuilds things when you make changes.
+
+* Special sauce
+
+"Hello World" is pretty boring. Let's write a program that would be difficult to write in a language without Cakelisp's features.
+
+Let's write a program which takes the name of a command and executes it, much like ~git~ does (e.g. ~git add~ or ~git commit~, where ~add~ and ~commit~ are commands).
+
+However, to show off Cakelisp, we're going to have the following rule:
+
+/Adding a command should be as easy as writing a function./
+
+This means no boilerplate is allowed.
+
+** Taking user input
+Modify our ~main~ function to take command-line arguments:
+
+#+BEGIN_SRC lisp
+  (defun main (num-arguments int
+               arguments ([] (* char))
+               &return int)
+    (unless (= 2 num-arguments)
+      (fprintf stderr "Expected command argument\n")
+      (return 1))
+    (fprintf stderr "Hello, Cakelisp!\n")
+    (return 0))
+#+END_SRC
+
+By convention, names are written in Kebab style, e.g. ~num-arguments~ rather than ~numArguments~ or ~num_arguments~. This is purely up to you to follow or ignore, however.
+
+Now, if we build, we should see the following:
+
+#+BEGIN_SRC output
+  Successfully built and linked a.out
+  Expected command argument
+  /home/macoy/Repositories/cakelisp/a.out
+  error: execution of a.out returned non-zero exit code 256
+#+END_SRC
+
+You can see that Cakelisp ~--execute~ output additional info because we returned a non-zero exit code. This is useful if you are using ~--execute~ in a process chain to run Cakelisp code just like a script.
+
+*TODO*: Currently, Cakelisp ~--execute~ has no way to forward arguments to your output executable. From now on, remove the ~--execute~ and run it like so, adjusting accordingly for your platform (e.g. ~output.exe~ instead of ~a.out~):
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp Hello.cake && ./a.out MyArgument
+#+END_SRC
+
+Doing the build on the same command as your execution will make sure that you don't forget to build after making changes.
+
+You should now see:
+
+#+BEGIN_SRC output
+  Hello, Cakelisp!
+#+END_SRC
+
+** Getting our macro feet wet
+In order to associate a function with a string input by the user, we need a lookup table. The table will have a string as a key and a function pointer as a value.
+
+However, we need to follow our rule that no human should have to write boilerplate like this, because that would make it more difficult than writing a function.
+
+We will accomplish this by creating a /macro/. Macros in Cakelisp let you execute arbitrary code *at compile time* and generate new tokens for the evaluator to evaluate.
+
+These are unlike C macros, which only do string pasting.
+
+Let's write our first macro:
+
+#+BEGIN_SRC lisp
+  (defmacro hello-from-macro ()
+    (tokenize-push output
+      (fprintf stderr "Hello from macro land!\n"))
+    (return true))
+#+END_SRC
+
+~tokenize-push~ is a generator where the first argument is a token array to output to, and the rest are tokens to output.
+
+We will learn more about it as we go through this tutorial.
+
+Every macro can decide whether it succeeded or failed, which is why we ~(return true)~ to finish the macro. This gives you the chance to perform input validation, which isn't possible in C macros.
+
+Invoke the macro in ~main~:
+
+#+BEGIN_SRC lisp
+  (defun main (num-arguments int
+               arguments ([] (* char))
+               &return int)
+    (unless (= 2 num-arguments)
+      (fprintf stderr "Expected command argument\n")
+      (return 1))
+    (fprintf stderr "Hello, Cakelisp!\n")
+    (hello-from-macro)
+    (return 0))
+#+END_SRC
+
+And observe that "Hello from macro land!" is now output.
+
+*** Why use a macro?
+
+In this simple example, our macro should just be a function. It would look exactly the same, though wouldn't need a ~return~ or ~tokenize-push~:
+
+#+BEGIN_SRC lisp
+  (defun hello-from-function ()
+    (fprintf stderr "Hello from function land!\n"))
+#+END_SRC
+
+We're going to use the macro to generate additional boilerplate, which is what a function cannot do.
+
+** Making our macro do more
+Let's make a new macro for defining commands:
+
+#+BEGIN_SRC lisp
+  (defmacro defcommand (command-name symbol arguments array &rest body any)
+    (tokenize-push output
+      (defun (token-splice command-name) (token-splice arguments)
+        (token-splice-rest body tokens)))
+    (return true))
+#+END_SRC
+
+This macro now defines a function (~defun~) with name ~command-name~ spliced in for the name token, as well as function arguments and a body.
+
+We now take arguments to the macro, which are defined similarly to function arguments, but do not use C types.
+
+The arguments say ~defcommand~ must take at least three arguments, where the last argument may mark the start of more than three arguments (it will take the rest, hence ~&rest~).
+
+There are only a few types which can be used to validate macro arguments:
+
+- ~symbol~, e.g. ~my-thing~, ~4.f~, ~'my-flag~, or even ~'a'~
+- ~array~, always an open parenthesis
+- ~string~, e.g. ~"This is a string"~
+- ~any~, which will take any of the above types. This is useful in cases where the macro can accept a variety of types
+
+The first argument is going to be the name of the command. We chose type ~symbol~ because we want the command definition to look just like a function:
+
+#+BEGIN_SRC lisp
+  (defun hello-from-function () ;; hello-from-function is a symbol
+    (fprintf stderr "Hello from function land!\n"))
+
+  (defcommand hello-from-command () ;; hello-from-command is also a symbol
+    (fprintf stderr "Hello from command land!\n"))
+
+  ;;(defcommand "hello-from-bad-command" () ;; "hello-from-bad-command" is a string
+  ;;  (fprintf stderr "Hello from command land!\n"))
+  ;; This would cause our macro to error:
+  ;; error: command-name expected Symbol, but got String
+#+END_SRC
+
+In this example, ~defcommand~ will output the following in its place:
+
+#+BEGIN_SRC lisp
+  (defun hello-from-command ()
+    (fprintf stderr "Hello from command land!\n"))
+#+END_SRC
+
+** Compile-time variables
+Okay, but a C macro could slap some strings around like that! Let's do something a C macro could not: create the lookup table automatically.
+
+We need to add the command to a compile-time list so that code can be generated for runtime to look up the function by name.
+
+For this, we need some external help, because we don't know how to save data for later during compile-time. Add this to the top of your ~Hello.cake~:
+
+#+BEGIN_SRC lisp
+  (import "ComptimeHelpers.cake")
+#+END_SRC
+
+This ~ComptimeHelpers.cake~ file provides a handy macro, ~get-or-create-comptime-var~. We ~import~ it to tell Cakelisp that we need that file to be loaded into the environment.
+
+However, if we try to build now, we get an error:
+
+#+BEGIN_SRC output
+  Hello.cake:1:24: error: file not found! Checked the following paths:
+  Checked if relative to Hello.cake
+  Checked search paths:
+      .
+  error: failed to evaluate Hello.cake
+#+END_SRC
+
+Cakelisp doesn't know where ~ComptimeHelpers.cake~ is. We need to add its directory to our search paths before the import:
+
+#+BEGIN_SRC lisp
+  (add-cakelisp-search-directory "runtime")
+  (import "ComptimeHelpers.cake")
+#+END_SRC
+
+This allows you to move things around as you like without having to update all the imports. You would otherwise need relative or absolute paths to find files. You only need to add the directory once. The entire Environment and any additional imports will use the same search paths.
+
+Next, let's invoke the variable creation macro. You can look at its signature to see what you need to provide:
+
+#+BEGIN_SRC lisp
+  (defmacro get-or-create-comptime-var (bound-var-name (ref symbol) var-type (ref any)
+                                      &optional initializer-index (index any))
+#+END_SRC
+
+It looks just like a regular variable declaration, only this one will share the variable's value during the entire compile-time phase.
+
+Let's create our lookup list. We'll use a C++ ~std::vector~, as it is common in Cakelisp internally and accessible from any macro or generator (*TODO*: This will change once the interface becomes C-compatible):
+
+#+BEGIN_SRC lisp
+  (defmacro defcommand (command-name symbol arguments array &rest body any)
+
+    (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
+    (call-on-ptr push_back command-table command-name)
+
+    (tokenize-push output
+      (defun (token-splice command-name) (token-splice arguments)
+        (token-splice-rest body tokens)))
+    (return true))
+#+END_SRC
+
+We take a pointer to ~const Token~ to contain our command function name.
+
+Finally, let's invoke our ~defcommand~ macro to test it:
+
+#+BEGIN_SRC lisp
+  (defcommand say-your-name ()
+    (fprintf stderr "your name.\n"))
+#+END_SRC
+
+If we build and run this, nothing visibly changes! We are storing the ~command-table~, but not outputting it anywhere useful.
+
+** Compile-time hooks
+~defcommand~ is collating a list of command names in ~command-table~. We want to take that table and convert it to a static array for use at runtime.
+
+The problem is we don't know when ~defcommand~ commands are going to finish being defined. We don't know the right time to output the table, because more commands might be discovered during compile-time evaluation.
+
+The solution to this is to use a /compile-time hook/. These hooks are special points in Cakelisp's build procedure where you can insert arbitrary compile-time code.
+
+In this case, we want to use the ~post-references-resolved~ hook. This hook is invoked when Cakelisp runs out of missing references, which are things like an invocation of a macro which hasn't yet been defined.
+
+This hook is the perfect time to add more code for Cakelisp to evaluate.
+
+*It can be executed more than once*. This is because we might add more references that need to be resolved from our hook. Cakelisp will continue to run this phase until the dust settles and no more new code is added.
+
+** Creating our compile-time code generator
+We use a special generator, ~defun-comptime~, to tell Cakelisp to compile and load the function for compile-time execution.
+
+We attach the compile-time function to compile-time hooks, or call from macros or generators.
+
+It's time to create a compile-time function which will create our runtime command look-up table.
+
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
+    (return true))
+
+  (add-compile-time-hook post-references-resolved
+                         create-command-lookup-table)
+#+END_SRC
+
+Each hook has a pre-defined signature, which is what the ~environment~ and other arguments are. If you use the wrong signature, you will get a helpful error saying what the expected signature was.
+
+From our previous note on ~post-references-resolved~ we learned that our hook can be invoked multiple times. Let's store a comptime var to prevent it from being called more than once:
+
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
+    (get-or-create-comptime-var command-table-already-created bool false)
+    (when (deref command-table-already-created)
+      (return true))
+    (set (deref command-table-already-created) true)
+    (return true))
+#+END_SRC
+
+We have to make the decision to do this ourselves because we might actually want a hook to respond to many iterations of ~post-references-resolved~. In this case however, we want it to run only once.
+
+Our compile-time function is now hooked up and running when all references are resolved, but it's doing nothing.
+
+Let's get our command table and make a loop to iterate over it, printing each command:
+
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
+    (get-or-create-comptime-var command-table-already-created bool false)
+    (when (deref command-table-already-created)
+      (return true))
+    (set (deref command-table-already-created) true)
+
+    (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
+    (for-in command-name (* (const Token)) (deref command-table)
+      (printFormattedToken stderr (deref command-name))
+      (fprintf stderr "\n"))
+    (return true))
+#+END_SRC
+
+You can see we called ~printFormattedToken~, which is a function available to any compile-time code. It uses a camelCase style to tell you it is defined in C/C++, not Cakelisp.
+
+If all goes well, we should see this output:
+
+#+BEGIN_SRC output
+  say-your-name
+  No changes needed for a.out
+  Hello, Cakelisp!
+  Hello from macro land!
+#+END_SRC
+
+You can see it lists the name /before/ the "No changes needed for a.out" line. This is a sign it is running during compile-time, because the "No changes" line doesn't output until the build system stage.
+
+** It's Tokens all the way down
+At this point, we know it's printing successfully, so we have our list. We now need to get this list from compile-time to generated code for runtime.
+
+To do this, we will generate a new array of Tokens and tell Cakelisp to evaluate them, which results in generating the code to define the lookup table.
+
+We need to create the Token array such that it can always be referred back to in case there are errors. We do this by making sure to allocate it on the heap so that it does not go away on function return or scope exit:
+
+#+BEGIN_SRC lisp
+  (var command-data (* (<> std::vector Token)) (new (<> std::vector Token)))
+  (call-on push_back (field environment comptimeTokens) command-data)
+#+END_SRC
+
+We add to the Environment's ~comptimeTokens~ list so that the Environment will helpfully clean up the tokens for us at the end of the process.
+
+We know we need two things for each command:
+
+- Name of the command, as a string
+- Function pointer to the command, so it can be called at runtime
+
+We're going to use the name provided to ~defcommand~ for the name, but we need to turn it into a ~string~ so that it is properly written:
+
+#+BEGIN_SRC lisp
+  (var command-name-string Token (deref command-name))
+  (set (field command-name-string type) TokenType_String)
+#+END_SRC
+
+We copy ~command-name~ into ~command-name-string~, which copies the contents of ~command-name~ and various other data. We then change the type of ~command-name-string~ to ~TokenType_String~ so that it is parsed and written to have double quotation marks.
+
+The function pointer will actually just be ~command-name~ spliced in, because the name of the command is the same as the function that defines it.
+
+We can use ~tokenize-push~ to create the data needed for each command:
+
+#+BEGIN_SRC lisp
+  (tokenize-push (deref command-data)
+    (array (token-splice-addr command-name-string)
+           (token-splice command-name)))
+#+END_SRC
+
+We use ~token-splice-addr~ because ~command-name-string~ is a ~Token~, not a /pointer/ to a ~Token~ like ~command-name~.
+
+Let's output the generated command data to the console to make sure it's good. Here's the full ~create-command-lookup-table~ so far:
+
+#+BEGIN_SRC lisp
+  (defun-comptime create-command-lookup-table (environment (& EvaluatorEnvironment) &return bool)
+    (get-or-create-comptime-var command-table-already-created bool false)
+    (when (deref command-table-already-created)
+      (return true))
+    (set (deref command-table-already-created) true)
+
+    (get-or-create-comptime-var command-table (<> (in std vector) (* (const Token))))
+
+    (var command-data (* (<> std::vector Token)) (new (<> std::vector Token)))
+    (call-on push_back (field environment comptimeTokens) command-data)
+
+    (for-in command-name (* (const Token)) (deref command-table)
+      (printFormattedToken stderr (deref command-name))
+      (fprintf stderr "\n")
+
+      (var command-name-string Token (deref command-name))
+      (set (field command-name-string type) TokenType_String)
+
+      (tokenize-push (deref command-data)
+        (array (token-splice-addr command-name-string)
+               (token-splice command-name))))
+
+    (prettyPrintTokens (deref command-data))
+    (return true))
+#+END_SRC
+
+And our full output:
+
+#+BEGIN_SRC output
+  say-your-name
+  (array "say-your-name" say-your-name)
+  No changes needed for a.out
+  Hello, Cakelisp!
+  Hello from macro land!
+#+END_SRC
+
+** Creating the lookup table
+We need to define the runtime structure to store the lookup table's data for each command. We also need to define a fixed signature for the commands so that C/C++ knows how to call them.
+
+Add this before ~main~:
+
+#+BEGIN_SRC lisp
+  ;; Our command functions take no arguments and return nothing
+  (def-function-signature command-function ())
+
+  (defstruct-local command-metadata
+    name (* (const char))
+    command command-function)
+#+END_SRC
+
+Now the runtime knows what the layout of the data is. In ~create-command-lookup-table~, let's generate another array of tokens to hold the runtime lookup table variable:
+
+#+BEGIN_SRC lisp
+  (var command-table-tokens (* (<> std::vector Token)) (new (<> std::vector Token)))
+  (call-on push_back (field environment comptimeTokens) command-table-tokens)
+
+  (tokenize-push (deref command-table-tokens)
+    (var command-table ([] command-metadata)
+      (array (token-splice-array (deref command-data)))))
+
+  (prettyPrintTokens (deref command-table-tokens))
+#+END_SRC
+
+We declare ~command-table~ to be an array of ~command-metadata~, which we just defined.
+
+We then splice in the whole ~command-data~ array, which should now contain all the commands.
+
+We now get:
+
+#+BEGIN_SRC output
+  say-your-name
+  (array "say-your-name" say-your-name)
+  (var command-table ([] command-metadata)
+    (array (array "say-your-name" say-your-name)))
+  Successfully built and linked a.out
+  Hello, Cakelisp!
+  Hello from macro land!
+#+END_SRC
+
+** Putting it somewhere
+We have created our code, but we need to find a place to put it relative to the other code in our ~Hello.cake~ module.
+
+This matters because Cakelisp is constrained by declaration/definition order, a constraint imposed by using C/C++ as output languages.
+
+We know we want to use ~command-table~ in ~main~ to run the command indicated by the user-provided argument. That means we need to declare ~command-table~ before ~main~ is defined.
+
+We use a /splice point/ to save a spot to insert code later. Define a splice point right above the ~(defun main~ definition:
+
+#+BEGIN_SRC lisp
+  (splice-point command-lookup-table)
+#+END_SRC
+
+Finally, let's evaluate our generated code, outputting it to the splice point. We'll change ~create-command-lookup-table~ to return the result of the evaluation.
+
+#+BEGIN_SRC lisp
+  (return (ClearAndEvaluateAtSplicePoint environment "command-lookup-table" command-table-tokens))
+#+END_SRC
+
+And to make sure it works, we will reference ~command-table~ in ~main~. We will list all the available commands, but this time, at runtime.
+
+Update our ~import~ to include ~CHelpers.cake~, which has a handy macro for iterating over static arrays:
+
+#+BEGIN_SRC lisp
+  (import "ComptimeHelpers.cake" "CHelpers.cake")
+#+END_SRC
+
+In ~main~, add the code to list commands. Put it at the very start of the function so it always occurs:
+
+#+BEGIN_SRC lisp
+  (fprintf stderr "Available commands:\n")
+  (each-in-array command-table i
+    (fprintf stderr "  %s\n"
+             (field (at i command-table) name)))
+#+END_SRC
+
+And check the output:
+
+#+BEGIN_SRC output
+  say-your-name
+  (array "say-your-name" say-your-name)
+  (var command-table ([] command-metadata)
+    (array (array "say-your-name" say-your-name)))
+  Successfully built and linked a.out
+  Available commands:
+    say-your-name
+  Hello, Cakelisp!
+  Hello from macro land!
+#+END_SRC
+
+Try adding another ~defcommand~ to make sure it is added to the list.
+
+** Running commands
+Let's finish up by actually taking the user input and calling the appropriate command.
+
+We need ~strcmp~, so we'll update our ~c-import~ to include it straight from the C standard library:
+
+#+BEGIN_SRC lisp
+  (c-import "<stdio.h>" "<string.h>")
+#+END_SRC
+
+And, in ~main~, after we've confirmed we have enough arguments, we check the command table and run the command!
+
+#+BEGIN_SRC lisp
+  (var found bool false)
+  (each-in-array command-table i
+    (when (= 0 (strcmp (field (at i command-table) name) (at 1 arguments)))
+      (call (field (at i command-table) command))
+      (set found true)
+      (break)))
+  (unless found
+    (fprintf stderr "error: could not find command '%s'\n" (at 1 arguments))
+    (return 1))
+#+END_SRC
+
+Now, we can see our output in different scenarios.
+
+Building only:
+
+#+BEGIN_SRC output
+  > ./bin/cakelisp test/Tutorial_Basics.cake
+    say-your-name
+    (array "say-your-name" say-your-name)
+    (var command-table ([] command-metadata)
+      (array (array "say-your-name" say-your-name)))
+    Successfully built and linked a.out
+#+END_SRC
+
+Running with no arguments:
+
+#+BEGIN_SRC output
+  > ./a.out
+    Available commands:
+      say-your-name
+    Expected command argument
+#+END_SRC
+
+Running with an invalid command:
+
+#+BEGIN_SRC output
+  > ./a.out foo
+    Available commands:
+      say-your-name
+    Hello, Cakelisp!
+    Hello from macro land!
+    error: could not find command 'foo'
+#+END_SRC
+
+And finally, running a valid command:
+
+#+BEGIN_SRC output
+  > ./a.out say-your-name
+    Available commands:
+      say-your-name
+    Hello, Cakelisp!
+    Hello from macro land!
+    your name.
+#+END_SRC
+
+** Conclusion
+The complete tutorial code can be found in ~test/Tutoral_Basics.cake~.
+
+You can see it's now as easy to define a command as defining a new function, so we achieved our goal.
+
+We had to do work up-front to generate the code, but that work is amortized over all the time saved each time we add a new command. It also [[https://macoy.me/blog/programming/InterfaceFriction][changes how willing we are to make commands]].
+
+*** Going further
+There are a number of different things you could do with this:
+
+- Commands could optionally provide a help string
+- /Code modification/ could be used to read all functions rather than requiring the use of ~defcommand~
+- Support for arguments could be added
+
+* You made it!
+If you are feeling overwhelmed, it's okay. Most languages do not expose you to these types of features.
+
+This tutorial threw you into the deep end of the most advanced Cakelisp feature. This is to showcase the language and to reassure you—If you can understand compile-time code generation, you can understand Cakelisp!
+
+It can take some time to appreciate the power that compile-time code generation and code modification give you. It really is a different way of thinking. Here are some examples where it really was a killer feature:
+
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/ProfilerAutoInstrument.cake][ProfilerAutoInstrument.cake]] automatically instruments every function in the environment, effectively mitigating the big disadvantage of a instrumenting profiler vs. a sampling one (having to do the work to instrument everything)
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/Introspection.cake][Introspection.cake]] generates metadata for structs to provide automatic plain-text serialization and a [[https://macoy.me/blog/programming/TypeIntrospection][plethora of other features]]
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/TaskSystem.cake][TaskSystem.cake]] allows for a much more [[https://macoy.me/blog/programming/InterfaceFriction][ergonomic interface]] to multi-threaded task systems
+- [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/AutoTest.cake][AutoTest.cake]] does very similarly to our ~defcommand~ in order to collect and execute test functions
+- [[https://github.com/makuto/cakelisp/blob/master/runtime/HotReloadingCodeModifier.cake][HotReloadingCodeModifier.cake]] converts module-local and global variables into heap-allocated variables automatically, which is an essential step to making hot-reloadable code possible
+
+You can see that this one feature makes possible many things which would be very cumbersome to do without it.
+
+* Learning more
+** Reading documentation
+The ~doc/~ folder contains many files of interest, especially [[file:Cakelisp.org][Cakelisp.org]]. There you will find much more detailed documentation than this tutorial provides.
+
+** Cakelisp self-documentation
+Cakelisp provides some features to inspect its built-in generators. From the command line:
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp --list-built-ins
+#+END_SRC
+
+...lists all the possible generators built in to Cakelisp. This is especially useful when you forget the exact name of a built-in.
+
+#+BEGIN_SRC sh
+  ./bin/cakelisp --list-built-ins-details
+#+END_SRC
+
+This version will list all built-ins as well as provide details for them.
+
+** Reading code
+The best way to learn Cakelisp is to read existing code.
+
+There are examples in ~test/~ and ~runtime/~. You can find extensive real-world usage of Cakelisp on [[https://macoy.me/code/macoy][macoy.me]].
+
+[[https://macoy.me/code/macoy/gamelib][GameLib]] is the closest thing to a package manager you will find in Cakelisp land. It provides powerful features as well as easy importing for a number of 3rd-party C and C++ libraries.

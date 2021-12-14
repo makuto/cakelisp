@@ -4,7 +4,9 @@
 #include <vector>
 
 #include "FileUtilities.hpp"
+#include "Generators.hpp"
 #include "Logging.hpp"
+#include "Metadata.hpp"
 #include "ModuleManager.hpp"
 #include "RunProcess.hpp"
 #include "Utilities.hpp"
@@ -12,6 +14,7 @@
 #ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include "windows.h"
+#include "FindVisualStudio.hpp"
 #endif
 
 struct CommandLineOption
@@ -55,7 +58,11 @@ int main(int numArguments, char* arguments[])
 	bool executeOutput = false;
 	bool skipBuild = false;
 	bool listBuiltInGeneratorsThenQuit = false;
+	bool listBuiltInGeneratorMetadataThenQuit = false;
 	bool waitForDebugger = false;
+#ifdef WINDOWS
+	bool listVisualStudioThenQuit = false;
+#endif
 
 	const CommandLineOption options[] = {
 	    {"--ignore-cache", &ignoreCachedFiles,
@@ -70,8 +77,14 @@ int main(int numArguments, char* arguments[])
 	    {"--list-built-ins", &listBuiltInGeneratorsThenQuit,
 	     "List all built-in compile-time procedures, then exit. This list contains every procedure "
 	     "you can possibly call, until you import more or define your own"},
+	    {"--list-built-ins-details", &listBuiltInGeneratorMetadataThenQuit,
+	     "List all built-in compile-time procedures and a brief explanation of each, then exit."},
 	    {"--wait-for-debugger", &waitForDebugger,
 	     "Wait for a debugger to be attached before starting loading and evaluation"},
+#ifdef WINDOWS
+	    {"--find-visual-studio", &listVisualStudioThenQuit,
+	     "List where Visual Studio is and what the current Windows SDK is."},
+#endif
 	    // Logging
 	    {"--verbose-phases", &logging.phases,
 	     "Output labels for each major phase Cakelisp goes through"},
@@ -179,6 +192,45 @@ int main(int numArguments, char* arguments[])
 			Sleep(100);
 #endif
 		Log("attached\n");
+	}
+
+#ifdef WINDOWS
+	if (listVisualStudioThenQuit)
+	{
+		Find_Result result = find_visual_studio_and_windows_sdk();
+		Logf(
+		    "SDK version:      %d\n"
+		    "SDK root:         %ws\n"
+		    "SDK include:      %ws\n"
+		    "SDK UM library:   %ws\n"
+		    "SDK UCRT library: %ws\n"
+		    "VS exe path:      %ws\n"
+		    "VS include path:  %ws\n"
+		    "VS library path:  %ws\n",
+		    result.windows_sdk_version, result.windows_sdk_root, result.windows_sdk_include_path,
+		    result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path,
+		    result.vs_exe_path, result.vs_include_path, result.vs_library_path);
+		// Includes
+		// C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\include
+		// C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt
+
+		// Lib
+		// C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30133\lib\x64
+		// C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\ucrt\x64
+		// C:\Program Files (x86)\Windows Kits\10\lib\10.0.19041.0\um\x64
+
+		free_resources(&result);
+		return 0;
+	}
+#endif
+
+	if (listBuiltInGeneratorMetadataThenQuit)
+	{
+		EvaluatorEnvironment environment;
+		importFundamentalGenerators(environment);
+		printBuiltInGeneratorMetadata(&environment);
+
+		return 0;
 	}
 
 	if (listBuiltInGeneratorsThenQuit)

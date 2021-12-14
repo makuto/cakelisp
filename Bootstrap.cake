@@ -1,5 +1,3 @@
-(skip-build)
-
 (set-cakelisp-option executable-output "bin/cakelisp")
 
 (add-c-search-directory-module "src")
@@ -18,6 +16,7 @@
  "ModuleManager.cpp"
  "Logging.cpp"
  "Build.cpp"
+ "Metadata.cpp"
  "Main.cpp")
 
 (add-build-options "-DUNIX" "-Wall" "-Werror" "-std=c++11")

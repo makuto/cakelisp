@@ -38,8 +38,8 @@ CAKELISP_API bool tokenizeLinePrintError(const char* inputLine, const char* sour
 
 bool validateTokens(const std::vector<Token>& tokens);
 
-void printFormattedToken(FILE* fileOut, const Token& token);
-void printTokens(const std::vector<Token>& tokens);
+CAKELISP_API void printFormattedToken(FILE* fileOut, const Token& token);
+CAKELISP_API void printTokens(const std::vector<Token>& tokens);
 CAKELISP_API void prettyPrintTokens(const std::vector<Token>& tokens);
 void prettyPrintTokensToFile(FILE* file, const std::vector<Token>& tokens);
 

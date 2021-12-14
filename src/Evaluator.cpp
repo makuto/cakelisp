@@ -27,7 +27,7 @@ const char* g_environmentPreLinkHookSignature =
     "('manager (& ModuleManager) 'link-command (& ProcessCommand) 'link-time-inputs (* "
     "ProcessCommandInput) 'num-link-time-inputs int &return bool)";
 const char* g_environmentPostReferencesResolvedHookSignature =
-    "('environment (& EvaluatorEnvironment) 'was-code-modified (& bool) &return bool)";
+    "('environment (& EvaluatorEnvironment) &return bool)";
 
 static const char* g_environmentCompileTimeVariableDestroySignature = "('data (* void))";
 
@@ -465,6 +465,9 @@ int EvaluateGenerate_Recursive(EvaluatorEnvironment& environment, const Evaluato
 	// Note that in most cases, we will continue evaluation in order to turn up more errors
 	int numErrors = 0;
 
+	if (!tokens.empty())
+		environment.wasCodeEvaluatedThisPhase = true;
+
 	const Token& token = tokens[startTokenIndex];
 
 	if (token.type == TokenType_OpenParen)
@@ -643,6 +646,30 @@ bool ReplaceAndEvaluateDefinition(EvaluatorEnvironment& environment,
 	{
 		Log("note: encountered error while evaluating the following replacement definition:\n");
 		prettyPrintTokens(newDefinitionTokens);
+	}
+
+	return result;
+}
+
+bool ClearAndEvaluateAtSplicePoint(EvaluatorEnvironment& environment, const char* splicePointName,
+                                   const std::vector<Token>* newSpliceTokens)
+{
+	SplicePointTableIterator findIt = environment.splicePoints.find(splicePointName);
+	if (findIt == environment.splicePoints.end())
+	{
+		Logf("error: splice point %s not found\n", splicePointName);
+		return false;
+	}
+
+	SplicePoint* splicePoint = &findIt->second;
+
+	bool result = EvaluateGenerateAll_Recursive(environment, splicePoint->context, *newSpliceTokens,
+	                                            /*startTokenIndex=*/0, *splicePoint->output) == 0;
+
+	if (!result)
+	{
+		Log("note: encountered error while evaluating the following splice:\n");
+		prettyPrintTokens(*newSpliceTokens);
 	}
 
 	return result;
@@ -1660,7 +1687,6 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	}
 
 	int numBuildResolveErrors = 0;
-	bool codeModified = false;
 	do
 	{
 		// Keep propagating and evaluating until no more references are resolved. This must be done
@@ -1685,29 +1711,33 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 		if (numBuildResolveErrors)
 			break;
 
+		// We've finished resolving everything this phase. Reset evaluate flag so it can cause
+		// another resolve if necessary
+		environment.wasCodeEvaluatedThisPhase = false;
+
 		if (logging.buildProcess)
 			Log("Run post references resolved hooks\n");
 
 		// At this point, all known references are resolved. Time to let the user do arbitrary code
 		// generation and modification. These changes will need to be evaluated and their references
 		// resolved, so we need to repeat the whole process until no more changes are made
-		codeModified = false;
 		for (const CompileTimeHook& hook : environment.postReferencesResolvedHooks)
 		{
-			bool codeModifiedByHook = false;
-			if (!((PostReferencesResolvedHook)hook.function)(environment, codeModifiedByHook))
+			if (!((PostReferencesResolvedHook)hook.function)(environment))
 			{
 				Log("error: hook returned failure\n");
 				numBuildResolveErrors += 1;
 				break;
 			}
-
-			codeModified |= codeModifiedByHook;
 		}
+
+		if (logging.buildProcess && environment.wasCodeEvaluatedThisPhase)
+			Log("Code was evaluated. Running another phase in case new references need to be "
+			    "resolved\n");
 
 		if (numBuildResolveErrors)
 			break;
-	} while (codeModified);
+	} while (environment.wasCodeEvaluatedThisPhase);
 
 	// Check whether everything is resolved
 	if (logging.phases)
@@ -1891,6 +1921,11 @@ void environmentDestroyInvalidateTokens(EvaluatorEnvironment& environment)
 	}
 	environment.orphanedOutputs.clear();
 
+	for (SplicePointTablePair& splicePointPair : environment.splicePoints)
+	{
+		delete splicePointPair.second.output;
+	}
+
 	for (const std::vector<Token>* comptimeTokens : environment.comptimeTokens)
 		delete comptimeTokens;
 	environment.comptimeTokens.clear();
@@ -1953,6 +1988,21 @@ bool searchForFileInPaths(const char* shortPath, const char* encounteredInFile,
                           const std::vector<std::string>& searchPaths, char* foundFilePathOut,
                           int foundFilePathOutSize)
 {
+	// Check if the path is relative to the execution, or a full path already
+	{
+		SafeSnprintf(foundFilePathOut, foundFilePathOutSize, "%s", shortPath);
+		if (logging.fileSearch)
+			Logf("File exists? %s (", foundFilePathOut);
+		if (fileExists(foundFilePathOut))
+		{
+			if (logging.fileSearch)
+				Log("yes)\n");
+			return true;
+		}
+		if (logging.fileSearch)
+			Log("no)\n");
+	}
+
 	// First, check if it's relative to the file it was encountered in
 	if (encounteredInFile)
 	{
@@ -2084,11 +2134,31 @@ bool AddCompileTimeHook(EvaluatorEnvironment& environment, std::vector<CompileTi
 bool StringOutputHasAnyMeaningfulOutput(const std::vector<StringOutput>* stringOutput,
                                         bool isHeader)
 {
-	// Gross special case where every header has an empty splice
-	return !stringOutput->empty() &&
-	       (stringOutput->size() > 1 || (*stringOutput)[0].modifiers != StringOutMod_Splice ||
-	        (isHeader ? StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->header,
-	                                                       isHeader) :
-	                    StringOutputHasAnyMeaningfulOutput(&(*stringOutput)[0].spliceOutput->source,
-	                                                       isHeader)));
+	if (stringOutput->empty())
+		return false;
+
+	for (const StringOutput& output : *stringOutput)
+	{
+		if (output.modifiers == StringOutMod_Splice)
+		{
+			if (output.spliceOutput)
+			{
+				const std::vector<StringOutput>* outputToCheck =
+				    isHeader ? &output.spliceOutput->header : &output.spliceOutput->source;
+				bool spliceHadMeaningfulOutput =
+				    StringOutputHasAnyMeaningfulOutput(outputToCheck, isHeader);
+				if (spliceHadMeaningfulOutput)
+					return true;
+			}
+		}
+		else if (output.modifiers & (StringOutMod_NewlineAfter | StringOutMod_SpaceAfter |
+		                             StringOutMod_SpaceBefore | StringOutMod_None))
+		{
+			// Not actually meaningful output
+		}
+		else  // Anything else should actually output
+			return true;
+	}
+
+	return false;
 }

@@ -14,6 +14,9 @@
 #include "Tokenizer.hpp"
 #include "Utilities.hpp"
 
+// (export
+const int EXPORT_SCOPE_START_EVAL_OFFSET = 2;
+
 typedef bool (*ProcessCommandOptionFunc)(EvaluatorEnvironment& environment,
                                          const std::vector<Token>& tokens, int startTokenIndex,
                                          ProcessCommand* command);
@@ -232,7 +235,11 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 		}
 	}
 
-	ErrorAtToken(tokens[optionNameIndex], "unrecognized option");
+	ErrorAtToken(tokens[optionNameIndex], "unrecognized option. Available options:");
+	for (unsigned int i = 0; i < ArraySize(stringOptions); ++i)
+		Logf("\t%s\n", stringOptions[i].option);
+	for (unsigned int i = 0; i < ArraySize(commandOptions); ++i)
+		Logf("\t%s\n", commandOptions[i].optionName);
 	return false;
 }
 
@@ -460,7 +467,9 @@ bool AddStringOptionsGenerator(EvaluatorEnvironment& environment, const Evaluato
 	    {"add-library-dependency", &context.module->libraryDependencies},
 	    {"add-compiler-link-options", &context.module->compilerLinkOptions},
 	    {"add-linker-options", &context.module->toLinkerOptions},
+	    {"add-static-link-objects", &environment.additionalStaticLinkObjects},
 	    {"add-build-options", &context.module->additionalBuildOptions},
+	    {"add-build-options-global", &environment.compilerAdditionalOptions},
 	    {"add-build-config-label", &environment.buildConfigurationLabels}};
 
 	const StringOptionList* destination = nullptr;
@@ -627,6 +636,7 @@ enum ImportState
 	WithDeclarations,
 	CompTimeOnly,
 	DeclarationsOnly,
+	// TODO: Remove?
 	DefinitionsOnly
 };
 
@@ -702,6 +712,7 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 		         currentToken.contents.empty())
 			return false;
 
+		Module* importedModule = nullptr;
 		if (isCakeImport)
 		{
 			if (!environment.moduleManager)
@@ -732,10 +743,9 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 				                                   ArraySize(resolvedPathBuffer), currentToken))
 					return false;
 
-				// Evaluate the import!
-				Module* module = nullptr;
+				// Evaluate the import! Will only evaluate it on first import in this environment
 				if (!moduleManagerAddEvaluateFile(*environment.moduleManager, resolvedPathBuffer,
-				                                  &module))
+				                                  &importedModule))
 				{
 					ErrorAtToken(currentToken, "failed to import Cakelisp module");
 					return false;
@@ -743,11 +753,11 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 
 				// Either we only want this file for its header or its macros. Don't build it into
 				// the runtime library/executable
-				if ((state == DeclarationsOnly || state == CompTimeOnly) && module)
+				if ((state == DeclarationsOnly || state == CompTimeOnly) && importedModule)
 				{
 					// TODO: This won't protect us from a module changing the environment, which may
 					// not be desired
-					module->skipBuild = true;
+					importedModule->skipBuild = true;
 				}
 			}
 		}
@@ -759,37 +769,74 @@ bool ImportGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& 
 			std::vector<StringOutput>& outputDestination =
 			    state == WithDefinitions ? output.source : output.header;
 
-			addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter, &currentToken);
-
 			// #include <stdio.h> is passed in as "<stdio.h>", so we need a special case (no quotes)
 			if (currentToken.contents[0] == '<')
 			{
+				addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter,
+				                &currentToken);
 				addStringOutput(outputDestination, currentToken.contents, StringOutMod_None,
 				                &currentToken);
+				addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
 			}
 			else
 			{
 				if (isCakeImport)
 				{
-					// All cakelisp generated files get dumped into a flat directory, so we need to
-					// strip any existing path
-					char relativeFileBuffer[MAX_PATH_LENGTH] = {0};
-					getFilenameFromPath(currentToken.contents.c_str(), relativeFileBuffer,
-					                    sizeof(relativeFileBuffer));
-					char cakelispExtensionBuffer[MAX_PATH_LENGTH] = {0};
-					// TODO: .h vs. .hpp
-					PrintfBuffer(cakelispExtensionBuffer, "%s.hpp", relativeFileBuffer);
-					addStringOutput(outputDestination, cakelispExtensionBuffer,
-					                StringOutMod_SurroundWithQuotes, &currentToken);
+					// Defer the import until we know what language requirements it has and whether
+					// it even needs to be imported (e.g., whether it's all macros, so it would
+					// generate no runtime header)
+					CakelispDeferredImport newCakelispImport;
+					newCakelispImport.fileToImportToken = &currentToken;
+					// TODO: Should be an easy add for outputting to both
+					newCakelispImport.outputTo = state == WithDeclarations ?
+					                                 CakelispImportOutput_Header :
+					                                 CakelispImportOutput_Source;
+					newCakelispImport.spliceOutput = new GeneratorOutput;
+					newCakelispImport.importedModule = importedModule;
+					addSpliceOutput(output, newCakelispImport.spliceOutput, &currentToken);
+					context.module->cakelispImports.push_back(newCakelispImport);
 				}
 				else
 				{
+					addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter,
+					                &currentToken);
 					addStringOutput(outputDestination, currentToken.contents,
 					                StringOutMod_SurroundWithQuotes, &currentToken);
+					addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
 				}
 			}
+		}
 
-			addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter, &currentToken);
+		// Evaluate the import's exports in the current context (the importer module)
+		if (importedModule)
+		{
+			// We have imported the file. Prevent new exports being created to simplify things
+			importedModule->exportScopesLocked = true;
+
+			for (ModuleExportScope& exportScope : importedModule->exportScopes)
+			{
+				// Already processed this export. Is this even necessary?
+				if (exportScope.modulesEvaluatedExport.find(context.module->filename) !=
+				    exportScope.modulesEvaluatedExport.end())
+					continue;
+
+				int startEvalateTokenIndex =
+				    exportScope.startTokenIndex + EXPORT_SCOPE_START_EVAL_OFFSET;
+
+				EvaluatorContext exportModuleContext = context;
+				int numErrors = EvaluateGenerateAll_Recursive(environment, exportModuleContext,
+				                                              *exportScope.tokens,
+				                                              startEvalateTokenIndex, output);
+				if (numErrors)
+				{
+					NoteAtToken((*exportScope.tokens)[exportScope.startTokenIndex],
+					            "while evaluating export");
+					NoteAtToken(tokens[startTokenIndex], "export came from this import");
+					return false;
+				}
+
+				exportScope.modulesEvaluatedExport[context.module->filename] = 1;
+			}
 		}
 
 		output.imports.push_back({currentToken.contents,
@@ -1940,7 +1987,7 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 
 	std::vector<StringOutput>& outputDest = isGlobal ? output.header : output.source;
 
-	addStringOutput(outputDest, "struct", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
+	addStringOutput(outputDest, "typedef struct", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 
 	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_ConvertTypeName,
 	                &tokens[nameIndex]);
@@ -2010,6 +2057,8 @@ bool DefStructGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 	}
 
 	addLangTokenOutput(outputDest, StringOutMod_CloseBlock, &tokens[endInvocationIndex]);
+	addStringOutput(outputDest, tokens[nameIndex].contents, StringOutMod_ConvertTypeName,
+	                &tokens[nameIndex]);
 	addLangTokenOutput(outputDest, StringOutMod_EndStatement, &tokens[endInvocationIndex]);
 
 	return true;
@@ -2643,6 +2692,97 @@ bool ComptimeDefineSymbolGenerator(EvaluatorEnvironment& environment,
 	return true;
 }
 
+// Export works like a delayed evaluate where it is evaluated within each importing module
+bool ExportScopeGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime/runtime
+	if (!ExpectEvaluatorScope("export", tokens[startTokenIndex], context, EvaluatorScope_Module))
+		return false;
+
+	if (!context.module)
+	{
+		ErrorAtToken(tokens[startTokenIndex], "modules not supported (internal code error?)");
+		return false;
+	}
+
+	// See this member's comment to understand why this is here
+	if (context.module->exportScopesLocked)
+	{
+		ErrorAtToken(
+		    tokens[startTokenIndex],
+		    "export has been added, but other modules have already evaluated past exports of this "
+		    "module. Try to move this export out of comptime blocks or do not macro-generate it");
+		return false;
+	}
+
+	const Token& startEvalToken = tokens[startTokenIndex + EXPORT_SCOPE_START_EVAL_OFFSET];
+	if (startEvalToken.type == TokenType_CloseParen)
+	{
+		ErrorAtToken(startEvalToken, "expected statements to export");
+		return false;
+	}
+
+	ModuleExportScope newExport;
+	newExport.tokens = &tokens;
+	newExport.startTokenIndex = startTokenIndex;
+	context.module->exportScopes.push_back(newExport);
+
+	// We also want to evaluate the scope in the current module
+	if (tokens[startTokenIndex + 1].contents.compare("export-and-evaluate") == 0)
+	{
+		EvaluatorContext exportEvaluateContext = context;
+		int numErrors =
+		    EvaluateGenerateAll_Recursive(environment, exportEvaluateContext, tokens,
+		                                  startTokenIndex + EXPORT_SCOPE_START_EVAL_OFFSET, output);
+		if (numErrors)
+			return false;
+	}
+
+	return true;
+}
+
+bool SplicePointGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+                          const std::vector<Token>& tokens, int startTokenIndex,
+                          GeneratorOutput& output)
+{
+	// Don't let the user think this function can be called during comptime/runtime
+	if (!ExpectEvaluatorScope("splice-point", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Module))
+		return false;
+
+	int endInvocationIndex = FindCloseParenTokenIndex(tokens, startTokenIndex);
+	int spliceNameIndex = getExpectedArgument("splice-point expected name of splice point", tokens,
+											  startTokenIndex, 1, endInvocationIndex);
+	if (spliceNameIndex == -1 ||
+	    !ExpectTokenType("splice-point name", tokens[spliceNameIndex], TokenType_Symbol))
+		return false;
+
+	const Token* spliceName = &tokens[spliceNameIndex];
+
+	SplicePointTableIterator findIt = environment.splicePoints.find(spliceName->contents);
+	if (findIt != environment.splicePoints.end())
+	{
+		ErrorAtToken(*spliceName,
+		             "splice point redefined. Splice points must have unique names, and may only "
+		             "be evaluated once");
+		return false;
+	}
+
+	GeneratorOutput* spliceOutput = new GeneratorOutput;
+	addSpliceOutput(output, spliceOutput, &tokens[startTokenIndex]);
+
+	SplicePoint newSplicePoint;
+	newSplicePoint.output = spliceOutput;
+	newSplicePoint.context = context;
+	newSplicePoint.blameToken = &tokens[startTokenIndex];
+
+	environment.splicePoints[spliceName->contents] = newSplicePoint;
+
+	return true;
+}
+
 // Give the user a replacement suggestion
 typedef std::unordered_map<std::string, const char*> DeprecatedHelpStringMap;
 DeprecatedHelpStringMap s_deprecatedHelpStrings;
@@ -2867,71 +3007,79 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 		const char* name;
 		const CStatementOperation* operations;
 		int numOperations;
+		RequiredFeature requiresFeature;
 	} statementOperators[] = {
-	    {"while", whileStatement, ArraySize(whileStatement)},
-	    {"for-in", rangeBasedFor, ArraySize(rangeBasedFor)},
-	    {"return", returnStatement, ArraySize(returnStatement)},
-	    {"continue", continueStatement, ArraySize(continueStatement)},
-	    {"break", breakStatement, ArraySize(breakStatement)},
-	    {"when", whenStatement, ArraySize(whenStatement)},
-	    {"unless", unlessStatement, ArraySize(unlessStatement)},
-	    {"array", initializerList, ArraySize(initializerList)},
-	    {"set", assignmentStatement, ArraySize(assignmentStatement)},
+	    {"while", whileStatement, ArraySize(whileStatement), RequiredFeature_None},
+	    {"for-in", rangeBasedFor, ArraySize(rangeBasedFor), RequiredFeature_CppInDefinition},
+	    {"return", returnStatement, ArraySize(returnStatement), RequiredFeature_None},
+	    {"continue", continueStatement, ArraySize(continueStatement), RequiredFeature_None},
+	    {"break", breakStatement, ArraySize(breakStatement), RequiredFeature_None},
+	    {"when", whenStatement, ArraySize(whenStatement), RequiredFeature_None},
+	    {"unless", unlessStatement, ArraySize(unlessStatement), RequiredFeature_None},
+	    {"array", initializerList, ArraySize(initializerList), RequiredFeature_None},
+	    {"set", assignmentStatement, ArraySize(assignmentStatement), RequiredFeature_None},
 	    // Alias of block, in case you want to be explicit. For example, creating a scope to reduce
 	    // scope of variables vs. creating a block to have more than one statement in an (if) body
-	    {"scope", blockStatement, ArraySize(blockStatement)},
-	    {"block", blockStatement, ArraySize(blockStatement)},
-	    {"?", ternaryOperatorStatement, ArraySize(ternaryOperatorStatement)},
-	    {"new", newStatement, ArraySize(newStatement)},
-	    {"delete", deleteStatement, ArraySize(deleteStatement)},
-	    {"new-array", newArrayStatement, ArraySize(newArrayStatement)},
-	    {"delete-array", deleteArrayStatement, ArraySize(deleteArrayStatement)},
+	    {"scope", blockStatement, ArraySize(blockStatement), RequiredFeature_None},
+	    {"block", blockStatement, ArraySize(blockStatement), RequiredFeature_None},
+	    {"?", ternaryOperatorStatement, ArraySize(ternaryOperatorStatement), RequiredFeature_None},
+	    {"new", newStatement, ArraySize(newStatement), RequiredFeature_CppInDefinition},
+	    {"delete", deleteStatement, ArraySize(deleteStatement), RequiredFeature_CppInDefinition},
+	    {"new-array", newArrayStatement, ArraySize(newArrayStatement), RequiredFeature_CppInDefinition},
+	    {"delete-array", deleteArrayStatement, ArraySize(deleteArrayStatement), RequiredFeature_CppInDefinition},
 	    // Pointers
-	    {"deref", dereference, ArraySize(dereference)},
-	    {"addr", addressOf, ArraySize(addressOf)},
-	    {"field", field, ArraySize(field)},
-	    {"call-on", memberFunctionInvocation, ArraySize(memberFunctionInvocation)},
+	    {"deref", dereference, ArraySize(dereference), RequiredFeature_None},
+	    {"addr", addressOf, ArraySize(addressOf), RequiredFeature_None},
+	    {"field", field, ArraySize(field), RequiredFeature_None},
+	    {"call-on", memberFunctionInvocation, ArraySize(memberFunctionInvocation), RequiredFeature_None},
 	    {"call-on-ptr", dereferenceMemberFunctionInvocation,
-	     ArraySize(dereferenceMemberFunctionInvocation)},
-	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation)},
-	    {"in", scopeResolution, ArraySize(scopeResolution)},
-	    {"type-cast", castStatement, ArraySize(castStatement)},
-	    {"type", typeStatement, ArraySize(typeStatement)},
+	     ArraySize(dereferenceMemberFunctionInvocation), RequiredFeature_CppInDefinition},
+	    {"call", callFunctionInvocation, ArraySize(callFunctionInvocation), RequiredFeature_None},
+		// TODO: Determine whether Cpp is required in header or not
+	    {"in", scopeResolution, ArraySize(scopeResolution), RequiredFeature_Cpp},
+	    {"type-cast", castStatement, ArraySize(castStatement), RequiredFeature_None},
+	    {"type", typeStatement, ArraySize(typeStatement), RequiredFeature_None},
 	    // Expressions
-	    {"or", booleanOr, ArraySize(booleanOr)},
-	    {"and", booleanAnd, ArraySize(booleanAnd)},
-	    {"not", booleanNot, ArraySize(booleanNot)},
-	    {"bit-or", bitwiseOr, ArraySize(bitwiseOr)},
-	    {"bit-and", bitwiseAnd, ArraySize(bitwiseAnd)},
-	    {"bit-xor", bitwiseXOr, ArraySize(bitwiseXOr)},
-	    {"bit-ones-complement", bitwiseOnesComplement, ArraySize(bitwiseOnesComplement)},
-	    {"bit-<<", bitwiseLeftShift, ArraySize(bitwiseLeftShift)},
-	    {"bit->>", bitwiseRightShift, ArraySize(bitwiseRightShift)},
-	    {"=", relationalEquality, ArraySize(relationalEquality)},
-	    {"!=", relationalNotEqual, ArraySize(relationalNotEqual)},
-	    {"eq", relationalEquality, ArraySize(relationalEquality)},
-	    {"neq", relationalNotEqual, ArraySize(relationalNotEqual)},
-	    {"<=", relationalLessThanEqual, ArraySize(relationalLessThanEqual)},
-	    {">=", relationalGreaterThanEqual, ArraySize(relationalGreaterThanEqual)},
-	    {"<", relationalLessThan, ArraySize(relationalLessThan)},
-	    {">", relationalGreaterThan, ArraySize(relationalGreaterThan)},
+	    {"or", booleanOr, ArraySize(booleanOr), RequiredFeature_None},
+	    {"and", booleanAnd, ArraySize(booleanAnd), RequiredFeature_None},
+	    {"not", booleanNot, ArraySize(booleanNot), RequiredFeature_None},
+	    {"bit-or", bitwiseOr, ArraySize(bitwiseOr), RequiredFeature_None},
+	    {"bit-and", bitwiseAnd, ArraySize(bitwiseAnd), RequiredFeature_None},
+	    {"bit-xor", bitwiseXOr, ArraySize(bitwiseXOr), RequiredFeature_None},
+	    {"bit-ones-complement", bitwiseOnesComplement, ArraySize(bitwiseOnesComplement), RequiredFeature_None},
+	    {"bit-<<", bitwiseLeftShift, ArraySize(bitwiseLeftShift), RequiredFeature_None},
+	    {"bit->>", bitwiseRightShift, ArraySize(bitwiseRightShift), RequiredFeature_None},
+	    {"=", relationalEquality, ArraySize(relationalEquality), RequiredFeature_None},
+	    {"!=", relationalNotEqual, ArraySize(relationalNotEqual), RequiredFeature_None},
+	    // {"eq", relationalEquality, ArraySize(relationalEquality), RequiredFeature_None},
+	    // {"neq", relationalNotEqual, ArraySize(relationalNotEqual), RequiredFeature_None},
+	    {"<=", relationalLessThanEqual, ArraySize(relationalLessThanEqual), RequiredFeature_None},
+	    {">=", relationalGreaterThanEqual, ArraySize(relationalGreaterThanEqual), RequiredFeature_None},
+	    {"<", relationalLessThan, ArraySize(relationalLessThan), RequiredFeature_None},
+	    {">", relationalGreaterThan, ArraySize(relationalGreaterThan), RequiredFeature_None},
 	    // Arithmetic
-	    {"+", add, ArraySize(add)},
-	    {"-", subtract, ArraySize(subtract)},
-	    {"*", multiply, ArraySize(multiply)},
-	    {"/", divide, ArraySize(divide)},
-	    {"%", modulus, ArraySize(modulus)},
-	    {"mod", modulus, ArraySize(modulus)},
-	    {"++", increment, ArraySize(increment)},
-	    {"--", decrement, ArraySize(decrement)},
-	    {"incr", increment, ArraySize(increment)},
-	    {"decr", decrement, ArraySize(decrement)},
+	    {"+", add, ArraySize(add), RequiredFeature_None},
+	    {"-", subtract, ArraySize(subtract), RequiredFeature_None},
+	    {"*", multiply, ArraySize(multiply), RequiredFeature_None},
+	    {"/", divide, ArraySize(divide), RequiredFeature_None},
+	    {"%", modulus, ArraySize(modulus), RequiredFeature_None},
+	    {"mod", modulus, ArraySize(modulus), RequiredFeature_None},
+	    {"++", increment, ArraySize(increment), RequiredFeature_None},
+	    {"--", decrement, ArraySize(decrement), RequiredFeature_None},
+	    {"incr", increment, ArraySize(increment), RequiredFeature_None},
+	    {"decr", decrement, ArraySize(decrement), RequiredFeature_None},
 	};
 
 	for (unsigned int i = 0; i < ArraySize(statementOperators); ++i)
 	{
 		if (nameToken.contents.compare(statementOperators[i].name) == 0)
 		{
+			if (statementOperators[i].requiresFeature != RequiredFeature_None)
+				RequiresFeature(
+				    context.module,
+				    findObjectDefinition(environment, context.definitionName->contents.c_str()),
+				    statementOperators[i].requiresFeature, &nameToken);
+
 			return CStatementOutput(environment, context, tokens, startTokenIndex,
 			                        statementOperators[i].operations,
 			                        statementOperators[i].numOperations, output);
@@ -3044,17 +3192,22 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	environment.generators["rename-builtin"] = RenameBuiltinGenerator;
 
+	environment.generators["splice-point"] = SplicePointGenerator;
+
 	// Cakelisp options
 	environment.generators["set-cakelisp-option"] = SetCakelispOption;
 	environment.generators["set-module-option"] = SetModuleOption;
 
 	// All things build
+	s_deprecatedHelpStrings["skip-build"] = "you should not need to specify skip-build any more";
 	environment.generators["skip-build"] = SkipBuildGenerator;
+
 	environment.generators["add-cpp-build-dependency"] = AddDependencyGenerator;
 	environment.generators["add-c-build-dependency"] = AddDependencyGenerator;
 	environment.generators["add-compile-time-hook"] = AddCompileTimeHookGenerator;
 	environment.generators["add-compile-time-hook-module"] = AddCompileTimeHookGenerator;
 	environment.generators["add-build-options"] = AddStringOptionsGenerator;
+	environment.generators["add-build-options-global"] = AddStringOptionsGenerator;
 	environment.generators["add-c-search-directory-module"] = AddStringOptionsGenerator;
 	environment.generators["add-c-search-directory-global"] = AddStringOptionsGenerator;
 	environment.generators["add-cakelisp-search-directory"] = AddStringOptionsGenerator;
@@ -3063,12 +3216,15 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	environment.generators["add-library-dependency"] = AddStringOptionsGenerator;
 	environment.generators["add-compiler-link-options"] = AddStringOptionsGenerator;
 	environment.generators["add-linker-options"] = AddStringOptionsGenerator;
+	environment.generators["add-static-link-objects"] = AddStringOptionsGenerator;
 	environment.generators["add-build-config-label"] = AddBuildConfigLabelGenerator;
 
 	// Compile-time conditionals, erroring, etc.
 	environment.generators["comptime-error"] = ComptimeErrorGenerator;
 	environment.generators["comptime-cond"] = ComptimeCondGenerator;
 	environment.generators["comptime-define-symbol"] = ComptimeDefineSymbolGenerator;
+	environment.generators["export"] = ExportScopeGenerator;
+	environment.generators["export-and-evaluate"] = ExportScopeGenerator;
 
 	// Dispatches based on invocation name
 	const char* cStatementKeywords[] = {
@@ -3083,7 +3239,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    // Bitwise
 	    "bit-or", "bit-and", "bit-xor", "bit-ones-complement", "bit-<<", "bit->>",
 	    // Relational
-	    "=", "!=", "eq", "neq", "<=", ">=", "<", ">",
+	    "=", "!=", /*"eq", "neq",*/ "<=", ">=", "<", ">",
 	    // Arithmetic
 	    "+", "-", "*", "/", "%", "mod", "++", "--", "incr", "decr"};
 	for (size_t i = 0; i < ArraySize(cStatementKeywords); ++i)

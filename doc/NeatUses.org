@@ -25,7 +25,7 @@ chmod +x MyScript.cake
   (c-import "<stdio.h>")
 
   (defun main (&return int)
-    (printf "Hello, execute!\n")
+    (fprintf stderr "Hello, execute!\n")
     (return 0))
 #+END_SRC
 * No more build system woes

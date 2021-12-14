@@ -36,7 +36,7 @@
 ;; TODO: Make a context variable for preventing environment changes during &decls-only?
 (comptime-define-symbol 'No-Hot-Reload-Options)
 
-(import &comptime-only "ComptimeHelpers.cake")
+(import "ComptimeHelpers.cake")
 
 ;; This is redefined by make-code-hot-reloadable
 (defun hot-reload-initialize-state ())
@@ -56,7 +56,6 @@
 ;;       (would also need to keep track of modified references...yikes)
 ;; TODO: Need to take scope into account before changing a symbol (was it actually a module-private var)
 (defun-comptime make-code-hot-reloadable (environment (& EvaluatorEnvironment)
-                                          was-code-modified (& bool)
                                           &return bool)
   (var verbose bool false)
 
@@ -65,8 +64,8 @@
     (return true))
   (set (deref modified-vars) true)
 
-  (printf "HotReloading: Modifying code for hot-reloading.\n")
-  (printf "Subsequent modifications will not be hot-reloading safe\n")
+  (fprintf stderr "HotReloading: Modifying code for hot-reloading.\n")
+  (fprintf stderr "Subsequent modifications will not be hot-reloading safe\n")
 
   (get-or-create-comptime-var modules-with-import (<> std::unordered_map std::string int))
 
@@ -98,7 +97,7 @@
         ((= 0 (call-on compare (path top-level-type > contents) "const"))
          (continue))))
 
-    (when verbose (printf ">>> Variable %s\n" (call-on c_str (field definition-pair first))))
+    (when verbose (fprintf stderr ">>> Variable %s\n" (call-on c_str (field definition-pair first))))
     (var definition (& ObjectDefinition) (field definition-pair second))
     (var var-to-modify modify-definition)
     (unless (CreateDefinitionCopyMacroExpanded definition
@@ -135,7 +134,7 @@
     (unless reference-found
       (continue))
 
-    (when verbose (printf ">>> Reference(s) found in %s\n"
+    (when verbose (fprintf stderr ">>> Reference(s) found in %s\n"
                           (call-on c_str (field definition-pair first))))
 
     (set (field def-to-modify module) (field definition context module))
@@ -243,7 +242,7 @@
     (unless (ReplaceAndEvaluateDefinition environment (call-on c_str (field var-name contents))
                                           (deref new-var-tokens))
       (return false))
-    (set was-code-modified true)
+
     (scope ;; Evaluate initializer
      (unless module
        (return false))
@@ -308,8 +307,7 @@
     ;; Replace it!
     (unless (ReplaceAndEvaluateDefinition environment (call-on c_str (field def-to-modify name))
                                           (deref new-definition))
-      (return false))
-    (set was-code-modified true))
+      (return false)))
 
   ;; Create global initializer function to initialize all pointers on load/reload
   ;; Import all modules so that their initializers are exposed
@@ -343,8 +341,7 @@
 
    (unless (ReplaceAndEvaluateDefinition environment
                                          "hot-reload-initialize-state" (deref new-initializer-def))
-     (return false))
-   (set was-code-modified true))
+     (return false)))
 
   (return true))
 

@@ -10,6 +10,8 @@
     (put 'defun-comptime 'lisp-indent-function 'defun)
     (put 'defun-nodecl 'lisp-indent-function 'defun)
     (put 'defgenerator 'lisp-indent-function 'defun)
+    (put 'def-function-signature 'lisp-indent-function 'defun)
+    (put 'def-function-signature-global 'lisp-indent-function 'defun)
 
     (put 'defstruct-local 'lisp-indent-function 1)
     (put 'defstruct 'lisp-indent-function 1)
@@ -22,12 +24,15 @@
 
     ;; Macros
     (put 'each-in-range 'lisp-indent-function 2)
+    (put 'each-in-interval 'lisp-indent-function 3)
+    (put 'each-in-closed-interval-descending 'lisp-indent-function 3)
     (put 'each-in-array 'lisp-indent-function 2)
     (put 'each-char-in-string 'lisp-indent-function 2)
     (put 'each-char-in-string-const 'lisp-indent-function 2)
     (put 'c-for 'lisp-indent-function 3)
 
     (put 'run-process-sequential-or 'lisp-indent-function 1)
+    (put 'run-process-start-or 'lisp-indent-function 2)
 
     (put 'if-c-preprocessor-defined 'lisp-indent-function 1)
 
@@ -40,7 +45,7 @@
     ;; "(def[a-zA-Z0-9-]*" all define keywords
 
     ;; Configuration, build stuff, etc.
-    (font-lock-add-keywords nil '(("(\\(add-build-config-label\\|add-build-options\\|add-c-build-dependency\\|add-c-search-directory-global\\|add-c-search-directory-module\\|add-cakelisp-search-directory\\|add-compile-time-hook\\|add-compile-time-hook-module\\|add-compiler-link-options\\|add-cpp-build-dependency\\|add-library-dependency\\|add-library-runtime-search-directory\\|add-library-search-directory\\|add-linker-options\\|set-cakelisp-option\\|set-module-option\\|skip-build\\|c-import\\|c-preprocessor-define\\|c-preprocessor-define-global\\|comptime-cond\\|comptime-define-symbol\\|comptime-error\\|import\\|rename-builtin\\|tokenize-push\\)[ )\n]"
+    (font-lock-add-keywords nil '(("(\\(add-build-config-label\\|add-build-options\\|add-build-options-global\\|add-c-build-dependency\\|add-c-search-directory-global\\|add-c-search-directory-module\\|add-cakelisp-search-directory\\|add-compile-time-hook\\|add-compile-time-hook-module\\|add-compiler-link-options\\|add-cpp-build-dependency\\|add-library-dependency\\|add-library-runtime-search-directory\\|add-library-search-directory\\|add-linker-options\\|add-static-link-objects\\|set-cakelisp-option\\|set-module-option\\|c-import\\|c-preprocessor-define\\|c-preprocessor-define-global\\|comptime-cond\\|comptime-define-symbol\\|comptime-error\\|import\\|rename-builtin\\|splice-point\\|tokenize-push\\)[ )\n]"
                                    1 font-lock-builtin-face)))
 
     (font-lock-add-keywords nil '(("\\b\\(true\\|false\\|null\\)\\b"

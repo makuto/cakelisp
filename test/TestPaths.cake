@@ -2,7 +2,7 @@
         ;; realpath
         "<stdlib.h>")
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "ComptimeHelpers.cake")
+(import "ComptimeHelpers.cake")
 
 (defun main (&return int)
   (var path-tests ([] (* (const char))) (array
@@ -19,7 +19,7 @@
       (perror "realpath: ")
       (incr i)
       (continue))
-    (printf "%s = %s\n" (at i path-tests) result)
+    (fprintf stderr "%s = %s\n" (at i path-tests) result)
     (free (type-cast result (* void)))
     (incr i))
   (return 0))

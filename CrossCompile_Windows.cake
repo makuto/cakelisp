@@ -1,5 +1,3 @@
-(skip-build)
-
 (set-cakelisp-option executable-output "bin/cakelisp.exe")
 
 (add-c-search-directory-module "src")
@@ -18,6 +16,7 @@
  "ModuleManager.cpp"
  "Logging.cpp"
  "Build.cpp"
+ "Metadata.cpp"
  "Main.cpp")
 
 (add-build-options "-DWINDOWS" "-DMINGW" "-DCAKELISP_EXPORTING")

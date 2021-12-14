@@ -85,3 +85,13 @@ enum ObjectReferenceResolutionType
 	// function was already loaded, so no action needs to be taken
 	ObjectReferenceResolutionType_AlreadyLoaded
 };
+
+enum RequiredFeature
+{
+	// There's an assumption built-in to cakelisp that C should work, so that's the equivalent here
+	RequiredFeature_None = 0,
+	// Track separately so that C++ functions can be called from C unless they have C++ types
+	RequiredFeature_CppInDefinition = 1 << 1,
+	RequiredFeature_CppInDeclaration = 1 << 2,
+	RequiredFeature_Cpp = (RequiredFeature_CppInDefinition | RequiredFeature_CppInDeclaration),
+};

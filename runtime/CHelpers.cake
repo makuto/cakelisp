@@ -1,6 +1,4 @@
-(skip-build)
-
-(import &comptime-only "ComptimeHelpers.cake")
+(import "ComptimeHelpers.cake")
 
 ;; Unlike scope, this does not create a scope, which is useful when you don't want a scope but do
 ;; want multiple statements
@@ -162,7 +160,7 @@
   (var output-dest (& (<> std::vector StringOutput))
     (? is-global (field output header) (field output source)))
 
-  (addStringOutput output-dest "enum" StringOutMod_SpaceAfter name)
+  (addStringOutput output-dest "typedef enum" StringOutMod_SpaceAfter name)
   (addStringOutput output-dest (path name > contents) StringOutMod_ConvertTypeName name)
   (addLangTokenOutput output-dest StringOutMod_OpenBlock name)
 
@@ -179,6 +177,7 @@
 
   (addLangTokenOutput output-dest StringOutMod_NewlineAfter name)
   (addLangTokenOutput output-dest StringOutMod_CloseBlock name)
+  (addStringOutput output-dest (path name > contents) StringOutMod_ConvertTypeName name)
   (addLangTokenOutput output-dest StringOutMod_EndStatement name)
   (return true))
 
@@ -243,6 +242,26 @@
     (c-for (var (token-splice iterator-name) int 0)
         (< (token-splice iterator-name) (token-splice range))
         (incr (token-splice iterator-name))
+      (token-splice-rest body tokens)))
+  (return true))
+
+;; [start, end) a.k.a. standard C for loop with non-zero start
+(defmacro each-in-interval (start any end any iterator-name symbol &rest body any)
+  (tokenize-push output
+    (c-for (var (token-splice iterator-name) int (token-splice start))
+        (< (token-splice iterator-name) (token-splice end))
+        (incr (token-splice iterator-name))
+      (token-splice-rest body tokens)))
+  (return true))
+
+;; [start, end] where start >= end
+(defmacro each-in-closed-interval-descending (start-max any end-min any
+                                              iterator-name symbol
+                                              &rest body any)
+  (tokenize-push output
+    (c-for (var (token-splice iterator-name) int (token-splice start-max))
+        (>= (token-splice iterator-name) (token-splice end-min))
+        (decr (token-splice iterator-name))
       (token-splice-rest body tokens)))
   (return true))
 

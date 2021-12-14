@@ -27,15 +27,14 @@ The ~local~ keyword or suffix is typically relative to module scope. It tells Ca
 ** Importing modules
 The ~import~ function adds the specified file to the environment:
 #+BEGIN_SRC lisp
-(import "MyFile.cake" "AnotherFile.cake")
+  (import "MyFile.cake" "AnotherFile.cake")
 
-;; Include MyForwardDeclares.cake's generated header in the current module's generated header
-;; You might need to do this if you have non-module-local types/signatures which rely on other types
-(import &with-decls "MyForwardDeclares.cake")
+  ;; Include MyForwardDeclares.cake's generated header in the current module's generated header
+  ;; You might need to do this if you have non-module-local types/signatures which rely on other types
+  (import &with-decls "MyForwardDeclares.cake")
 
-;; Do not include in any generated code. This is essential for comptime-only modules, which won't
-;; even generate headers
-(import &comptime-only "ComptimeHelpers.cake")
+  ;; Do not build the module, only include its header (its declarations)
+  (import &decls-only "OnlyHeader.cake")
 #+END_SRC
 
 By default, ~&with-defs~ is specified, meaning the generated header will be included in the generated source file only.
@@ -51,7 +50,7 @@ This also means that adding Cakelisp to an existing C/C++ project should be virt
 Here are some example imports:
 #+BEGIN_SRC lisp
 (c-import "<vector>") ;; now just e.g. (var my-vec (<> std::vector int) (array 1 2 3))
-(c-import "<cstdio.h>") ;; (printf "Hello %s!\n" "Cakelisp")
+(c-import "<cstdio.h>") ;; (fprintf stderr "Hello %s!\n" "Cakelisp")
 (c-import "MyHeader.hpp") ;; (call-on updateState myGlobalVar 0.016)
 
 ;; Multiple imports are allowed per call:
@@ -131,7 +130,7 @@ The keyword ~&variable-arguments can be used to create a function with variadic 
     (var list va_list)
     (va_start list num-args)
     (each-in-range num-args i
-      (printf "%d\n" (va_arg list int)))
+      (fprintf stderr "%d\n" (va_arg list int)))
     (va_end list))
 
   (defun main (&return int)
@@ -400,11 +399,6 @@ Basic projects don't need any build customization at all. Cakelisp uses its modu
 For example, Cakelisp itself consists of C++ code. [[file:../Bootstrap.cake][Bootstrap.cake]] builds Cakelisp, and serves as a good demonstration of the build system. I'll explain it here.
 
 #+BEGIN_SRC lisp
-(skip-build)
-#+END_SRC
-This indicates the current module should not be built, nor be linked into the final executable. ~Bootstrap.cake~ doesn't contain any runtime code, so we omit it. Modules which contain only compile-time functions like macros should also ~skip-build~.
-
-#+BEGIN_SRC lisp
 (set-cakelisp-option executable-output "bin/cakelisp")
 #+END_SRC
 This changes the location where the final executable is output. Note that if you don't have a ~(main)~ function defined, you can change this output to e.g. ~lib/libCakelisp.so~ to output a dynamic library (on Linux).
@@ -432,6 +426,7 @@ If ~global~ is specified instead, all modules and build dependencies would inclu
  "ModuleManager.cpp"
  "Logging.cpp"
  "Build.cpp"
+ "Metadata.cpp"
  "Main.cpp")
 #+END_SRC
 

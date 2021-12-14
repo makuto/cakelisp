@@ -20,11 +20,11 @@
     (const (* (<> (in std vector) (<> (in std vector) int)))))
 
 (defun main (&return int)
-  (printf "Path length: %d\n" MAX_PATH_LENGTH)
+  (fprintf stderr "Path length: %d\n" MAX_PATH_LENGTH)
 
   (def-type-alias my-type int)
   (var a-thing my-type 0)
-  (printf "Thing: %d\n" a-thing)
+  (fprintf stderr "Thing: %d\n" a-thing)
 
   (return 0))
 

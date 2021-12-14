@@ -1,6 +1,5 @@
 ;; An interface for accessing Cakelisp itself at comptime, e.g. for running Cakelisp as a sub-step
-(import &comptime-only "CHelpers.cake")
-
+(import "CHelpers.cake")
 
 (defmacro cakelisp-manager-destroy-and (module-manager any &rest body any)
   (tokenize-push output

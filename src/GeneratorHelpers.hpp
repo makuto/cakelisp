@@ -18,8 +18,8 @@ struct ObjectDefinition;
 void StripInvocation(int& startTokenIndex, int& endTokenIndex);
 CAKELISP_API int FindCloseParenTokenIndex(const std::vector<Token>& tokens, int startTokenIndex);
 
-bool ExpectEvaluatorScope(const char* generatorName, const Token& token,
-                          const EvaluatorContext& context, EvaluatorScope expectedScope);
+CAKELISP_API bool ExpectEvaluatorScope(const char* generatorName, const Token& token,
+                                       const EvaluatorContext& context, EvaluatorScope expectedScope);
 bool IsForbiddenEvaluatorScope(const char* generatorName, const Token& token,
                                const EvaluatorContext& context, EvaluatorScope forbiddenScope);
 CAKELISP_API bool ExpectTokenType(const char* generatorName, const Token& token,
@@ -44,14 +44,14 @@ CAKELISP_API int getExpectedArgument(const char* message, const std::vector<Toke
                                      int endTokenIndex);
 // Expects startTokenIndex to be the invocation. The name of the invocation is included in the count
 // Note: Body arguments will not work properly with this
-int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
+CAKELISP_API int getNumArguments(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 // Like getNumArguments, includes invocation
 CAKELISP_API bool ExpectNumArguments(const std::vector<Token>& tokens, int startTokenIndex,
                                      int endTokenIndex, int numExpectedArguments);
 bool isLastArgument(const std::vector<Token>& tokens, int startTokenIndex, int endTokenIndex);
 // There are no more arguments once this returns endArrayTokenIndex
-int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
-                    int endArrayTokenIndex);
+CAKELISP_API int getNextArgument(const std::vector<Token>& tokens, int currentTokenIndex,
+                                 int endArrayTokenIndex);
 
 // If the current token is a scope, skip it. This is useful when a generator has already opened a
 // block, so it knows the scope comes from the generator invocation
@@ -183,3 +183,7 @@ CAKELISP_API void TokenizePushSpliceTokenExpression(TokenizePushContext* spliceC
 CAKELISP_API bool TokenizePushExecute(EvaluatorEnvironment& environment, const char* definitionName,
                                       uint32_t tokensCrc, TokenizePushContext* spliceContext,
                                       std::vector<Token>& output);
+
+struct Module;
+CAKELISP_API void RequiresFeature(Module* module, ObjectDefinition* objectDefinition,
+                                  RequiredFeature requiredFeatures, const Token* blameToken);

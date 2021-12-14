@@ -1,5 +1,5 @@
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "CHelpers.cake")
+(import "CHelpers.cake")
 
 (defenum my-enum
   my-enum-a

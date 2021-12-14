@@ -1,7 +1,5 @@
-;; (skip-build)
-
 (add-cakelisp-search-directory "runtime")
-(import &comptime-only "BuildTools.cake" "ComptimeHelpers.cake" "CHelpers.cake" "Cakelisp.cake")
+(import "BuildTools.cake" "ComptimeHelpers.cake" "CHelpers.cake" "Cakelisp.cake")
 
 ;; We don't actually test anything here; we use comptime to run the tests
 (defun main (&return int)
@@ -18,12 +16,14 @@
      (array "Code modification" "test/CodeModification.cake")
      ;; (array "Build options" "test/BuildOptions.cake")
      (array "Execute" "test/Execute.cake")
+     (array "Export" "test/ExportTest.cake")
      (array "Defines" "test/Defines.cake")
      (array "Multi-line strings" "test/MultiLineStrings.cake")
      (array "Build helpers" "test/BuildHelpers.cake")
      (array "Hooks" "test/CompileTimeHooks.cake")
      (array "Build dependencies" "test/BuildDependencies.cake")
-     (array "Cpp helpers" "test/CppHelpersTest.cake")))
+     (array "Cpp helpers" "test/CppHelpersTest.cake")
+     (array "Tutorial: Basics" "test/Tutorial_Basics.cake")))
 
   (var platform-config (* (const char))
     (comptime-cond

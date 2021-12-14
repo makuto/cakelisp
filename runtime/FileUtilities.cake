@@ -15,8 +15,19 @@
    "This module requires platform-specific code. Please define your platform before importing" \
    " this module, e.g.: (comptime-define-symbol 'Unix). Supported platforms: 'Unix, 'Windows")))
 
+(defun path-convert-to-forward-slashes (path-str (* char))
+  (each-char-in-string path-str current-char
+	(when (= (deref current-char) '\\')
+	  (set (deref current-char) '/'))))
+
+(defun path-convert-to-backward-slashes (path-str (* char))
+  (each-char-in-string path-str current-char
+	(when (= (deref current-char) '/')
+	  (set (deref current-char) '\\'))))
+
+;; Converts to forward slashes!
 (defun make-absolute-path-allocated (fromDirectory (* (const char)) filePath (* (const char))
-                                     &return (* (const char)))
+                                     &return (* char))
   (comptime-cond
    ('Unix
 	;; Second condition allows for absolute paths
@@ -41,11 +52,16 @@
 	(unless isValid
 	  (free absolutePath)
 	  (return null))
+
+    ;; Save the user from a whole lot of complexity by keeping slashes consistent with Unix style
+    ;; Note that this means you may need to convert back to backslashes in some cases
+    (path-convert-to-forward-slashes absolutePath)
 	(return absolutePath))
    (true
     (comptime-error "Need to be able to normalize path on this platform")
 	(return null))))
 
+;; Expects: forward slash path. Returns: forward slash path
 (defun get-directory-from-path (path (* (const char)) bufferOut (* char) bufferSize int)
   (comptime-cond
    ('Unix
@@ -54,33 +70,33 @@
 	(safe-string-print bufferOut bufferSize "%s" dirName)
 	(free pathCopy))
    ('Windows
+    (var converted-path ([] MAX_PATH_LENGTH char) (array 0))
+    (var num-printed size_t
+	  (snprintf converted-path (sizeof converted-path) "%s" path))
+	(when (= (at (- num-printed 1) converted-path) '/')
+	  (set (at (- num-printed 1) converted-path) 0))
+    (path-convert-to-backward-slashes converted-path)
+
 	(var drive ([] _MAX_DRIVE char))
 	(var dir ([] _MAX_DIR char))
 	;; char fname[_MAX_FNAME];
 	;; char ext[_MAX_EXT];
-	(_splitpath_s path drive (sizeof drive) dir (sizeof dir)
+	(_splitpath_s converted-path drive (sizeof drive) dir (sizeof dir)
 	              null 0 ;; fname
 	              null 0) ;; extension
 	(_makepath_s bufferOut bufferSize drive dir
                  null ;; fname
-	             null)) ;; extension
+	             null) ;; extension
+
+    (path-convert-to-forward-slashes bufferOut)
+
+    ;; Remove trailing slash to match dirname
+    (var bufferOut-length size_t (strlen bufferOut))
+    (when (and (> bufferOut-length 1)
+               (= (at (- bufferOut-length 1) bufferOut) '/'))
+	  (set (at (- bufferOut-length 1) bufferOut) 0)))
    (true
     (comptime-error "Need to be able to strip path on this platform"))))
-
-(defun make-backslash-filename (buffer (* char) bufferSize
-                                int filename (* (const char)))
-  (var bufferWrite (* char) buffer)
-  (var currentChar (* (const char)) filename)
-  (while (deref currentChar)
-    (if (= (deref currentChar)  '/')
-        (set (deref bufferWrite) '\\')
-        (set (deref bufferWrite) (deref currentChar)))
-
-    (incr bufferWrite)
-    (incr currentChar)
-    (when (>= (- bufferWrite buffer) bufferSize)
-      (fprintf stderr "error: could not make safe filename: buffer too small\n")
-      (break))))
 
 (defmacro safe-string-print (buffer any size any
                              format string &rest args any)
@@ -106,8 +122,9 @@
   (fseek in-file 0 SEEK_END)
   (var file-size size_t (ftell in-file))
   (rewind in-file)
-  (var-cast-to out-buffer (* char) (malloc file-size))
+  (var-cast-to out-buffer (* char) (malloc (+ 1 file-size)))
   (fread out-buffer file-size 1 in-file)
+  (set (at file-size out-buffer) 0)
   (return out-buffer))
 
 (defun write-string (out-file (* FILE) out-string (* (const char)))
@@ -133,3 +150,20 @@
   (tokenize-push output
     (fread (addr (token-splice item)) (sizeof (token-splice item)) 1 (token-splice in-file)))
   (return true))
+
+(ignore ;; For reference
+ (defun-local test--load-save ()
+   (scope
+    (var test-file (* FILE) (fopen "Test.bin" "wb"))
+    (unless test-file
+      (return 1))
+    (write-string test-file "This is a test string")
+    (fclose test-file)
+
+    (var read-file (* FILE) (fopen "Test.bin" "rb"))
+    (unless read-file
+      (return 1))
+    (var read-buffer ([] 256 char) (array 0))
+    (read-string read-file read-buffer (sizeof read-buffer))
+    (fprintf stderr "Got \"%s\"\n" read-buffer)
+    (fclose read-file))))

@@ -19,6 +19,10 @@
 #include "Utilities.hpp"
 #include "Writer.hpp"
 
+#ifdef WINDOWS
+#include "FindVisualStudio.hpp"
+#endif
+
 // The ' symbols tell the signature validator that the actual contents of those symbols can be
 // user-defined (just like C letting you specify arguments without names)
 const char* g_modulePreBuildHookSignature =
@@ -77,6 +81,34 @@ void moduleManagerInitialize(ModuleManager& manager)
 #ifdef WINDOWS
 		manager.environment.isMsvcCompiler = true;
 
+		// By doing this, we no longer need VCVars
+		char msvcIncludePath[1024] = {0};
+		char ucrtIncludePath[1024] = {0};
+		char umIncludePath[1024] = {0};
+		char windowsSharedIncludePath[1024] = {0};
+		char ucrtLibPath[1024] = {0};
+		char umLibPath[1024] = {0};
+		char msvcLibPath[1024] = {0};
+		{
+			Find_Result result = find_visual_studio_and_windows_sdk();
+			SafeSnprintf(msvcIncludePath, sizeof(msvcIncludePath), "\"%ws\"",
+			             result.vs_include_path);
+			SafeSnprintf(ucrtIncludePath, sizeof(ucrtIncludePath), "\"%ws\\ucrt\"",
+			             result.windows_sdk_include_path);
+			SafeSnprintf(umIncludePath, sizeof(umIncludePath), "\"%ws\\um\"",
+			             result.windows_sdk_include_path);
+			SafeSnprintf(windowsSharedIncludePath, sizeof(windowsSharedIncludePath),
+			             "\"%ws\\shared\"", result.windows_sdk_include_path);
+
+			SafeSnprintf(ucrtLibPath, sizeof(ucrtLibPath), "/LIBPATH:\"%ws\"",
+			             result.windows_sdk_ucrt_library_path);
+			SafeSnprintf(umLibPath, sizeof(umLibPath), "/LIBPATH:\"%ws\"",
+			             result.windows_sdk_um_library_path);
+			SafeSnprintf(msvcLibPath, sizeof(msvcLibPath), "/LIBPATH:\"%ws\"",
+			             result.vs_library_path);
+			free_resources(&result);
+		}
+
 		// MSVC by default
 		// Our lives could be easier by using Clang or MinGW, but it wouldn't be the ideal for
 		// hardcore Windows users, who we should support
@@ -99,7 +131,16 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_SourceInput, EmptyString},
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
-		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString}};
+		    {ProcessCommandArgumentType_CakelispHeadersInclude, EmptyString},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, msvcIncludePath},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, umIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, windowsSharedIncludePath},
+		};
 
 		manager.environment.compileTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.compileTimeLinkCommand.arguments = {
@@ -114,7 +155,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    // Debug only
 		    {ProcessCommandArgumentType_String, "/DEBUG:FASTLINK"},
 		    {ProcessCommandArgumentType_DynamicLibraryOutput, EmptyString},
-		    {ProcessCommandArgumentType_ObjectInput, EmptyString}};
+		    {ProcessCommandArgumentType_ObjectInput, EmptyString},
+		    {ProcessCommandArgumentType_String, ucrtLibPath},
+		    {ProcessCommandArgumentType_String, umLibPath},
+		    {ProcessCommandArgumentType_String, msvcLibPath}};
 
 		// TODO Precompiled headers on windows. See
 		// https://docs.microsoft.com/en-us/cpp/build/creating-precompiled-header-files?view=msvc-160
@@ -129,7 +173,16 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
-		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, msvcIncludePath},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, umIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, windowsSharedIncludePath},
+		};
 
 		manager.environment.buildTimeBuildCommand.fileToExecute = "cl.exe";
 		manager.environment.buildTimeBuildCommand.arguments = {
@@ -140,7 +193,16 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_ObjectOutput, EmptyString},
 		    {ProcessCommandArgumentType_DebugSymbolsOutput, EmptyString},
 		    {ProcessCommandArgumentType_IncludeSearchDirs, EmptyString},
-		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString}};
+		    {ProcessCommandArgumentType_AdditionalOptions, EmptyString},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, msvcIncludePath},
+		    {ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, ucrtIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, umIncludePath},
+			{ProcessCommandArgumentType_String, "/I"},
+		    {ProcessCommandArgumentType_String, windowsSharedIncludePath},
+		};
 
 		manager.environment.buildTimeLinkCommand.fileToExecute = "link.exe";
 		manager.environment.buildTimeLinkCommand.arguments = {
@@ -151,7 +213,10 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_LibrarySearchDirs, EmptyString},
 		    {ProcessCommandArgumentType_Libraries, EmptyString},
 		    {ProcessCommandArgumentType_LibraryRuntimeSearchDirs, EmptyString},
-		    {ProcessCommandArgumentType_LinkerArguments, EmptyString}};
+		    {ProcessCommandArgumentType_LinkerArguments, EmptyString},
+		    {ProcessCommandArgumentType_String, ucrtLibPath},
+		    {ProcessCommandArgumentType_String, umLibPath},
+		    {ProcessCommandArgumentType_String, msvcLibPath}};
 #elif MACOS
 		// TODO: Switch this on
 		manager.environment.comptimeUsePrecompiledHeaders = false;
@@ -309,6 +374,11 @@ void moduleManagerDestroyKeepDynLibs(ModuleManager& manager)
 		delete module->generatedOutput;
 		free((void*)module->filename);
 		delete module;
+
+		for (CakelispDeferredImport& import : module->cakelispImports)
+		{
+			delete import.spliceOutput;
+		}
 	}
 	manager.modules.clear();
 }
@@ -641,6 +711,15 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		WriterOutputSettings outputSettings;
 		outputSettings.sourceCakelispFilename = module->filename;
 
+		if (!StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->source, false))
+		{
+			if (logging.buildProcess)
+				Logf("note: not writing module %s because it has no meaningful output\n",
+				     module->filename);
+			module->skipBuild = true;
+			continue;
+		}
+
 		GeneratorOutput header;
 		GeneratorOutput footer;
 		// Something to attach the reason for generating this output
@@ -666,13 +745,47 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 				     module->filename);
 		}
 
+		for (const CakelispDeferredImport& import : module->cakelispImports)
+		{
+			if (!StringOutputHasAnyMeaningfulOutput(&import.importedModule->generatedOutput->header,
+			                                        true))
+			{
+				if (logging.buildProcess)
+					NoteAtTokenf(*import.fileToImportToken, "Not importing: Header for %s is empty",
+					             import.fileToImportToken->contents.c_str());
+				continue;
+			}
+
+			// All cakelisp generated files get dumped into a flat directory, so we need to
+			// strip any existing path
+			char relativeFileBuffer[MAX_PATH_LENGTH] = {0};
+			getFilenameFromPath(import.fileToImportToken->contents.c_str(), relativeFileBuffer,
+			                    sizeof(relativeFileBuffer));
+			char cakelispExtensionBuffer[MAX_PATH_LENGTH] = {0};
+			// TODO: .h vs. .hpp
+			PrintfBuffer(cakelispExtensionBuffer, "%s.hpp", relativeFileBuffer);
+
+			// TODO Support outputting to both in one
+			std::vector<StringOutput>& outputDestination =
+			    import.outputTo == CakelispImportOutput_Header ? import.spliceOutput->header :
+			                                                     import.spliceOutput->source;
+			addStringOutput(outputDestination, "#include", StringOutMod_SpaceAfter,
+			                import.fileToImportToken);
+			addStringOutput(outputDestination, cakelispExtensionBuffer,
+			                StringOutMod_SurroundWithQuotes, import.fileToImportToken);
+			addLangTokenOutput(outputDestination, StringOutMod_NewlineAfter,
+			                   import.fileToImportToken);
+		}
+
 		makeRunTimeHeaderFooter(header, footer, blameToken);
 		outputSettings.heading = &header;
 		outputSettings.footer = &footer;
 
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
+		const char* extension = "cpp";
+		    // module->requiredFeatures & RequiredFeature_CppInDefinition ? "cpp" : "c";
 		if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(),
-		                                      outputSettings.sourceCakelispFilename, "cpp",
+		                                      outputSettings.sourceCakelispFilename, extension,
 		                                      sourceOutputName, sizeof(sourceOutputName)))
 			return false;
 		char headerOutputName[MAX_PATH_LENGTH] = {0};
@@ -797,8 +910,12 @@ struct SharedBuildOptions
 	std::string* buildOutputDir;
 	std::vector<CompileTimeHook>* preLinkHooks;
 
+	// Compile options
+	std::vector<std::string>* compilerAdditionalOptions;
+
 	// Link options
-	std::vector<std::string> linkLibraries;
+	std::vector<std::string> linkLibraries; // dynamic library/shared objects
+	std::vector<std::string>* staticLinkObjects; // static objects/resources/archives
 	std::vector<std::string> librarySearchDirs;
 	std::vector<std::string> libraryRuntimeSearchDirs;
 	std::vector<std::string> compilerLinkOptions;
@@ -809,13 +926,6 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
                                            std::vector<BuildObject*>& buildObjects,
                                            SharedBuildOptions& sharedBuildOptions)
 {
-	sharedBuildOptions.cSearchDirectories = &manager.environment.cSearchDirectories;
-	sharedBuildOptions.buildCommand = &manager.environment.buildTimeBuildCommand;
-	sharedBuildOptions.linkCommand = &manager.environment.buildTimeLinkCommand;
-	sharedBuildOptions.executableOutput = &manager.environment.executableOutput;
-	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
-	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
-
 	int numModules = manager.modules.size();
 	for (int moduleIndex = 0; moduleIndex < numModules; ++moduleIndex)
 	{
@@ -930,8 +1040,23 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 			}
 		}
 
-		if (module->skipBuild)
-			continue;
+		// We do this late so that the file can still affect the build arguments without getting
+		// built itself
+		{
+			// Explicitly marked to not build or automatically excluded
+			if (module->skipBuild)
+			{
+				continue;
+			}
+
+			if (!StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->source, false))
+			{
+				if (logging.buildProcess)
+					Logf("note: not building module %s because it has no meaningful output\n",
+					     module->sourceOutputName.c_str());
+				continue;
+			}
+		}
 
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
 		if (!outputFilenameFromSourceFilename(
@@ -954,6 +1079,65 @@ static bool moduleManagerGetObjectsToBuild(ModuleManager& manager,
 
 		buildObjects.push_back(newBuildObject);
 	}
+
+	// Ensure unique output filenames
+	typedef std::unordered_map<std::string, std::vector<BuildObject*>> FilenameMap;
+	FilenameMap filenameMap;
+	for (BuildObject* object : buildObjects)
+	{
+		FilenameMap::iterator findIt = filenameMap.find(object->filename);
+		if (findIt == filenameMap.end())
+		{
+			std::vector<BuildObject*> newList;
+			newList.push_back(object);
+			filenameMap[object->filename] = std::move(newList);
+		}
+		else
+		{
+			// Found a duplicate. It will be disambiguated later
+			filenameMap[object->filename].push_back(object);
+		}
+	}
+
+	for (std::pair<const std::string, std::vector<BuildObject*>>& filenamePair : filenameMap)
+	{
+		if (filenamePair.second.size() < 2)
+			continue;
+
+		for (BuildObject* object : filenamePair.second)
+		{
+			std::string disambiguatedFilename = object->sourceFilename;
+			for (int i = 0; i < (int)disambiguatedFilename.size(); ++i)
+			{
+				if (disambiguatedFilename[i] == '/' || disambiguatedFilename[i] == '\\')
+					disambiguatedFilename[i] = '_';
+			}
+
+			char buildObjectName[MAX_PATH_LENGTH] = {0};
+			if (!outputFilenameFromSourceFilename(
+			        manager.buildOutputDir.c_str(), disambiguatedFilename.c_str(),
+			        compilerObjectExtension, buildObjectName, sizeof(buildObjectName)))
+			{
+				Log("error: failed to create suitable unambiguous output filename");
+				buildObjectsFree(buildObjects);
+				return false;
+			}
+			if (logging.fileSystem)
+				Logf("Duplicate output name %s will be corrected: %s\n", filenamePair.first.c_str(),
+				     buildObjectName);
+			object->filename = buildObjectName;
+		}
+	}
+
+	// Set these late so hooks can override them as desired
+	sharedBuildOptions.cSearchDirectories = &manager.environment.cSearchDirectories;
+	sharedBuildOptions.buildCommand = &manager.environment.buildTimeBuildCommand;
+	sharedBuildOptions.linkCommand = &manager.environment.buildTimeLinkCommand;
+	sharedBuildOptions.executableOutput = &manager.environment.executableOutput;
+	sharedBuildOptions.buildOutputDir = &manager.buildOutputDir;
+	sharedBuildOptions.preLinkHooks = &manager.environment.preLinkHooks;
+	sharedBuildOptions.compilerAdditionalOptions = &manager.environment.compilerAdditionalOptions;
+	sharedBuildOptions.staticLinkObjects = &manager.environment.additionalStaticLinkObjects;
 
 	return true;
 }
@@ -997,7 +1181,14 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 		}
 
 		std::vector<const char*> additionalOptions;
+		additionalOptions.reserve(object->additionalOptions.size() +
+		                          buildOptions.compilerAdditionalOptions->size());
 		for (const std::string& option : object->additionalOptions)
+		{
+			additionalOptions.push_back(option.c_str());
+		}
+
+		for (const std::string& option : *buildOptions.compilerAdditionalOptions)
 		{
 			additionalOptions.push_back(option.c_str());
 		}
@@ -1156,19 +1347,39 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 	}
 	outputExecutableName = outputExecutableCachePath;
 
-	int numObjectsToLink = 0;
 	bool objectsDirty = false;
 	for (BuildObject* object : buildObjects)
 	{
 		if (logging.buildProcess)
 			Logf("Need to link %s\n", object->filename.c_str());
 
-		++numObjectsToLink;
-
 		// If all our objects are older than our executable, don't even link!
 		objectsDirty |= !canUseCachedFile(manager.environment, object->filename.c_str(),
 		                                  outputExecutableName.c_str());
 	}
+
+	for (const std::string& staticLinkObject : *buildOptions.staticLinkObjects)
+	{
+		char foundFilePath[MAX_PATH_LENGTH] = {0};
+		if (searchForFileInPaths(staticLinkObject.c_str(), nullptr, buildOptions.librarySearchDirs,
+		                         foundFilePath, sizeof(foundFilePath)))
+		{
+			objectsDirty |= fileIsMoreRecentlyModified(foundFilePath, outputExecutableName.c_str());
+		}
+		else
+		{
+			Logf(
+			    "warning: could not find static link object %s. Your build may become stale if "
+			    "that object has changed recently. It was looked for in the following paths:\n",
+			    staticLinkObject.c_str());
+			for (const std::string& searchPath : buildOptions.librarySearchDirs)
+			{
+				Logf("\t%s\n", searchPath.c_str());
+			}
+		}
+	}
+
+	int numObjectsToLink = buildObjects.size() + buildOptions.staticLinkObjects->size();
 
 	std::string finalOutputName;
 	if (!buildOptions.executableOutput->empty())
@@ -1179,12 +1390,15 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 	bool succeededBuild = false;
 	if (numObjectsToLink)
 	{
-		std::vector<const char*> objectsToLink(numObjectsToLink);
-		for (int i = 0; i < numObjectsToLink; ++i)
+		std::vector<const char*> objectsToLink;
+		objectsToLink.reserve(numObjectsToLink);
+		for (BuildObject* object : buildObjects)
 		{
-			BuildObject* object = buildObjects[i];
-
-			objectsToLink[i] = object->filename.c_str();
+			objectsToLink.push_back(object->filename.c_str());
+		}
+		for (const std::string& staticLinkObject : *buildOptions.staticLinkObjects)
+		{
+			objectsToLink.push_back(staticLinkObject.c_str());
 		}
 
 		// Copy it so hooks can modify it

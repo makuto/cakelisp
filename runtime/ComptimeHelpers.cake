@@ -1,6 +1,4 @@
-(skip-build)
-
-(import &comptime-only "CppHelpers.cake")
+(import "CppHelpers.cake")
 
 ;; Binds the variable's address to the named var
 ;; Note that this causes the caller's function to return false if the binding failed
@@ -234,4 +232,20 @@
          (set (token-splice iterator-name)
               (getNextArgument (token-splice token-array iterator-name end-token-index)))
        (token-splice-rest body tokens))))
+  (return true))
+
+(defmacro token-contents-snprintf (token any format string &rest arguments any)
+  (tokenize-push output
+    (scope
+     (var token-contents-printf-buffer ([] 256 char) (array 0))
+     (var num-printed size_t
+       (snprintf token-contents-printf-buffer (sizeof token-contents-printf-buffer)
+                 (token-splice format)
+                 (token-splice-rest arguments tokens)))
+     (when (>= num-printed (sizeof token-contents-printf-buffer))
+       (fprintf stderr "error: token-contents-snprintf printed more characters than can fit in " \
+                "buffer of size %d (%d)\n"
+                (type-cast (sizeof token-contents-printf-buffer) int)
+                (type-cast num-printed int)))
+     (set (field (token-splice token) contents) token-contents-printf-buffer)))
   (return true))

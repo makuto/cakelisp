@@ -68,7 +68,7 @@ class MyWindowEventListener : public Ogre::WindowEventListener
 public:
 	virtual void windowClosed(Ogre::Window* window)
 	{
-		printf("Window closed!\n");
+		fprintf(stderr, "Window closed!\n");
 		g_ogre_window_should_quit = true;
 	}
 };
@@ -117,7 +117,7 @@ In GameLib, almost all loops would be fine with a number range, e.g. here are so
 ;; Pointer types, end as an expression
 ;; This is a little bit too clunky for this construct
 (each-range (:iter c (* char) buffer (- (+ buffer (array-size buffer)) 1))
-  (printf "Char is '%c'\n" (deref c)))
+  (fprintf stderr "Char is '%c'\n" (deref c)))
 #+END_SRC
 
 I'm open to input on the topic. I'm not sure I want to take much from ~dolist~ and such.

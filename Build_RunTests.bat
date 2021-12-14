@@ -1,18 +1,22 @@
 echo off
 rem Set environment variables. The user may need to adjust this path
 rem See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160#developer_command_file_locations
+rem See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160#developer_command_file_locations
 if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat" (
 call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
 ) else (
-echo This script builds using MSVC.
-echo You must download and install MSVC before it will work. Download it here:
-echo https://visualstudio.microsoft.com/downloads/
-echo Select workloads for C++ projects. Ensure you install the C++ developer tools.
-echo If you're still seeing this, you may need to edit Build.bat to your vcvars path
-echo Please see the following link:
-echo https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
-goto fail
-)
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" (
+  call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+  ) else (
+  echo This script builds using MSVC.
+  echo You must download and install MSVC before it will work. Download it here:
+  echo https://visualstudio.microsoft.com/downloads/
+  echo Select workloads for C++ projects. Ensure you install the C++ developer tools.
+  echo If you're still seeing this, you may need to edit Build.bat to your vcvars path
+  echo Please see the following link:
+  echo https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
+  goto fail
+))
 
 if not exist "bin" (
 mkdir bin
@@ -39,7 +43,11 @@ CL.exe src/Tokenizer.cpp ^
  src/ModuleManager.cpp ^
  src/Logging.cpp ^
  src/Build.cpp ^
+ src/Metadata.cpp ^
  src/Main.cpp ^
+ 3rdPartySrc/FindVisualStudio.cpp ^
+ Advapi32.lib Ole32.lib OleAut32.lib ^
+ /I 3rdPartySrc ^
  /EHsc /MP /DWINDOWS /DCAKELISP_EXPORTING ^
  /Fe"bin\cakelisp_bootstrap" /Zi /Fd"bin\cakelisp_bootstrap.pdb" /DEBUG:FASTLINK
  echo %ERRORLEVEL%
