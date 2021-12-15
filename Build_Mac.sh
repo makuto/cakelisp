@@ -29,6 +29,7 @@ else
 		src/ModuleManager.cpp \
 		src/Logging.cpp \
 		src/Build.cpp \
+		src/Metadata.cpp \
 		src/Main.cpp \
 		-DMACOS || exit $?
 	# Need -ldl for dynamic loading, -rdynamic to let compile-time functions resolve to
