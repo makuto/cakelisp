@@ -49,6 +49,8 @@ You can then run ~./bin/cakelisp~. Have fun! A simple test:
 #+END_SRC
 
 It shouldn't be hard to build Cakelisp using your favorite build system. Simply build all the ~.cpp~ files in ~src~ (with ~UNIX~ defined), then link them into an executable which also links ~-ldl~. Leave out ~Main.cpp~ and you can embed Cakelisp in a static or dynamic library!
+** MacOS
+Do the same as Linux, only call the ~Build_Mac.sh~ script instead. (etc.)
 ** Windows
 Windows does not come with a compiler installed by default. In order to provide a solid "native" experience, Cakelisp supports MSVC. It should be possible to compile on Windows using MinGW as well (in which case, you should refer to the Linux instructions, or open an Issue requesting Windows-native MinGW bootstrap building).
 
