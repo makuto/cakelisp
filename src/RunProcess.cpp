@@ -414,29 +414,30 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 	if (s_subprocesses.empty())
 		return;
 
-	for (Subprocess& process : s_subprocesses)
+	for (int i = 0; i < s_subprocesses.size(); ++i)
 	{
+		Subprocess* process = &s_subprocesses[i];
 #if defined(UNIX) || defined(MACOS)
 		char processOutputBuffer[1024] = {0};
 		int numBytesRead =
-		    read(process.pipeReadFileDescriptor, processOutputBuffer, sizeof(processOutputBuffer));
+		    read(process->pipeReadFileDescriptor, processOutputBuffer, sizeof(processOutputBuffer));
 		while (numBytesRead > 0)
 		{
 			processOutputBuffer[numBytesRead] = '\0';
 			subprocessReceiveStdOut(processOutputBuffer);
 			if (onOutput)
 				onOutput(processOutputBuffer);
-			numBytesRead = read(process.pipeReadFileDescriptor, processOutputBuffer,
+			numBytesRead = read(process->pipeReadFileDescriptor, processOutputBuffer,
 			                    sizeof(processOutputBuffer));
 		}
 
-		close(process.pipeReadFileDescriptor);
+		close(process->pipeReadFileDescriptor);
 
-		waitpid(process.processId, process.statusOut, 0);
+		waitpid(process->processId, process->statusOut, 0);
 
 		// It's pretty useful to see the command which resulted in failure
-		if (*process.statusOut != 0)
-			Logf("%s\n", process.command.c_str());
+		if (*process->statusOut != 0)
+			Logf("%s\n", process->command.c_str());
 #elif WINDOWS
 
 		// We cannot wait indefinitely because the process eventually waits for us to read from the
@@ -446,29 +447,29 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		// mean Cakelisp unnecessarily taking up cycles, so it's a tradeoff.
 		const int pollProcessTimeMilliseconds = 50;
 		while (WAIT_TIMEOUT ==
-		       WaitForSingleObject(process.processInfo->hProcess, pollProcessTimeMilliseconds))
+		       WaitForSingleObject(process->processInfo->hProcess, pollProcessTimeMilliseconds))
 			readProcessPipe(process, onOutput);
 
 		// If the wait was ended but wasn't a timeout, we still need to read out
 		readProcessPipe(process, onOutput);
 
 		DWORD exitCode = 0;
-		if (!GetExitCodeProcess(process.processInfo->hProcess, &exitCode))
+		if (!GetExitCodeProcess(process->processInfo->hProcess, &exitCode))
 		{
 			Log("error: failed to get exit code for process\n");
 			exitCode = 1;
 		}
 		else if (exitCode != 0)
 		{
-			Logf("%s\n", process.command.c_str());
+			Logf("%s\n", process->command.c_str());
 		}
 
-		*process.statusOut = exitCode;
+		*(process->statusOut) = exitCode;
 
 		// Close process, thread, and stdout handles.
-		CloseHandle(process.processInfo->hProcess);
-		CloseHandle(process.processInfo->hThread);
-		CloseHandle(process.hChildStd_OUT_Rd);
+		CloseHandle(process->processInfo->hProcess);
+		CloseHandle(process->processInfo->hThread);
+		CloseHandle(process->hChildStd_OUT_Rd);
 #endif
 	}
 
