@@ -414,7 +414,7 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 	if (s_subprocesses.empty())
 		return;
 
-	for (int i = 0; i < s_subprocesses.size(); ++i)
+	for (size_t i = 0; i < s_subprocesses.size(); ++i)
 	{
 		Subprocess* process = &s_subprocesses[i];
 #if defined(UNIX) || defined(MACOS)

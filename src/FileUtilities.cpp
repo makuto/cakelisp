@@ -138,7 +138,7 @@ bool fileExists(const char* filename)
 #endif
 }
 
-void makeDirectory(const char* path)
+bool makeDirectory(const char* path)
 {
 #if defined(UNIX) || defined(MACOS)
 	if (mkdir(path, 0755) == -1)
@@ -146,16 +146,23 @@ void makeDirectory(const char* path)
 		// We don't care about EEXIST, we just want the dir
 		if (logging.fileSystem || errno != EEXIST)
 			perror("makeDirectory: ");
+		if (errno != EEXIST)
+			return false;
 	}
 #elif WINDOWS
 	if (!CreateDirectory(path, /*lpSecurityAttributes=*/nullptr))
 	{
 		if (GetLastError() != ERROR_ALREADY_EXISTS)
+		{
 			Logf("makeDirectory failed to make %s", path);
+			return false;
+		}
 	}
 #else
 #error Need to be able to make directories on this platform
 #endif
+
+	return true;
 }
 
 void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize)

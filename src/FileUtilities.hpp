@@ -13,7 +13,7 @@ CAKELISP_API bool fileIsMoreRecentlyModified(const char* filename, const char* r
 
 CAKELISP_API bool fileExists(const char* filename);
 
-void makeDirectory(const char* path);
+bool makeDirectory(const char* path);
 
 void getDirectoryFromPath(const char* path, char* bufferOut, int bufferSize);
 void getFilenameFromPath(const char* path, char* bufferOut, int bufferSize);

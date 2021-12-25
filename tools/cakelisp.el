@@ -45,7 +45,7 @@
     ;; "(def[a-zA-Z0-9-]*" all define keywords
 
     ;; Configuration, build stuff, etc.
-    (font-lock-add-keywords nil '(("(\\(add-build-config-label\\|add-build-options\\|add-build-options-global\\|add-c-build-dependency\\|add-c-search-directory-global\\|add-c-search-directory-module\\|add-cakelisp-search-directory\\|add-compile-time-hook\\|add-compile-time-hook-module\\|add-compiler-link-options\\|add-cpp-build-dependency\\|add-library-dependency\\|add-library-runtime-search-directory\\|add-library-search-directory\\|add-linker-options\\|add-static-link-objects\\|set-cakelisp-option\\|set-module-option\\|c-import\\|c-preprocessor-define\\|c-preprocessor-define-global\\|comptime-cond\\|comptime-define-symbol\\|comptime-error\\|import\\|rename-builtin\\|splice-point\\|tokenize-push\\)[ )\n]"
+    (font-lock-add-keywords nil '(("(\\(add-build-config-label\\|add-build-options\\|add-build-options-global\\|add-c-build-dependency\\|add-c-search-directory-global\\|add-c-search-directory-module\\|add-cakelisp-search-directory\\|add-compile-time-hook\\|add-compile-time-hook-module\\|add-compiler-link-options\\|add-cpp-build-dependency\\|add-library-dependency\\|add-library-runtime-search-directory\\|add-library-search-directory\\|add-linker-options\\|add-static-link-objects\\|set-cakelisp-option\\|set-module-option\\|c-import\\|c-preprocessor-define\\|c-preprocessor-define-global\\|comptime-cond\\|comptime-define-symbol\\|comptime-error\\|import\\|rename-builtin\\|splice-point\\|token-splice\\|token-splice-addr\\|token-splice-array\\|token-splice-rest\\|tokenize-push\\)[ )\n]"
                                    1 font-lock-builtin-face)))
 
     (font-lock-add-keywords nil '(("\\b\\(true\\|false\\|null\\)\\b"
