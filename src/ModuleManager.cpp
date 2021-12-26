@@ -710,14 +710,17 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 	{
 		WriterOutputSettings outputSettings;
 		outputSettings.sourceCakelispFilename = module->filename;
+		bool shouldWriteSource = true;
+		bool shouldWriteHeader = true;
 
 		if (!StringOutputHasAnyMeaningfulOutput(&module->generatedOutput->source, false))
 		{
+			module->skipBuild = true;
+			shouldWriteSource = false;
+
 			if (logging.buildProcess)
 				Logf("note: not writing module %s because it has no meaningful output\n",
 				     module->filename);
-			module->skipBuild = true;
-			continue;
 		}
 
 		GeneratorOutput header;
@@ -740,10 +743,14 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 		}
 		else
 		{
+			shouldWriteHeader = false;
 			if (logging.fileSystem)
 				Logf("Opting not to write nor include %s header because it is empty\n",
 				     module->filename);
 		}
+
+		if (!shouldWriteSource && !shouldWriteHeader)
+			continue;
 
 		for (const CakelispDeferredImport& import : module->cakelispImports)
 		{
@@ -783,7 +790,8 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
 		const char* extension = "cpp";
-		    // module->requiredFeatures & RequiredFeature_CppInDefinition ? "cpp" : "c";
+		// TODO: Enable C vs C++
+		// module->requiredFeatures & RequiredFeature_CppInDefinition ? "cpp" : "c";
 		if (!outputFilenameFromSourceFilename(manager.buildOutputDir.c_str(),
 		                                      outputSettings.sourceCakelispFilename, extension,
 		                                      sourceOutputName, sizeof(sourceOutputName)))
@@ -795,8 +803,10 @@ bool moduleManagerWriteGeneratedOutput(ModuleManager& manager)
 			return false;
 		module->sourceOutputName = sourceOutputName;
 		module->headerOutputName = headerOutputName;
-		outputSettings.sourceOutputName = module->sourceOutputName.c_str();
-		outputSettings.headerOutputName = module->headerOutputName.c_str();
+		outputSettings.sourceOutputName =
+		    shouldWriteSource ? module->sourceOutputName.c_str() : nullptr;
+		outputSettings.headerOutputName =
+		    shouldWriteHeader ? module->headerOutputName.c_str() : nullptr;
 
 		if (!writeGeneratorOutput(*module->generatedOutput, nameSettings, formatSettings,
 		                          outputSettings))

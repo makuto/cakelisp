@@ -368,16 +368,13 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		StringOutputState stateBeforeOutputWrite;
 		char tempFilename[MAX_PATH_LENGTH];
 	} outputs[] = {{/*isHeader=*/false, outputSettings.sourceOutputName, {}, {}, {0}},
-	               {
-	                   /*isHeader=*/true,
-	                   outputSettings.headerOutputName,
-	                   {},
-	                   {},
-	                   {0},
-	               }};
+	               {/*isHeader=*/true, outputSettings.headerOutputName, {}, {}, {0}}};
 
 	for (int i = 0; i < static_cast<int>(ArraySize(outputs)); ++i)
 	{
+		if (!outputs[i].outputFilename)
+			continue;
+
 		// Write to a temporary file
 		PrintfBuffer(outputs[i].tempFilename, "%s.temp", outputs[i].outputFilename);
 		// TODO: If this fails to open, Writer_Writef just won't write to the file, it'll print
@@ -404,17 +401,12 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		// }
 
 		outputs[i].stateBeforeOutputWrite = outputs[i].outputState;
-	}
 
-	// Source
-	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputs[0].outputState,
-	                                   outputToWrite.source, outputs[0].isHeader);
-	// Header
-	writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputs[1].outputState,
-	                                   outputToWrite.header, outputs[1].isHeader);
+		// Write the output!
+		writeOutputFollowSplices_Recursive(
+		    nameSettings, formatSettings, outputs[i].outputState,
+		    outputs[i].isHeader ? outputToWrite.header : outputToWrite.source, outputs[i].isHeader);
 
-	for (int i = 0; i < static_cast<int>(ArraySize(outputs)); ++i)
-	{
 		// No output to this file. Don't write anything
 		if (outputs[i].outputState.numCharsOutput ==
 		    outputs[i].stateBeforeOutputWrite.numCharsOutput)
