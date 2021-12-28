@@ -3,20 +3,29 @@
 
 (import "ComptimeHelpers.cake")
 
-;; Returns exit code (0 = success)
-(defun-comptime run-process-wait-for-completion (run-arguments (* RunProcessArguments)
-                                                 &return int)
-  (var status int -1)
-  (unless (= 0 (runProcess (deref run-arguments) (addr status)))
-    (Log "error: failed to run process\n")
-    (return 1))
+;; TODO: It should be possible to define a function for both runtime and comptime
+(defmacro run-process-wait-for-completion-body ()
+  (tokenize-push output
+    (var status int -1)
+    (unless (= 0 (runProcess (deref run-arguments) (addr status)))
+      (Log "error: failed to run process\n")
+      (return 1))
 
-  (waitForAllProcessesClosed null)
-  (return status))
+    (waitForAllProcessesClosed null)
+    (return status))
+  (return true))
+
+;; Returns exit code (0 = success)
+(defun-comptime run-process-wait-for-completion-comptime (run-arguments (* RunProcessArguments)
+                                                          &return int)
+  (run-process-wait-for-completion-body))
 
 ;; Creates a variable arguments-out-name set up to run the given process
 ;; Use :in-directory to specify the working directory to run the process in
-(defmacro run-process-make-arguments (arguments-out-name symbol executable-name any
+;; Use 'resolve to specify that Cakelisp should resolve the executable using FindVS
+(defmacro run-process-make-arguments (arguments-out-name symbol
+                                      should-resolve symbol ;; 'resolve or 'no-resolve
+                                      executable-name any
                                       &optional &rest arguments any)
   (var specifier-tokens (<> std::vector Token))
   (var command-arguments (<> std::vector Token))
@@ -72,15 +81,28 @@
                      (? arguments (deref arguments) (deref executable-name)))
 
   (tokenize-push output
-    (var (token-splice arguments-out-name) RunProcessArguments (array 0))
-    (var (token-splice-addr resolved-executable-var) ([] MAX_PATH_LENGTH char) (array 0))
-    (unless (resolveExecutablePath (token-splice executable-name)
-                                   (token-splice-addr resolved-executable-var)
-                                   (sizeof (token-splice-addr resolved-executable-var)))
-      (Logf "error: failed to resolve executable %s. Is it installed? Is the environment/path " \
-            "configured correctly?\n"
-            (token-splice executable-name))
-      (return false))
+    (var (token-splice-addr resolved-executable-var) ([] 1024 char) (array 0))
+    (var (token-splice arguments-out-name) RunProcessArguments (array 0)))
+
+  (cond
+    ((std-str-equals (path should-resolve > contents) "'resolve")
+     (tokenize-push output
+       (unless (resolveExecutablePath (token-splice executable-name)
+                                      (token-splice-addr resolved-executable-var)
+                                      (sizeof (token-splice-addr resolved-executable-var)))
+         (Logf "error: failed to resolve executable %s. Is it installed? Is the environment/path " \
+               "configured correctly?\n"
+               (token-splice executable-name))
+         (return false))))
+    ((std-str-equals (path should-resolve > contents) "'no-resolve")
+     (tokenize-push output
+       (strcpy (token-splice-addr resolved-executable-var) (token-splice executable-name))))
+    (true
+     (ErrorAtToken (deref should-resolve) "expected 'resolve or 'no-resolve to specify whether " \
+                   "Cakelisp's Visual Studio executable resolver should be used")
+     (return false)))
+
+  (tokenize-push output
     (set (field (token-splice arguments-out-name) fileToExecute)
          (token-splice-addr resolved-executable-var))
     (token-splice-array specifier-tokens)
@@ -97,9 +119,10 @@
   (tokenize-push output
     (scope
      (run-process-make-arguments process-command
+                                 'resolve
                                  ;; +1 because we want the inside of the command
                                  (token-splice-rest (+ 1 command) tokens))
-     (unless (= 0 (run-process-wait-for-completion (addr process-command)))
+     (unless (= 0 (run-process-wait-for-completion-comptime (addr process-command)))
        (token-splice-rest on-failure tokens))))
   (return true))
 
@@ -110,6 +133,7 @@
   (tokenize-push output
     (scope
      (run-process-make-arguments process-command
+                                 'resolve
                                  ;; +1 because we want the inside of the command
                                  (token-splice-rest (+ 1 command) tokens))
      (unless (= 0 (runProcess process-command (token-splice status-int-ptr)))
