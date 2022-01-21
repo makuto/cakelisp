@@ -771,6 +771,17 @@ struct ComptimeBuildObject
 	ObjectDefinition* definition = nullptr;
 };
 
+static std::vector<ObjectReference>* GetReferenceListFromReference(EvaluatorEnvironment& environment,
+                                       const char* referenceToResolve)
+{
+	ObjectReferencePoolMap::iterator referencePoolIt =
+	    environment.referencePools.find(referenceToResolve);
+	if (referencePoolIt == environment.referencePools.end())
+		return nullptr;
+
+	return &referencePoolIt->second.references;
+}
+
 // Once a definition is known, references to it can be re-evaluated to splice in the appropriate
 // code. Returns the number of references resolved
 static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
@@ -780,9 +791,9 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 	int numReferencesResolved = 0;
 
 	// Resolve references
-	ObjectReferencePoolMap::iterator referencePoolIt =
-	    environment.referencePools.find(referenceToResolve);
-	if (referencePoolIt == environment.referencePools.end())
+	std::vector<ObjectReference>* references =
+	    GetReferenceListFromReference(environment, referenceToResolve);
+	if (!references)
 	{
 		if (warnIfNoReferences)
 			Logf(
@@ -793,10 +804,9 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 	}
 
 	bool hasErrors = false;
-	std::vector<ObjectReference>& references = referencePoolIt->second.references;
 	// The old-style loop must be used here because EvaluateGenerate_Recursive can add to this
 	// list, which invalidates iterators
-	for (int i = 0; i < (int)references.size(); ++i)
+	for (int i = 0; i < (int)references->size(); ++i)
 	{
 		const int maxNumReferences = 1 << 13;
 		if (i >= maxNumReferences)
@@ -807,20 +817,20 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 			    referenceToResolve, maxNumReferences);
 			for (int n = 0; n < 10; ++n)
 			{
-				ErrorAtToken((*references[n].tokens)[references[n].startIndex], "Reference here");
+				ErrorAtToken((*(*references)[n].tokens)[(*references)[n].startIndex], "Reference here");
 			}
 			hasErrors = true;
 			++numErrorsOut;
 			break;
 		}
 
-		if (references[i].isResolved)
+		if ((*references)[i].isResolved)
 			continue;
 
-		if (references[i].type == ObjectReferenceResolutionType_Splice &&
-		    references[i].spliceOutput)
+		if ((*references)[i].type == ObjectReferenceResolutionType_Splice &&
+			(*references)[i].spliceOutput)
 		{
-			ObjectReference* referenceValidPreEval = &references[i];
+			ObjectReference* referenceValidPreEval = &((*references)[i]);
 			// In case a compile-time function has already guessed the invocation was a C/C++
 			// function, clear that invocation output
 			resetGeneratorOutput(*referenceValidPreEval->spliceOutput);
@@ -834,22 +844,28 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 			referenceValidPreEval->context.resolvingReference =
 			    &(*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex + 1];
 
-			// Evaluate from that reference
+			size_t referencePoolSizePreEval = environment.referencePools.size();
 			int result = EvaluateGenerate_Recursive(
 			    environment, referenceValidPreEval->context, *referenceValidPreEval->tokens,
 			    referenceValidPreEval->startIndex, *referenceValidPreEval->spliceOutput);
 			referenceValidPreEval = nullptr;
+			// We must now re-look up the reference pool and reference list if there's a chance the
+			// memory has been moved due to evaluation adding new references.
+			// As an optimization, only do this if the pool size changed, which should be the only
+			// case where the memory could have been moved.
+			if (environment.referencePools.size() != referencePoolSizePreEval)
+				references = GetReferenceListFromReference(environment, referenceToResolve);
 			hasErrors |= result > 0;
 			numErrorsOut += result;
 		}
-		else if (references[i].type == ObjectReferenceResolutionType_AlreadyLoaded)
+		else if ((*references)[i].type == ObjectReferenceResolutionType_AlreadyLoaded)
 		{
 			// Nothing to do
 		}
 		else
 		{
 			// Do not resolve, we don't know how to resolve this type of reference
-			ErrorAtToken((*references[i].tokens)[references[i].startIndex],
+			ErrorAtToken((*((*references)[i]).tokens)[(*references)[i].startIndex],
 			             "do not know how to resolve this reference (internal code error?)");
 			hasErrors = true;
 			++numErrorsOut;
@@ -864,7 +880,7 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 		// Note that if new references emerge to this definition, they will automatically be
 		// recognized as the definition and handled then and there, so we don't need to make
 		// more than one pass
-		references[i].isResolved = true;
+		(*references)[i].isResolved = true;
 
 		++numReferencesResolved;
 	}
