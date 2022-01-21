@@ -836,8 +836,8 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 			resetGeneratorOutput(*referenceValidPreEval->spliceOutput);
 
 			if (logging.buildProcess)
-				NoteAtToken((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
-				            "resolving reference");
+				NoteAtTokenf((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
+				             "resolving reference to %s", referenceToResolve);
 
 			// Make sure we don't create additional references for this same reference, as we are
 			// resolving it
