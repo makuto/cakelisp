@@ -552,16 +552,15 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 
 	// Check for already loaded module. Make sure to use absolute paths to protect the user from
 	// multiple includes in case they got tricky with their import path
+	const char* normalizedProspectiveModuleFilename = makeAbsolutePath_Allocated(".", filename);
+	if (!normalizedProspectiveModuleFilename)
+	{
+		Logf("error: failed to normalize path %s\n", filename);
+		free((void*)normalizedFilename);
+		return false;
+	}
 	for (Module* module : manager.modules)
 	{
-		const char* normalizedProspectiveModuleFilename = makeAbsolutePath_Allocated(".", filename);
-		if (!normalizedProspectiveModuleFilename)
-		{
-			Logf("error: failed to normalize path %s\n", filename);
-			free((void*)normalizedFilename);
-			return false;
-		}
-
 		const char* normalizedModuleFilename = makeAbsolutePath_Allocated(".", module->filename);
 
 		if (!normalizedModuleFilename)
@@ -585,9 +584,9 @@ bool moduleManagerAddEvaluateFile(ModuleManager& manager, const char* filename, 
 			return true;
 		}
 
-		free((void*)normalizedProspectiveModuleFilename);
 		free((void*)normalizedModuleFilename);
 	}
+	free((void*)normalizedProspectiveModuleFilename);
 
 	Module* newModule = new Module();
 	// We need to keep this memory around for the lifetime of the token, regardless of relocation
