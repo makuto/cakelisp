@@ -1511,6 +1511,9 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 	// requirements to the build
 	bool requireDependencyPropagation = false;
 
+	// Declared here to reduce memory allocations by re-using buffer for every definition
+	std::vector<ObjectReferenceStatus*> referencesToCheck;
+
 	for (ObjectDefinition* definitionPointer : definitionsToCheck)
 	{
 		ObjectDefinition& definition = *definitionPointer;
@@ -1538,7 +1541,7 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 			}
 
 			// Copy pointers to refs in case of iterator invalidation
-			std::vector<ObjectReferenceStatus*> referencesToCheck;
+			referencesToCheck.clear();
 			referencesToCheck.reserve(definition.references.size());
 			for (ObjectReferenceStatusPair& referencePair : definition.references)
 			{
@@ -1590,6 +1593,9 @@ bool BuildEvaluateReferences(EvaluatorEnvironment& environment, int& numErrorsOu
 						for (int i = 0; i < (int)referenceStatus.references.size(); ++i)
 						{
 							ObjectReference& reference = referenceStatus.references[i];
+							// In case a function has already guessed the invocation was a C/C++
+							// function, clear that invocation output
+							resetGeneratorOutput(*reference.spliceOutput);
 							// Run function invocation on it
 							// TODO: Make invocation generator know it is a Cakelisp function
 							bool result = FunctionInvocationGenerator(
