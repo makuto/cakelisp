@@ -916,7 +916,13 @@ bool CPreprocessorDefineGenerator(EvaluatorEnvironment& environment,
 	{
 		addStringOutput(outputDest, "#define", StringOutMod_SpaceAfter, &tokens[startTokenIndex]);
 		addStringOutput(outputDest, defineName->contents, StringOutMod_SpaceAfter, defineName);
-		addStringOutput(outputDest, value->contents, StringOutMod_NewlineAfter, value);
+		if (value->type == TokenType_String)
+			addStringOutput(outputDest, value->contents,
+			                (StringOutputModifierFlags)(StringOutMod_NewlineAfter |
+			                                            StringOutMod_SurroundWithQuotes),
+			                value);
+		else
+			addStringOutput(outputDest, value->contents, StringOutMod_NewlineAfter, value);
 	}
 	else
 	{
