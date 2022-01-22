@@ -2168,7 +2168,8 @@ bool StringOutputHasAnyMeaningfulOutput(const std::vector<StringOutput>* stringO
 			}
 		}
 		else if (output.modifiers & (StringOutMod_NewlineAfter | StringOutMod_SpaceAfter |
-		                             StringOutMod_SpaceBefore | StringOutMod_None))
+		                             StringOutMod_SpaceBefore | StringOutMod_None) &&
+		         output.output.empty())
 		{
 			// Not actually meaningful output
 		}
