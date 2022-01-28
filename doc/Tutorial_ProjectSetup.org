@@ -33,6 +33,13 @@ Let's get cakelisp with ~git~. In ~my-project/~:
   git clone https://github.com/makuto/cakelisp.git Dependencies/cakelisp
 #+END_SRC
 
+*** Submodules
+If you are using Git on your project, I recommend you use submodules to track Cakelisp's version. To do so, instead of the above command, run this:
+#+BEGIN_SRC sh
+  git submodule add https://github.com/makuto/cakelisp.git Dependencies/cakelisp
+#+END_SRC
+
+That way, I can freely update Cakelisp and your project won't break, because your project tracks a specific version of Cakelisp.
 ** Building the projecot
 Now that we have Cakelisp's source code downloaded, we need to set up a script to build both Cakelisp and our project.
 
@@ -160,9 +167,71 @@ Edit your build script to include ~--verbose-processes~ on the same line with ~s
 That will cause output for all the subprocesses Cakelisp launches. By running these commands, you can more quickly diagnose compiler issues. See ~cakelisp/runtime/Config_*.cake~ files for references on how to override cakelisp's default compiler/linker.
 
 *** Invalid Cakelisp code
-Cakelisp should print an error saying where it encountered a problem. Please email ~macoy@macoy.me~ if you encounter errors you don't knwo how to proceed to fix. By telling me about your error experience, I can write better errors that help save everyone frustration!
+Cakelisp should print an error saying where it encountered a problem. Please email ~macoy@macoy.me~ if you encounter errors you don't know how to proceed to fix. By telling me about your error experience, I can write better errors that help save everyone frustration!
 
 *** Invalid generated code
 If you have errors output by your C/C++ compiler or linker, Cakelisp is successfully generating code, but the generated code is invalid. This is where knowing C/C++ is important. Cakelisp assumes a relatively strong grasp of C, so read up on C if you are trying to find problems at this stage.
 
 If the generated C is syntactically invalid (e.g., missing a semicolon), please email ~macoy@macoy.me~, because it may be an issue with Cakelisp.
+
+* Using GameLib
+[[https://macoy.me/code/macoy/gamelib][GameLib]] is a collection of generally useful modules for applications and game development.
+
+GameLib uses Cakelisp's compile-time code execution featuresr to automatically download dependencies as you ~(import)~ them. It is the closest thing to a package manager Cakelisp has, and could be compared to Go's [[https://go.dev/doc/code#ImportingRemote][remote packages]] (and I believe Rust has similar functionality).
+
+To add Gamelib, we clone it using git:
+#+BEGIN_SRC sh
+  git clone https://macoy.me/code/macoy/gamelib.git Dependencies/gamelib
+
+  # Or, if using git for your project
+  git submodule add https://macoy.me/code/macoy/gamelib.git Dependencies/gamelib
+#+END_SRC
+
+Read ~Dependencies/gamelib/ReadMe.org~ for an overview of how GameLib works and what modules it offers.
+
+** Example: Using raylib
+Let's use [[https://www.raylib.com/][raylib]]. GameLib has a ~Raylib.cake~ module that will automatically download, build, and statically link Raylib to your project.
+
+Modify ~src/MyProject.cake~ to include the following:
+
+#+BEGIN_SRC sh
+  ;; Tell Cakelisp what our directory structure is
+  (set-cakelisp-option cakelisp-src-dir "Dependencies/cakelisp/src")
+  (add-cakelisp-search-directory "Dependencies/gamelib/src")
+  (add-cakelisp-search-directory "Dependencies/cakelisp/runtime")
+  (add-cakelisp-search-directory "src")
+
+  ;; Edit this with your platform. 'Windows or 'Unix
+  (comptime-define-symbol 'Unix)
+  (import "Raylib.cake")
+  (defun main (&return int)
+    (InitWindow 800 450 "raylib [core] example - basic window")
+
+    (while (not (WindowShouldClose))
+      (BeginDrawing)
+      (ClearBackground RAYWHITE)
+      (DrawText "Congrats! You created your first window!" 190 200 20 LIGHTGRAY)
+      (EndDrawing))
+
+    (CloseWindow)
+    (return 0))
+#+END_SRC
+
+Now, when you run ~./Build.sh~ (or ~Build.bat~), you should see the following:
+
+#+BEGIN_SRC sh
+  My Project
+
+
+  Dependencies/raylib: Automatically adding as submodule from https://github.com/raysan5/raylib.git
+
+  Cloning into '/home/macoy/Repositories/cakelisp-tutorial-project/Dependencies/raylib'...
+  Raylib: Building via Configure and Make
+  ...
+#+END_SRC
+
+It will output the building of Raylib as well as building your project. Note that it only downloads and builds Raylib if you don't already have it downloaded and built. You should only have to wait for this once for your project.
+
+** Adding your own 3rd party dependencies
+
+Look at ~gamelib/src/~ and see how the various dependencies are implemented. ~SDL.cake~ is a good example of a module which also includes helper functions added for Cakelisp. You should see how ~add-dependency-git-submodule~ makes it much more convenient to obtain dependencies. Unlike Rust or Go, this feature is completely optional.
