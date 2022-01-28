@@ -177,7 +177,7 @@ If the generated C is syntactically invalid (e.g., missing a semicolon), please 
 * Using GameLib
 [[https://macoy.me/code/macoy/gamelib][GameLib]] is a collection of generally useful modules for applications and game development.
 
-GameLib uses Cakelisp's compile-time code execution featuresr to automatically download dependencies as you ~(import)~ them. It is the closest thing to a package manager Cakelisp has, and could be compared to Go's [[https://go.dev/doc/code#ImportingRemote][remote packages]] (and I believe Rust has similar functionality).
+GameLib uses Cakelisp's compile-time code execution features to automatically download dependencies as you ~(import)~ them. It is the closest thing to a package manager Cakelisp has, and could be compared to Go's [[https://go.dev/doc/code#ImportingRemote][remote packages]] (and I believe Rust has similar functionality).
 
 To add Gamelib, we clone it using git:
 #+BEGIN_SRC sh
