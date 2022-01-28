@@ -1,0 +1,168 @@
+#+title: Setting up projects to use Cakelisp
+
+This tutorial introduces a way to set up projects that use Cakelisp. This isn't the only way, so you shouldn't feel you have to follow this format.
+
+* Prerequisites
+The following operating systems are supported by Cakelisp:
+- GNU/Linux
+- macOS
+- Windows
+
+Anything POSIX/Unix-y will likely work because Cakelisp uses the C++ standard library and the platform's C/C++ compiler only.
+
+You need a C++ compiler installed or available to build Cakelisp itself. Cakelisp will use this compiler while ~cakelisp~ is running to build compile-time code. You also need your target's C/C++ compiler so Cakelisp can build the code it generates.
+
+You should [[https://git-scm.com/][install git]] for the best experience. You can download the code manually, but that will make getting updates harder.
+
+* Project setup
+The assumption [[https://macoy.me/code/macoy/gamelib][GameLib]] makes is that your project's root directory has a ~Dependencies~ directory with ~cakelisp~ inside it. This is only expected by GameLib, but enables a whole bunch of convenience.
+
+For this tutorial, we will set up a new directory tree like so:
+
+- ~my-project/~
+  - ~src/~
+  - ~Dependencies/~
+  - ~Build.sh~ (or ~Build.bat~ on Windows)
+
+I also recommend you include a ~COPYING~ for copyright and ~LICENSE~ for license if you plan to ever upload or distribute your code.
+
+** Getting Cakelisp
+Let's get cakelisp with ~git~. In ~my-project/~:
+
+#+BEGIN_SRC sh
+  git clone https://github.com/makuto/cakelisp.git Dependencies/cakelisp
+#+END_SRC
+
+** Building the projecot
+Now that we have Cakelisp's source code downloaded, we need to set up a script to build both Cakelisp and our project.
+
+First, let's create an empty ~.cake~ file where we will put a "Hello World". I typically name this the same as the project, or ~Main.cake~. We'll call it ~MyProject.cake~ and put it in ~src/~:
+
+#+BEGIN_SRC lisp
+  (c-import "<stdio.h>")
+
+  (defun main (&return int)
+    (fprintf stderr "Hello, world! From Cakelisp!\n")
+    (return 0))
+#+END_SRC
+
+Now, to build the project, we need to do slightly different things on Windows vs. on GNU/Linux or macOS. Skip the section for platforms you aren't worrying about for now.
+
+The line with ~src/MyProject.cake~ determines which file your project should start the build with. You can add files as necessary, or use ~(import)~ within any of the files included on that line.
+
+*** On GNU/Linux and macOS
+#+BEGIN_SRC sh
+  #!/bin/sh
+
+  CAKELISP_DIR=Dependencies/cakelisp
+
+  # Build Cakelisp itself
+  echo "\n\nCakelisp\n\n"
+  cd $CAKELISP_DIR
+  ./Build.sh || exit $?
+
+  cd ../..
+
+  echo "\n\nMy Project\n\n"
+
+  CAKELISP=./Dependencies/cakelisp/bin/cakelisp
+
+  $CAKELISP --execute src/MyProject.cake || exit $?
+#+END_SRC
+
+*** On Windows
+#+BEGIN_SRC sh
+  cd Dependencies\cakelisp
+  call Build.bat
+  @if %ERRORLEVEL% == 0 (
+    echo Successfully built Cakelisp
+    goto user
+  ) else (
+    echo Error while building cakelisp
+    goto fail
+  )
+
+  :user
+  cd ../../
+  rem TODO: Cleaner way to relocate cakelisp on Windows along with search paths
+  cp -r Dependencies\cakelisp\bin\ bin\
+  "Dependencies\cakelisp\bin\cakelisp.exe" --execute src/MyProject.cake
+  @if %ERRORLEVEL% == 0 (
+    echo Success!
+    goto success
+  ) else (
+    echo Error while building user program
+    goto fail
+  )
+
+  :fail
+  goto end
+
+  :success
+  goto end
+
+  :end
+  echo Done
+#+END_SRC
+
+** Building
+Now, open a terminal or command prompt and navigate to the project's root directory. Type ~./Build.sh~ or ~Build.bat~ and hit enter.
+
+You should see output saying that Cakelisp is being built. Once that succeeds, Cakelisp will build itself again, but this time using Cakelisp's build system rather than the Build scripts. This is a good way to test that things in Cakelisp are hooked up to the compiler properly.
+
+The build script we wrote also builds and runs our project. It runs it because of ~--execute~. You can remove that if desired.
+
+You should see the following output, if all things go well:
+#+BEGIN_SRC sh
+
+
+  Cakelisp
+
+
+  bin/cakelisp_bootstrap does not exist. Building bootstrap executable manually
+  Built bin/cakelisp_bootstrap successfully. Now building with Cakelisp
+  Successfully built and linked bin/cakelisp
+  Cakelisp successfully bootstrapped. Use ./bin/cakelisp to build your files
+
+
+  My Project
+
+
+  Successfully built and linked a.out
+  Hello, world! From Cakelisp!
+#+END_SRC
+
+* Troubleshooting
+** Permission denied
+Run ~chmod +x Build.sh~ to give the build script executable permissions, then run ~./Build.sh~ again.
+
+** No such directory "Dependencies/cakelisp"
+Check you are in project's root directory when running build script. Download cakelisp to ~Dependencies/cakelisp~.
+
+** Build fails after "Building bootstrap executable manually", and "Built bin/cakelisp_bootstrap successfully." was not output
+Check ~Dependencies/cakelisp/Build.sh~. Does it reference your system's compiler toolchain correctly? Edit it if not.
+
+** Build fails after "Built bin/cakelisp_bootstrap successfully.", and "Successfully built and linked bin/cakelisp" was not output
+Cakelisp itself must not refer to your system's compiler toolchain correctly. Open ~ModuleManager.cpp~ and find your platform in ~moduleManagerInitialize()~. You may need to edit these defaults.
+
+Another option is to look at ~Dependencies/cakelisp/runtime/Config_Mingw.cake~ and add similar code to the ~Dependencies/cakelisp/Bootstrap*.cake~ script for your platform. This allows you to override Cakelisp's default compiler toolchain variables.
+
+** Build fails after "Cakelisp successfully bootstrapped."
+At this point, Cakelisp is building successfully, but your project is failing to build. There are many ways this can happen:
+
+*** Incorrect process commands
+Edit your build script to include ~--verbose-processes~ on the same line with ~src/MyProject.cake~ (there should be a space on both sides of ~--verbose-processes~):
+
+#+BEGIN_SRC sh
+  $CAKELISP --execute --verbose-processes src/MyProject.cake
+#+END_SRC
+
+That will cause output for all the subprocesses Cakelisp launches. By running these commands, you can more quickly diagnose compiler issues. See ~cakelisp/runtime/Config_*.cake~ files for references on how to override cakelisp's default compiler/linker.
+
+*** Invalid Cakelisp code
+Cakelisp should print an error saying where it encountered a problem. Please email ~macoy@macoy.me~ if you encounter errors you don't knwo how to proceed to fix. By telling me about your error experience, I can write better errors that help save everyone frustration!
+
+*** Invalid generated code
+If you have errors output by your C/C++ compiler or linker, Cakelisp is successfully generating code, but the generated code is invalid. This is where knowing C/C++ is important. Cakelisp assumes a relatively strong grasp of C, so read up on C if you are trying to find problems at this stage.
+
+If the generated C is syntactically invalid (e.g., missing a semicolon), please email ~macoy@macoy.me~, because it may be an issue with Cakelisp.
