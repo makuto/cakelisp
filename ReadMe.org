@@ -34,6 +34,7 @@ Please see [[file:doc/Legal.org][doc/Legal.org]] for a detailed explanation.
 
 Contact ~macoy@macoy.me~ if you would like to negotiate an exception for your use-case.
 * Building Cakelisp itself
+~doc/Tutorial_ProjectSetup.org~ provides a step-by-step tutorial on how to set up a Cakelisp project. More brief instructions follow.
 ** Linux
 Run ~Build.sh~ in ~cakelisp/~:
 #+BEGIN_SRC sh
