@@ -2,6 +2,8 @@
 
 This tutorial introduces a way to set up projects that use Cakelisp. This isn't the only way, so you shouldn't feel you have to follow this format.
 
+An example repository (which also uses GameLib) is [[https://macoy.me/code/macoy/cakelisp-tutorial-project][available here]].
+
 * Prerequisites
 The following operating systems are supported by Cakelisp:
 - GNU/Linux
