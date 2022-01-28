@@ -40,7 +40,7 @@ If you are using Git on your project, I recommend you use submodules to track Ca
 #+END_SRC
 
 That way, I can freely update Cakelisp and your project won't break, because your project tracks a specific version of Cakelisp.
-** Building the projecot
+** Building the project
 Now that we have Cakelisp's source code downloaded, we need to set up a script to build both Cakelisp and our project.
 
 First, let's create an empty ~.cake~ file where we will put a "Hello World". I typically name this the same as the project, or ~Main.cake~. We'll call it ~MyProject.cake~ and put it in ~src/~:
