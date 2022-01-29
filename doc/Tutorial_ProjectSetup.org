@@ -196,7 +196,7 @@ Let's use [[https://www.raylib.com/][raylib]]. GameLib has a ~Raylib.cake~ modul
 
 Modify ~src/MyProject.cake~ to include the following:
 
-#+BEGIN_SRC sh
+#+BEGIN_SRC lisp
   ;; Tell Cakelisp what our directory structure is
   (set-cakelisp-option cakelisp-src-dir "Dependencies/cakelisp/src")
   (add-cakelisp-search-directory "Dependencies/gamelib/src")
