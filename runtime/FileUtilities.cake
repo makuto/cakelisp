@@ -117,15 +117,28 @@
                    (_strdup (token-splice string-to-dup)))))
   (return true))
 
+(defun read-file-into-memory-ex (in-file (* FILE)
+                                 ;; If file is larger than this, quit early
+                                 ;; This allows the program to decide to handle large files differently
+                                 ;; Pass 0 for no max
+                                 maximum-size size_t
+                                 size-out (* size_t)
+                                 &return (* char))
+  (fseek in-file 0 SEEK_END)
+  (set (deref size-out) (ftell in-file))
+  (rewind in-file)
+  (when (and maximum-size (> (deref size-out) maximum-size))
+    (return null))
+  (var-cast-to out-buffer (* char) (malloc (+ 1 (deref size-out))))
+  (fread out-buffer (deref size-out) 1 in-file)
+  (set (at (deref size-out) out-buffer) 0)
+  (return out-buffer))
+
 ;; TODO: Windows CreateFile version of this
 (defun read-file-into-memory (in-file (* FILE) &return (* char))
   (fseek in-file 0 SEEK_END)
-  (var file-size size_t (ftell in-file))
-  (rewind in-file)
-  (var-cast-to out-buffer (* char) (malloc (+ 1 file-size)))
-  (fread out-buffer file-size 1 in-file)
-  (set (at file-size out-buffer) 0)
-  (return out-buffer))
+  (var file-size size_t)
+  (return (read-file-into-memory-ex in-file 0 (addr file-size))))
 
 (defun write-string (out-file (* FILE) out-string (* (const char)))
   (var string-length size_t (strlen out-string))
