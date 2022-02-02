@@ -36,6 +36,19 @@
        (token-splice-rest on-failure tokens))))
   (return true))
 
+(defmacro runtime-start-process-or (command array status-pointer any &rest on-failure-to-start array)
+  (tokenize-push output
+    (scope
+     (run-process-make-arguments
+      process-command
+      ;; Don't use cakelisp resolve because we don't want to have to bundle Cakelisp's FindVS
+      'no-resolve
+      ;; +1 because we want the inside of the command
+      (token-splice-rest (+ 1 command) tokens))
+     (unless (= 0 (runProcess process-command (token-splice status-pointer)))
+       (token-splice-rest on-failure-to-start tokens))))
+  (return true))
+
 ;; We do this to avoid having the search directory on every single compile command. Not ideal.
 (defmacro add-cakelisp-src-as-search-dir ()
   (when (call-on empty (field environment cakelispSrcDir))
