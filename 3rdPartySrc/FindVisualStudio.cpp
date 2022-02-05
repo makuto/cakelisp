@@ -62,7 +62,8 @@ struct Find_Result {
 	wchar_t *windows_sdk_include_path      = NULL;
 	wchar_t *windows_sdk_bin_path          = NULL;
 
-    wchar_t *vs_exe_path = NULL;
+	wchar_t *vs_root_path = NULL;
+	wchar_t *vs_exe_path = NULL;
     wchar_t *vs_library_path = NULL;
     wchar_t *vs_include_path = NULL;
 };
@@ -75,7 +76,8 @@ void free_resources(Find_Result *result) {
 	free(result->windows_sdk_ucrt_library_path);
 	free(result->windows_sdk_include_path);
 	free(result->windows_sdk_bin_path);
-    free(result->vs_exe_path);
+	free(result->vs_root_path);
+	free(result->vs_exe_path);
 	free(result->vs_library_path);
 	free(result->vs_include_path);
 }
@@ -520,9 +522,10 @@ bool find_visual_studio_2017_by_fighting_through_microsoft_craziness(Find_Result
 
         if (os_file_exists(library_file)) {
             auto link_exe_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", version, L"\\bin\\Hostx64\\x64");
-            result->vs_exe_path     = link_exe_path;
+			result->vs_exe_path     = link_exe_path;
 			result->vs_library_path = library_path;
 			result->vs_include_path = concat(base_path, L"\\include");
+			result->vs_root_path    = concat(bstr_inst_path, L""); // To allocate for us
             return true;
         }
 

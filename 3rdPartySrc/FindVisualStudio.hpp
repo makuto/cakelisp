@@ -9,7 +9,8 @@ struct Find_Result {
     wchar_t *windows_sdk_include_path      = NULL;
 	wchar_t *windows_sdk_bin_path          = NULL;
 
-    wchar_t *vs_exe_path = NULL;
+	wchar_t *vs_root_path = NULL;
+	wchar_t *vs_exe_path = NULL;
     wchar_t *vs_library_path = NULL;
 	wchar_t *vs_include_path = NULL;
 };
