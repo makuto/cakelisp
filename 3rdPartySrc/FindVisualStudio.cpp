@@ -13,8 +13,10 @@
 //
 
 // Modified by Macoy Madson. macoy@macoy.me
-// Added VS and SDK include paths
+// Added VS and SDK include paths, various other paths
+// Created header file
 
+#include "FindVisualStudio.hpp"
 
 #include <windows.h>
 #include <stdlib.h>
@@ -52,21 +54,6 @@
 //
 // Here is the API you need to know about:
 //
-
-struct Find_Result {
-    int windows_sdk_version;   // Zero if no Windows SDK found.
-
-    wchar_t *windows_sdk_root              = NULL;
-    wchar_t *windows_sdk_um_library_path   = NULL;
-    wchar_t *windows_sdk_ucrt_library_path = NULL;
-	wchar_t *windows_sdk_include_path      = NULL;
-	wchar_t *windows_sdk_bin_path          = NULL;
-
-	wchar_t *vs_root_path = NULL;
-	wchar_t *vs_exe_path = NULL;
-    wchar_t *vs_library_path = NULL;
-    wchar_t *vs_include_path = NULL;
-};
 
 Find_Result find_visual_studio_and_windows_sdk();
 
@@ -383,7 +370,9 @@ void find_windows_kit_root(Find_Result *result) {
         if (data.best_name) {
             result->windows_sdk_version = 10;
             result->windows_sdk_root = data.best_name;
-        }
+			memcpy(result->windows_target_platform_version, data.best_version,
+			       sizeof(result->windows_target_platform_version));
+		}
 
 		Version_Data data2 = {0};
 		auto windows10_include = concat(windows10_root, L"Include");

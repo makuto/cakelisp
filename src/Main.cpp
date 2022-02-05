@@ -199,7 +199,8 @@ int main(int numArguments, char* arguments[])
 	{
 		Find_Result result = find_visual_studio_and_windows_sdk();
 		Logf(
-		    "SDK version:      %d\n"
+		    "SDK version:                  %d\n"
+		    "Target platform version:      %d.%d.%d.%d\n"
 		    "SDK root:         %ws\n"
 		    "SDK include:      %ws\n"
 		    "SDK bin:          %ws\n"
@@ -209,10 +210,13 @@ int main(int numArguments, char* arguments[])
 		    "VS exe path:      %ws\n"
 		    "VS include path:  %ws\n"
 		    "VS library path:  %ws\n",
-		    result.windows_sdk_version, result.windows_sdk_root, result.windows_sdk_include_path,
-		    result.windows_sdk_bin_path, result.windows_sdk_um_library_path,
-		    result.windows_sdk_ucrt_library_path, result.vs_root_path, result.vs_exe_path,
-		    result.vs_include_path, result.vs_library_path);
+		    result.windows_sdk_version, result.windows_target_platform_version[0],
+		    result.windows_target_platform_version[1], result.windows_target_platform_version[2],
+		    result.windows_target_platform_version[3], result.windows_sdk_root,
+		    result.windows_sdk_include_path, result.windows_sdk_bin_path,
+		    result.windows_sdk_um_library_path, result.windows_sdk_ucrt_library_path,
+		    result.vs_root_path, result.vs_exe_path, result.vs_include_path,
+		    result.vs_library_path);
 		// Includes
 		// C:\Program Files (x86)\Microsoft Visual
 		// Studio\2019\Community\VC\Tools\MSVC\14.29.30133\include C:\Program Files (x86)\Windows

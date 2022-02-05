@@ -388,6 +388,24 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 	return true;
 }
 
+// /p:WindowsTargetPlatformVersion=%d.%d.%d.%d for MSBuild
+void makeTargetPlatformVersionArgument(char* resolvedArgumentOut, int resolvedArgumentOutSize)
+{
+#ifdef WINDOWS
+	static int targetPlatformVersion[4] = {0};
+	if (!targetPlatformVersion[0])
+	{
+		Find_Result result = find_visual_studio_and_windows_sdk();
+		memcpy(targetPlatformVersion, result.windows_target_platform_version,
+		       sizeof(targetPlatformVersion));
+		free_resources(&result);
+	}
+	SafeSnprintf(resolvedArgumentOut, resolvedArgumentOutSize,
+	             "/p:WindowsTargetPlatformVersion=%d.%d.%d.%d", targetPlatformVersion[0],
+	             targetPlatformVersion[1], targetPlatformVersion[2], targetPlatformVersion[3]);
+#endif
+}
+
 void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
                          ArtifactCrcTable& newCommandCrcs)
 {

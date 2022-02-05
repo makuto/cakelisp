@@ -60,6 +60,10 @@ void makePrecompiledHeaderIncludeArgument(char* buffer, int bufferSize,
 CAKELISP_API bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
                                         int resolvedPathOutSize);
 
+// /p:WindowsTargetPlatformVersion=%d.%d.%d.%d for MSBuild
+CAKELISP_API void makeTargetPlatformVersionArgument(char* resolvedArgumentOut,
+                                                    int resolvedArgumentOutSize);
+
 typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTable;
 
 // If an existing cached build was run, check the current build's commands against the previous
