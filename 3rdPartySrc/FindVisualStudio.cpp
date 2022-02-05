@@ -59,7 +59,8 @@ struct Find_Result {
     wchar_t *windows_sdk_root              = NULL;
     wchar_t *windows_sdk_um_library_path   = NULL;
     wchar_t *windows_sdk_ucrt_library_path = NULL;
-    wchar_t *windows_sdk_include_path      = NULL;
+	wchar_t *windows_sdk_include_path      = NULL;
+	wchar_t *windows_sdk_bin_path          = NULL;
 
     wchar_t *vs_exe_path = NULL;
     wchar_t *vs_library_path = NULL;
@@ -73,6 +74,7 @@ void free_resources(Find_Result *result) {
     free(result->windows_sdk_um_library_path);
 	free(result->windows_sdk_ucrt_library_path);
 	free(result->windows_sdk_include_path);
+	free(result->windows_sdk_bin_path);
     free(result->vs_exe_path);
 	free(result->vs_library_path);
 	free(result->vs_include_path);
@@ -388,6 +390,15 @@ void find_windows_kit_root(Find_Result *result) {
         visit_files_w(windows10_include, &data2, win10_best);
         if (data2.best_name) {
             result->windows_sdk_include_path = data2.best_name;
+        }
+
+		Version_Data data3 = {0};
+		auto windows10_bin = concat(windows10_root, L"bin");
+        defer { free(windows10_bin); };
+
+        visit_files_w(windows10_bin, &data3, win10_best);
+        if (data3.best_name) {
+            result->windows_sdk_bin_path = data3.best_name;
             return;
         }
     }
@@ -415,6 +426,15 @@ void find_windows_kit_root(Find_Result *result) {
         visit_files_w(windows8_include, &data2, win8_best);
         if (data2.best_name) {
             result->windows_sdk_include_path = data2.best_name;
+        }
+
+		Version_Data data3 = {0};
+		auto windows8_bin = concat(windows8_root, L"bin");
+        defer { free(windows8_bin); };
+
+        visit_files_w(windows8_bin, &data3, win8_best);
+        if (data3.best_name) {
+            result->windows_sdk_bin_path = data3.best_name;
             return;
         }
     }

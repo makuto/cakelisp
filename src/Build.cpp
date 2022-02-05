@@ -267,15 +267,29 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 		if (true)  // Use FindVS to get proper paths
 		{
 			static char visualStudioExePath[2048] = {0};
+			static char windowsSDKExePath[2048] = {0};
 			if (!visualStudioExePath[0])
 			{
 				Find_Result result = find_visual_studio_and_windows_sdk();
 				SafeSnprintf(visualStudioExePath, sizeof(visualStudioExePath), "%ws",
 				             result.vs_exe_path);
+				// TODO Maybe don't assume it's a x64
+				SafeSnprintf(windowsSDKExePath, sizeof(windowsSDKExePath), "%ws\\x64",
+				             result.windows_sdk_bin_path);
 				free_resources(&result);
 			}
-			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s\\%s", visualStudioExePath,
-			             fileToExecute);
+
+			if (_stricmp(fileToExecute, "rc.exe") == 0)
+			{
+				SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s\\%s", windowsSDKExePath,
+				             fileToExecute);
+			}
+			else
+			{
+				SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s\\%s", visualStudioExePath,
+				             fileToExecute);
+			}
+
 			if (logging.processes)
 				Logf("\nOverriding command to:\n%s\n\n", resolvedPathOut);
 			return true;

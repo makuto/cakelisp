@@ -38,8 +38,9 @@ void makeImportLibraryPathArgument(char* buffer, int bufferSize, const char* pat
                                    const char* buildExecutable);
 void makeDynamicLibraryOutputArgument(char* buffer, int bufferSize, const char* libraryName,
                                       const char* buildExecutable);
-void makeExecutableOutputArgument(char* buffer, int bufferSize, const char* executableName,
-                                  const char* linkExecutable);
+CAKELISP_API void makeExecutableOutputArgument(char* buffer, int bufferSize,
+                                               const char* executableName,
+                                               const char* linkExecutable);
 void makeLinkLibraryArgument(char* buffer, int bufferSize, const char* libraryName,
                              const char* linkExecutable);
 void makeLinkLibrarySearchDirArgument(char* buffer, int bufferSize, const char* searchDir,
