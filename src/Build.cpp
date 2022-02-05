@@ -355,6 +355,31 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 			return variablesFound;
 		}
 	}
+	else if (_stricmp(fileToExecute, "MSBuild.exe") == 0)
+	{
+		static char visualStudioPath[2048] = {0};
+		if (!visualStudioPath[0])
+		{
+			Find_Result result = find_visual_studio_and_windows_sdk();
+			SafeSnprintf(visualStudioPath, sizeof(visualStudioPath), "%ws",
+			             result.vs_root_path);
+			free_resources(&result);
+		}
+
+		const char* versionsToTry[] = {"Current", "15.0", "14.0"};
+		for (int i = 0; i < ArraySize(versionsToTry); ++i)
+		{
+			SafeSnprintf(resolvedPathOut, resolvedPathOutSize, "%s\\MSBuild\\%s\\Bin\\amd64\\%s",
+			             visualStudioPath, versionsToTry[i], fileToExecute);
+			if (fileExists(resolvedPathOut))
+			{
+				if (logging.processes)
+					Logf("\nOverriding command to:\n%s\n\n", resolvedPathOut);
+				return true;
+			}
+		}
+		return false;
+	}
 #endif
 
 	// Unix searches PATH automatically, thanks to the 'p' of execvp()
