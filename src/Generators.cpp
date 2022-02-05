@@ -139,7 +139,8 @@ bool SetCakelispOption(EvaluatorEnvironment& environment, const EvaluatorContext
 		const char* option;
 		std::string* output;
 	} stringOptions[] = {
-	    {"cakelisp-src-dir", &environment.cakelispSrcDir},
+		{"cakelisp-src-dir", &environment.cakelispSrcDir},
+		{"cakelisp-lib-dir", &environment.cakelispLibDir},
 	    {"executable-output", &environment.executableOutput},
 	};
 	for (unsigned int i = 0; i < ArraySize(stringOptions); ++i)

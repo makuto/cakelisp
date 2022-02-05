@@ -386,6 +386,9 @@ struct EvaluatorEnvironment
 	// Added as a search directory for compile time code execution
 	std::string cakelispSrcDir;
 
+	// Added as a library search directory for compile time code execution (required by MSVC only)
+	std::string cakelispLibDir;
+
 	// Search paths for Cakelisp files, not C includes
 	std::vector<std::string> searchPaths;
 

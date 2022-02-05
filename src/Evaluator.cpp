@@ -1235,8 +1235,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		    compileTimeInputs, ArraySize(compileTimeInputs));
 		if (!buildArguments)
 		{
-			// TODO: Abort building if cannot invoke compiler
-			continue;
+			++numErrorsOut;
+			return 0;
 		}
 
 		// Can we use the cached version?
@@ -1314,6 +1314,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			ErrorAtTokenf(*buildObject.definition->definitionInvocation,
 			              "failed to compile definition '%s' with status %d",
 			              buildObject.definition->name.c_str(), buildObject.status);
+
 			// Special case: If the definition has no references, prevent it from ever having a
 			// chance to fail again, because there's nothing we can do if it fails
 			if (!buildObject.hasAnyRefs)
@@ -1333,14 +1334,31 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 			Logf("Compiled %s successfully\n", buildObject.definition->name.c_str());
 
 		std::vector<std::string> importLibraryPaths;
+		std::vector<std::string> importLibraries;
 		// Need to be able to find imported dll import libraries
 		importLibraryPaths.push_back(cakelispWorkingDir);
+		PushBackAll(importLibraries, buildObject.importLibraries);
+		if (environment.isMsvcCompiler)
+		{
+			if (environment.cakelispLibDir.empty())
+			{
+				ErrorAtTokenf(*buildObject.definition->definitionInvocation,
+				              "cannot link definition '%s' because cakelisp-lib-dir is not set. "
+				              "Set it with e.g.:\n"
+				              "\t(set-cakelisp-option cakelisp-lib-dir \"path/to/cakelisp/bin\"))",
+				              buildObject.definition->name.c_str(), buildObject.status);
+				++numErrorsOut;
+				return 0;
+			}
+			importLibraryPaths.push_back(environment.cakelispLibDir);
+			importLibraries.push_back("cakelisp.lib");
+		}
 
 		std::vector<const char*> importLibraryPathsArgs;
 		std::vector<const char*> importLibrariesArgs;
 		BuildArgumentConverter convertedArguments[] = {
 		    {&importLibraryPaths, {}, &importLibraryPathsArgs, makeImportLibraryPathArgument},
-		    {&buildObject.importLibraries, {}, &importLibrariesArgs, nullptr}};
+		    {&importLibraries, {}, &importLibrariesArgs, nullptr}};
 		convertBuildArguments(convertedArguments, ArraySize(convertedArguments),
 		                      environment.compileTimeLinkCommand.fileToExecute.c_str());
 

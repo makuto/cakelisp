@@ -148,8 +148,6 @@ void moduleManagerInitialize(ModuleManager& manager)
 		    {ProcessCommandArgumentType_String, "/DLL"},
 		    // On Windows, .exes create .lib files for exports. Link it here so we don't get
 		    // unresolved externals
-		    {ProcessCommandArgumentType_String, "/LIBPATH:bin"},
-		    {ProcessCommandArgumentType_String, "cakelisp.lib"},
 		    {ProcessCommandArgumentType_ImportLibraryPaths, EmptyString},
 		    {ProcessCommandArgumentType_ImportLibraries, EmptyString},
 		    // Debug only
