@@ -448,10 +448,10 @@ void waitForAllProcessesClosed(SubprocessOnOutputFunc onOutput)
 		const int pollProcessTimeMilliseconds = 50;
 		while (WAIT_TIMEOUT ==
 		       WaitForSingleObject(process->processInfo->hProcess, pollProcessTimeMilliseconds))
-			readProcessPipe(process, onOutput);
+			readProcessPipe(*process, onOutput);
 
 		// If the wait was ended but wasn't a timeout, we still need to read out
-		readProcessPipe(process, onOutput);
+		readProcessPipe(*process, onOutput);
 
 		DWORD exitCode = 0;
 		if (!GetExitCodeProcess(process->processInfo->hProcess, &exitCode))
