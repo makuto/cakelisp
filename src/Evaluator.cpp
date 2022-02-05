@@ -1391,6 +1391,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		linkArguments.arguments = linkArgumentList;
 		if (runProcess(linkArguments, &buildObject.status) != 0)
 		{
+			++numErrorsOut;
 			// TODO: Abort if linker failed?
 			// free(linkArgumentList);
 		}
@@ -1410,6 +1411,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		{
 			ErrorAtToken(*buildObject.definition->definitionInvocation,
 			             "Failed to link definition");
+			++numErrorsOut;
 			continue;
 		}
 
@@ -1423,6 +1425,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		{
 			ErrorAtToken(*buildObject.definition->definitionInvocation,
 			             "Failed to load compile-time library");
+			++numErrorsOut;
 			continue;
 		}
 
@@ -1438,6 +1441,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		{
 			ErrorAtToken(*buildObject.definition->definitionInvocation,
 			             "Failed to find symbol in loaded library");
+			++numErrorsOut;
 			continue;
 		}
 
