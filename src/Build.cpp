@@ -729,3 +729,24 @@ bool cppFileNeedsBuild(EvaluatorEnvironment& environment, const char* sourceFile
 
 	return true;
 }
+
+bool setPlatformEnvironmentVariable(const char* name, const char* value)
+{
+#ifdef WINDOWS
+	if (!(SetEnvironmentVariable(name, value)))
+	{
+		Logf("failed to set environment variable %s to %s with error %d\n", name, value,
+		     GetLastError());
+		return false;
+	}
+#else
+	int overwrite = 1;
+	if ((0 != setenv(name, value, overwrite)))
+	{
+		perror("failed to set variable: ");
+		Logf("failed to set environment variable %s to %s\n", name, value);
+		return false;
+	}
+#endif
+	return true;
+}

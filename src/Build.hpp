@@ -89,3 +89,5 @@ bool cppFileNeedsBuild(EvaluatorEnvironment& environment, const char* sourceFile
                        ArtifactCrcTable& cachedCommandCrcs, ArtifactCrcTable& newCommandCrcs,
                        HeaderModificationTimeTable& headerModifiedCache,
                        std::vector<std::string>& headerSearchDirectories);
+
+CAKELISP_API bool setPlatformEnvironmentVariable(const char* name, const char* value);
