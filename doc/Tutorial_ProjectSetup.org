@@ -1,5 +1,7 @@
 #+title: Setting up projects to use Cakelisp
 
+# pandoc --from org --to markdown ~/Repositories/cakelisp/doc/Tutorial_ProjectSetup.org --output ~/Documents/Tutorial_ProjectSetup.md
+
 This tutorial introduces a way to set up projects that use Cakelisp. This isn't the only way, so you shouldn't feel you have to follow this format.
 
 An example repository (which also uses GameLib) is [[https://macoy.me/code/macoy/cakelisp-tutorial-project][available here]].
@@ -93,8 +95,6 @@ The line with ~src/MyProject.cake~ determines which file your project should sta
 
   :user
   cd ../../
-  rem TODO: Cleaner way to relocate cakelisp on Windows along with search paths
-  cp -r Dependencies\cakelisp\bin\ bin\
   "Dependencies\cakelisp\bin\cakelisp.exe" --execute src/MyProject.cake
   @if %ERRORLEVEL% == 0 (
     echo Success!
@@ -199,6 +199,7 @@ Modify ~src/MyProject.cake~ to include the following:
 #+BEGIN_SRC lisp
   ;; Tell Cakelisp what our directory structure is
   (set-cakelisp-option cakelisp-src-dir "Dependencies/cakelisp/src")
+  (set-cakelisp-option cakelisp-lib-dir "Dependencies/cakelisp/bin")
   (add-cakelisp-search-directory "Dependencies/gamelib/src")
   (add-cakelisp-search-directory "Dependencies/cakelisp/runtime")
   (add-cakelisp-search-directory "src")
