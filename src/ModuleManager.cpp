@@ -410,7 +410,7 @@ bool moduleLoadTokenizeValidate(const char* filename, const std::vector<Token>**
 {
 	*tokensOut = nullptr;
 
-	FILE* file = fileOpen(filename, "r");
+	FILE* file = fileOpen(filename, "rb");
 	if (!file)
 		return false;
 

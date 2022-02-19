@@ -427,8 +427,8 @@ bool copyBinaryFileTo(const char* srcFilename, const char* destFilename)
 
 bool copyFileTo(const char* srcFilename, const char* destFilename)
 {
-	FILE* srcFile = fopen(srcFilename, "r");
-	FILE* destFile = fopen(destFilename, "w");
+	FILE* srcFile = fopen(srcFilename, "rb");
+	FILE* destFile = fopen(destFilename, "wb");
 	if (!srcFile || !destFile)
 	{
 		perror("fopen: ");

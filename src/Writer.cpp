@@ -15,13 +15,13 @@
 bool writeIfContentsNewer(const char* tempFilename, const char* outputFilename)
 {
 	// Read temporary file and destination file and compare
-	FILE* newFile = fopen(tempFilename, "r");
+	FILE* newFile = fopen(tempFilename, "rb");
 	if (!newFile)
 	{
 		Logf("error: Could not open %s\n", tempFilename);
 		return false;
 	}
-	FILE* oldFile = fopen(outputFilename, "r");
+	FILE* oldFile = fopen(outputFilename, "rb");
 	if (!oldFile)
 	{
 		// Write new and remove temp
@@ -378,7 +378,7 @@ bool writeOutputs(const NameStyleSettings& nameSettings, const WriterFormatSetti
 		// Write to a temporary file
 		PrintfBuffer(outputs[i].tempFilename, "%s.temp", outputs[i].outputFilename);
 		// TODO: If this fails to open, Writer_Writef just won't write to the file, it'll print
-		outputs[i].outputState.fileOut = fileOpen(outputs[i].tempFilename, "w");
+		outputs[i].outputState.fileOut = fileOpen(outputs[i].tempFilename, "wb");
 
 		if (outputSettings.heading)
 		{
@@ -504,7 +504,7 @@ bool writeCombinedHeader(const char* combinedHeaderFilename,
 	char tempFilename[MAX_PATH_LENGTH] = {0};
 	PrintfBuffer(tempFilename, "%s.temp", combinedHeaderFilename);
 
-	FILE* combinedHeaderFile = fopen(tempFilename, "w");
+	FILE* combinedHeaderFile = fopen(tempFilename, "wb");
 	if (!combinedHeaderFile)
 	{
 		perror("fopen: ");

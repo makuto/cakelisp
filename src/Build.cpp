@@ -450,7 +450,7 @@ void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCom
 		return;
 	}
 
-	FILE* file = fileOpen(outputFilename, "w");
+	FILE* file = fileOpen(outputFilename, "wb");
 	if (!file)
 	{
 		Logf("error: Could not write cache file %s", outputFilename);
@@ -587,7 +587,7 @@ static FileModifyTime GetMostRecentIncludeModified_Recursive(
 
 	FileModifyTime mostRecentModTime = thisModificationTime;
 
-	FILE* file = fileOpen(resolvedPathBuffer, "r");
+	FILE* file = fileOpen(resolvedPathBuffer, "rb");
 	if (!file)
 		return false;
 	char lineBuffer[2048] = {0};
