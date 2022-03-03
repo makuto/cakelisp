@@ -1345,7 +1345,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 				ErrorAtTokenf(*buildObject.definition->definitionInvocation,
 				              "cannot link definition '%s' because cakelisp-lib-dir is not set. "
 				              "Set it with e.g.:\n"
-				              "\t(set-cakelisp-option cakelisp-lib-dir \"path/to/cakelisp/bin\"))",
+				              "\t(set-cakelisp-option cakelisp-lib-dir \"Dependencies/cakelisp/bin\")",
 				              buildObject.definition->name.c_str());
 				++numErrorsOut;
 				return 0;
