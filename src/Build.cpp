@@ -262,7 +262,8 @@ bool resolveExecutablePath(const char* fileToExecute, char* resolvedPathOut,
 	// the current environment variables set by vcvars*.bat
 	// See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
 	if (_stricmp(fileToExecute, "cl.exe") == 0 || _stricmp(fileToExecute, "link.exe") == 0 ||
-	    _stricmp(fileToExecute, "rc.exe") == 0 || _stricmp(fileToExecute, "lib.exe") == 0)
+	    _stricmp(fileToExecute, "rc.exe") == 0 || _stricmp(fileToExecute, "lib.exe") == 0 ||
+	    _stricmp(fileToExecute, "nmake.exe") == 0)
 	{
 		if (true)  // Use FindVS to get proper paths
 		{
