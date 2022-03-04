@@ -1009,13 +1009,13 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 	if (environment.cakelispSrcDir.empty() && !definitionsToBuild.empty())
 	{
 		const char* missingSrcError =
-		    "error: Cannot build compile-time macros, generators, or functions because "
+		    "Cannot build compile-time macros, generators, or functions because "
 		    "cakelisp-src-dir is not set. Set it with e.g.:\n"
 		    "\t(set-cakelisp-option cakelisp-src-dir \"Dependencies/cakelisp/src\")\n";
 		if (definitionsToBuild[0].definition)
 			ErrorAtToken(*definitionsToBuild[0].definition->definitionInvocation, missingSrcError);
 		else
-			Logf("%s", missingSrcError);
+			Logf("error: %s", missingSrcError);
 		++numErrorsOut;
 		return 0;
 	}
