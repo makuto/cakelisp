@@ -1006,6 +1006,20 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 {
 	int numReferencesResolved = 0;
 
+	if (environment.cakelispSrcDir.empty() && !definitionsToBuild.empty())
+	{
+		const char* missingSrcError =
+		    "error: Cannot build compile-time macros, generators, or functions because "
+		    "cakelisp-src-dir is not set. Set it with e.g.:\n"
+		    "\t(set-cakelisp-option cakelisp-src-dir \"Dependencies/cakelisp/src\")\n";
+		if (definitionsToBuild[0].definition)
+			ErrorAtToken(*definitionsToBuild[0].definition->definitionInvocation, missingSrcError);
+		else
+			Logf("%s", missingSrcError);
+		++numErrorsOut;
+		return 0;
+	}
+
 	if (environment.comptimeUsePrecompiledHeaders && !environment.comptimeHeadersPrepared)
 	{
 		if (!ComptimePrepareHeaders(environment))
@@ -1206,11 +1220,8 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		}
 
 		char headerInclude[MAX_PATH_LENGTH] = {0};
-		if (environment.cakelispSrcDir.empty())
-			makeIncludeArgument(headerInclude, sizeof(headerInclude), "src/");
-		else
-			makeIncludeArgument(headerInclude, sizeof(headerInclude),
-			                    environment.cakelispSrcDir.c_str());
+		makeIncludeArgument(headerInclude, sizeof(headerInclude),
+		                    environment.cakelispSrcDir.c_str());
 
 		char buildObjectArgument[MAX_PATH_LENGTH] = {0};
 		makeObjectOutputArgument(buildObjectArgument, sizeof(buildObjectArgument),
