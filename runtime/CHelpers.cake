@@ -367,7 +367,10 @@
     (return false))
 
   (var underlying-func-name (& (const std::string)) (path alias-func-pair > second))
-  ;; (Logf "found %s, outputting %s\n" (call-on c_str invocation-name) (call-on c_str underlying-func-name))
+
+  ;; (NoteAtTokenf (at (+ 1 startTokenIndex) tokens) "found %s, outputting %s. Output is %p"
+  ;;               (call-on c_str invocation-name) (call-on c_str underlying-func-name)
+  ;;               (addr output))
 
   (if arguments
       (scope
@@ -403,13 +406,14 @@
   (set (at (field alias contents) (deref c-function-aliases)) (field underlying-func-name contents))
 
   ;; (Logf "aliasing %s to %s\n" (call-on c_str (field underlying-func-name contents))
-  ;; (call-on c_str (field alias contents)))
+  ;;       (call-on c_str (field alias contents)))
 
   ;; Upen encountering an invocation of our alias, run the aliased function output
   ;; In case the function already has references, resolve them now. Future invocations will be
   ;; handled immediately (because it'll be in the generators list)
   (var evaluated-success bool
     (registerEvaluateGenerator environment (call-on c_str (field alias contents))
-                               (at "output-aliased-c-function-invocation" (field environment generators))))
+                               (at "output-aliased-c-function-invocation" (field environment generators))
+                               (addr alias)))
 
   (return evaluated-success))

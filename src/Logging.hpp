@@ -16,6 +16,7 @@ struct LoggingSettings
 	bool compileTimeBuildReasons;
 	bool commandCrcs;
 	bool compileTimeHooks;
+	bool splices;
 
 	bool fileSystem;
 	bool fileSearch;

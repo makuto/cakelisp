@@ -290,7 +290,14 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 		Writer_Writef(state, "}");
 	else if (outputOperation.modifiers & StringOutMod_EndStatement)
 	{
-		if (formatSettings.uglyPrint)
+		if (logging.splices)
+		{
+			Writer_Writef(state, "; // %s %d %d\n", outputOperation.startToken->source,
+			              outputOperation.startToken->lineNumber,
+			              outputOperation.startToken->columnStart);
+			++state.currentLine;
+		}
+		else if (formatSettings.uglyPrint)
 			Writer_Writef(state, ";");
 		else
 		{
@@ -342,9 +349,15 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 				}
 				else
 				{
+					if (logging.splices)
+						Writer_Writef(outputState, "/* Splice %p { */", operation.spliceOutput);
+
 					writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
 					                                   operation.spliceOutput->source,
 					                                   /*isHeader=*/false);
+
+					if (logging.splices)
+						Writer_Writef(outputState, "/* Splice %p } */", operation.spliceOutput);
 				}
 			}
 			else

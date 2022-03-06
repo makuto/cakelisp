@@ -135,6 +135,9 @@ int main(int numArguments, char* arguments[])
 	    {"--verbose-option-adding", &logging.optionAdding,
 	     "Output where options are added, such as search directories, additional build options, "
 	     "etc."},
+	    {"--verbose-splices", &logging.splices,
+	     "Output in the source file when text splices start and end. This will cause rebuilds "
+	     "every time, but can be helpful in deep debugging"},
 	};
 
 	if (numArguments == 1)

@@ -418,6 +418,10 @@ bool HandleInvocation_Recursive(EvaluatorEnvironment& environment, const Evaluat
 		// Make room for whatever gets output once this reference is resolved
 		newReference.spliceOutput = new GeneratorOutput;
 
+		if (logging.splices)
+			NoteAtTokenf(invocationName, "unknown reference to %s, creating splice %p",
+			             invocationName.contents.c_str(), newReference.spliceOutput);
+
 		// We push in a StringOutMod_Splice as a sentinel that the splice list needs to be
 		// checked. Otherwise, it will be a no-op to Writer. It's useful to have this sentinel
 		// so that multiple splices take up space and will then maintain sequential order
@@ -837,7 +841,8 @@ static int ReevaluateResolveReferences(EvaluatorEnvironment& environment,
 
 			if (logging.buildProcess)
 				NoteAtTokenf((*referenceValidPreEval->tokens)[referenceValidPreEval->startIndex],
-				             "resolving reference to %s", referenceToResolve);
+				             "resolving reference to %s. output is %p", referenceToResolve,
+				             referenceValidPreEval->spliceOutput);
 
 			// Make sure we don't create additional references for this same reference, as we are
 			// resolving it
@@ -1848,7 +1853,10 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 					if (referenceStatus.guessState == GuessState_None)
 					{
 						if (logging.references || logging.buildProcess)
+						{
 							ErrorAtToken(*referenceStatus.name, "reference has not been resolved");
+							++errors;
+						}
 					}
 				}
 
@@ -2124,7 +2132,7 @@ bool searchForFileInPathsWithError(const char* shortPath, const char* encountere
 }
 
 bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* generatorName,
-                               GeneratorFunc function)
+                               GeneratorFunc function, const Token* blameToken)
 {
 	int numErrors = 0;
 
@@ -2136,11 +2144,40 @@ bool registerEvaluateGenerator(EvaluatorEnvironment& environment, const char* ge
 	}
 	else
 	{
+		ObjectDefinition newDefinition = {};
+		newDefinition.name = generatorName;
+		newDefinition.definitionInvocation = blameToken;
+		// Make sure these don't get built
+		newDefinition.type = ObjectType_CompileTimeExternalGenerator;
+		if (!addObjectDefinition(environment, newDefinition))
+		{
+			Logf("error: could not add %s as a definition\n.", generatorName);
+			return false;
+		}
+
 		environment.generators[generatorName] = function;
 
 		if (!environment.referencePools.empty())
 			ReevaluateResolveReferences(environment, generatorName, /*warnIfNoReferences=*/false,
 			                            numErrors);
+
+		// Mark them as resolved
+		// TODO Slow HACK!
+		if (!numErrors)
+		{
+			for (ObjectDefinitionPair& definitionPair : environment.definitions)
+			{
+				ObjectDefinition& definition = definitionPair.second;
+
+				for (ObjectReferenceStatusPair& reference : definition.references)
+				{
+					ObjectReferenceStatus& referenceStatus = reference.second;
+
+					if (referenceStatus.name->contents.compare(generatorName) == 0)
+						referenceStatus.guessState = GuessState_Resolved;
+				}
+			}
+		}
 	}
 	return numErrors == 0;
 }
