@@ -34,6 +34,21 @@
                             negate-statement (array-size negate-statement)
                             output)))
 
+;; A global and module-local variable "defer"
+(defmacro before-exit (work-body array)
+  (get-or-create-comptime-var before-exit-work (<> (in std vector) (* (const Token))))
+  (call-on push_back (deref before-exit-work) work-body)
+  (return true))
+
+;; Run the deferred code
+(defmacro run-before-exit-work ()
+  (get-or-create-comptime-var before-exit-work (<> (in std vector) (* (const Token))))
+  ;; TODO: Should we sort it eventually?
+  (for-in start-work-token (* (const Token)) (deref before-exit-work)
+    (tokenize-push output
+      (token-splice start-work-token)))
+  (return true))
+
 ;;
 ;; Declarations
 ;;
