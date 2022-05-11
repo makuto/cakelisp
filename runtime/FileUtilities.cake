@@ -117,6 +117,18 @@
                    (_strdup (token-splice string-to-dup)))))
   (return true))
 
+(comptime-cond
+ ('Unix
+  (c-import "<unistd.h>")))
+
+(defun file-exists (filename (* (const char)) &return bool)
+  (comptime-cond
+   ('Unix
+    (return (!= -1 (access filename F_OK))))
+   ('Windows
+	(return (!= (GetFileAttributes filename) INVALID_FILE_ATTRIBUTES))))
+  (return false))
+
 (defun read-file-into-memory-ex (in-file (* FILE)
                                  ;; If file is larger than this, quit early
                                  ;; This allows the program to decide to handle large files differently
