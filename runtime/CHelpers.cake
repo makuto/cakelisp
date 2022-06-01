@@ -162,6 +162,15 @@
     (incr current-index))
   (return true))
 
+(defgenerator declare-external (statement-token (arg-index array))
+  (var statement (const ([] CStatementOperation))
+    (array
+     (array Keyword "extern" -1)
+     (array Statement null statement-token)))
+  (return (c-statement-out statement))
+
+  (return true))
+
 ;; TODO: Better way to handle global vs. local
 (defun-comptime defenum-internal (environment (& EvaluatorEnvironment)
                                   context (& (const EvaluatorContext))
