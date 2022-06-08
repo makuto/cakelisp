@@ -286,7 +286,9 @@ void makeAbsoluteOrRelativeToWorkingDir(const char* filePath, char* bufferOut, i
 	// Logf("workingDirAbsolute %s\nfilePathAbsolute %s\n", workingDirAbsolute, filePathAbsolute);
 
 	size_t workingDirPathLength = strlen(workingDirAbsolute);
-	if (strncmp(workingDirAbsolute, filePathAbsolute, workingDirPathLength) == 0)
+	size_t filePathLength = strlen(filePathAbsolute);
+	if (strncmp(workingDirAbsolute, filePathAbsolute, workingDirPathLength) == 0 &&
+	    filePathLength > workingDirPathLength && filePathAbsolute[workingDirPathLength + 1] == '/')
 	{
 		// The resolved path is within working dir
 		int trimTrailingSlash = filePathAbsolute[workingDirPathLength] == '/' ? 1 : 0;
