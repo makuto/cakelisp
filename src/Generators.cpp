@@ -1017,8 +1017,11 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	// Module-local functions are always marked static, which hides them from linking
 	else if (shouldDeclare && (isCompileTime || environment.useCLinkage))
 	{
-		addStringOutput(functionOutput->header, "extern \"C\"", StringOutMod_SpaceAfter,
-		                &tokens[startTokenIndex]);
+		addStringOutput(functionOutput->header,
+		                "\n#ifdef __cplusplus\n"
+		                "extern \"C\"\n"
+		                "#endif",
+		                StringOutMod_NewlineAfter, &tokens[startTokenIndex]);
 	}
 
 	if (isModuleLocal)
