@@ -17,6 +17,7 @@
     (put 'defstruct 'lisp-indent-function 1)
 
     (put 'var 'lisp-indent-function 2)
+    (put 'var-static 'lisp-indent-function 2)
     ;;(put 'block 'lisp-indent-function 3) ;; Doesn't work because block is special (always expects 1)
 
     (put 'tokenize-push 'lisp-indent-function 1)
