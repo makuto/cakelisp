@@ -15,6 +15,17 @@
     (return status))
   (return true))
 
+(defmacro run-process-wait-for-completion-with-output-body (on-output any)
+  (tokenize-push output
+    (var status int -1)
+    (unless (= 0 (runProcess (deref run-arguments) (addr status)))
+      (Log "error: failed to run process\n")
+      (return 1))
+
+    (waitForAllProcessesClosed (token-splice on-output))
+    (return status))
+  (return true))
+
 ;; Returns exit code (0 = success)
 (defun-comptime run-process-wait-for-completion-comptime (run-arguments (* RunProcessArguments)
                                                           &return int)

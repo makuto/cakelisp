@@ -34,6 +34,8 @@
     (put 'c-for 'lisp-indent-function 3)
 
     (put 'run-process-sequential-or 'lisp-indent-function 1)
+    (put 'runtime-run-process-sequential-or 'lisp-indent-function 1)
+    (put 'runtime-run-process-sequential-with-output-or 'lisp-indent-function 2)
     (put 'run-process-start-or 'lisp-indent-function 2)
 
     (put 'if-c-preprocessor-defined 'lisp-indent-function 1)

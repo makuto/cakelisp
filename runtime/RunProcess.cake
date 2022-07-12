@@ -22,6 +22,13 @@
                                         &return int)
   (run-process-wait-for-completion-body))
 
+(def-function-signature-global subprocess-on-output-function (output (* (const char))))
+
+(defun run-process-wait-for-completion-with-output (run-arguments (* RunProcessArguments)
+                                                    on-output subprocess-on-output-function
+                                                    &return int)
+  (run-process-wait-for-completion-with-output-body on-output))
+
 ;; TODO: Kill once comptime can also be runtime
 (defmacro runtime-run-process-sequential-or (command array &rest on-failure array)
   (tokenize-push output
@@ -33,6 +40,22 @@
       ;; +1 because we want the inside of the command
       (token-splice-rest (+ 1 command) tokens))
      (unless (= 0 (run-process-wait-for-completion (addr process-command)))
+       (token-splice-rest on-failure tokens))))
+  (return true))
+
+(defmacro runtime-run-process-sequential-with-output-or (command array on-output-func any
+                                                         &rest on-failure array)
+  (tokenize-push output
+    (scope
+     (run-process-make-arguments
+      process-command
+      ;; Don't use cakelisp resolve because we don't want to have to bundle Cakelisp's FindVS
+      'no-resolve
+      ;; +1 because we want the inside of the command
+      (token-splice-rest (+ 1 command) tokens))
+     (unless (= 0 (run-process-wait-for-completion-with-output
+                   (addr process-command)
+                   (token-splice on-output-func)))
        (token-splice-rest on-failure tokens))))
   (return true))
 
