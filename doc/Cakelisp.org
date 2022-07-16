@@ -140,8 +140,8 @@ The keyword ~&variable-arguments can be used to create a function with variadic 
 * Variables
 The following invocations will declare variables:
 - ~var~: Module- or body-scope local. This is the most-used variable type
-- ~global-var~: Only valid in module-scope. Defines a variable accessible to any module which imports the module with the definition
-- ~static-var~: Only valid within functions. Defines a ~static~ variable, i.e. a variable which holds its value even after the function's stack frame is popped
+- ~var-global~: Only valid in module-scope. Defines a variable accessible to any module which imports the module with the definition
+- ~var-static~: Only valid within functions. Defines a ~static~ variable, i.e. a variable which holds its value even after the function's stack frame is popped
 
 Use ~set~ to modify variables:
 #+BEGIN_SRC lisp

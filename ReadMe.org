@@ -2,13 +2,15 @@
 
 [[file:images/CakeLisp_gradient_128.png]]
 
-This is a programming language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it too]]. I wanted to do this after my [[https://macoy.me/code/macoy/LanguageTests][LanguageTests]] experiment revealed just how wacky Common Lisp implementations are in regards to performance. I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme (on their modern titles). I've also taken several ideas from Jonathan Blow's talks on Jai.
+This is a programming language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it too]].
 
-The goal is a metaprogrammable, hot-reloadable, non-garbage-collected language ideal for high performance, iteratively-developed programs (especially games).
+Cakelisp is a compiled language ideal for high performance, iteratively-developed applications. There is an emphasis on compile-time code generation, modification, and execution. These features are used to acquire and build 3rd party dependencies, automatically instrument the code, generate introspection metadata, and do various other things that are normally impossible with most compiled languages.
 
-It is a transpiler which generates C/C++ from an S-expression syntax. Cakelisp takes some inspiration from Lisp, but is not compatible and does not aspire to become "a Lisp".
+It is implemented as a transpiler which generates C or C++ from an S-expression syntax.
 
 You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction to Cakelisp]] and check out the [[https://news.ycombinator.com/item?id=25491568][Hacker News announcement thread]]. Cakelisp is also a part of [[https://cakelisp.handmade.network/][Handmade Network]].
+
+Note that while Cakelisp has "Lisp" in the name, Cakelisp takes some inspiration from Lisp, but is not compatible and does not aspire to become "a Lisp". I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme (on their modern titles). I've also taken several ideas from Jonathan Blow's talks on Jai.
 
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
