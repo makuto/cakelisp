@@ -382,7 +382,7 @@ void readProcessPipe(Subprocess& process, SubprocessOnOutputFunc onOutput)
 	{
 		DWORD bytesRead = 0;
 		DWORD bytesWritten = 0;
-		bool success = ReadFile(process.hChildStd_OUT_Rd, buffer, sizeof(buffer), &bytesRead, NULL);
+		bool success = ReadFile(process.hChildStd_OUT_Rd, buffer, sizeof(buffer) - 1, &bytesRead, NULL);
 		if (!success || bytesRead == 0)
 		{
 			encounteredError = !success;
@@ -396,8 +396,11 @@ void readProcessPipe(Subprocess& process, SubprocessOnOutputFunc onOutput)
 			break;
 		}
 
-		if (onOutput && bytesRead <= sizeof(buffer))
+		if (onOutput)
+		{
+			buffer[bytesRead] = 0;
 			onOutput(buffer);
+		}
 	}
 
 	// This seems to give a lot of false-positives
