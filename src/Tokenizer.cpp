@@ -317,6 +317,11 @@ const char* tokenizeLine(const char* inputLine, const char* source, unsigned int
 					tokenizeState = TokenizeState_Normal;
 					currentChar += 2;
 				}
+				else if (*currentChar == '\\')
+				{
+					WriteContents('\\');
+					WriteContents(*currentChar);
+				}
 				else
 				{
 					WriteContents(*currentChar);
