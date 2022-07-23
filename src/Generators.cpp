@@ -2892,6 +2892,8 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 
 	const CStatementOperation field[] = {{SpliceNoSpace, ".", 1}};
 
+	const CStatementOperation access[] = {{SpliceNoSpace, "->", 1}};
+
 	const CStatementOperation memberFunctionInvocation[] = {
 	    {Expression, nullptr, 2},        {KeywordNoSpace, ".", -1},    {Expression, nullptr, 1},
 	    {OpenParen, nullptr, -1},        {ExpressionList, nullptr, 3}, {CloseParen, nullptr, -1},
@@ -3041,6 +3043,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {"deref", dereference, ArraySize(dereference), RequiredFeature_None},
 	    {"addr", addressOf, ArraySize(addressOf), RequiredFeature_None},
 	    {"field", field, ArraySize(field), RequiredFeature_None},
+	    {"access", access, ArraySize(access), RequiredFeature_None},
 	    {"call-on", memberFunctionInvocation, ArraySize(memberFunctionInvocation), RequiredFeature_None},
 	    {"call-on-ptr", dereferenceMemberFunctionInvocation,
 	     ArraySize(dereferenceMemberFunctionInvocation), RequiredFeature_CppInDefinition},
@@ -3241,7 +3244,7 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 	    "while", "for-in", "return", "continue", "break", "when", "unless", "array", "set", "scope",
 	    "?", "new", "delete", "new-array", "delete-array",
 	    // Pointers
-	    "deref", "addr", "field",
+	    "deref", "addr", "field", "access",
 	    // C++ support: calling members, calling namespace functions, scope resolution operator
 	    "call-on", "call-on-ptr", "call", "in", "type-cast", "type",
 	    // Boolean
