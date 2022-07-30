@@ -371,12 +371,11 @@ void moduleManagerDestroyKeepDynLibs(ModuleManager& manager)
 		delete module->tokens;
 		delete module->generatedOutput;
 		free((void*)module->filename);
-		delete module;
-
 		for (CakelispDeferredImport& import : module->cakelispImports)
 		{
 			delete import.spliceOutput;
 		}
+		delete module;
 	}
 	manager.modules.clear();
 }
