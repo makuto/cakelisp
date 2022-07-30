@@ -1,6 +1,9 @@
 echo off
 rem Set environment variables. The user may need to adjust this path
 rem See https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160#developer_command_file_locations
+rem Check that it isn't already defined, otherwise it'll just keep adding things to the path until
+rem we start hitting "The Input line is too long" errors.
+if not defined DevEnvDir (
 if exist "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat" (
 call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
 ) else (
@@ -15,7 +18,7 @@ if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxil
   echo Please see the following link:
   echo https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-160
   goto fail
-))
+)))
 
 if not exist "bin" (
 mkdir bin
