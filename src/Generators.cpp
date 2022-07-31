@@ -1071,7 +1071,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 	}
 
 	int startBodyIndex = endArgsIndex + 1;
-	addLangTokenOutput(functionOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_OpenScopeBlock,
+	                   &tokens[startBodyIndex]);
 
 	// Evaluate our body!
 	EvaluatorContext bodyContext = context;
@@ -1087,7 +1088,8 @@ bool DefunGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& c
 		return false;
 	}
 
-	addLangTokenOutput(functionOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
+	addLangTokenOutput(functionOutput->source, StringOutMod_CloseScopeBlock,
+	                   &tokens[endTokenIndex]);
 
 	functionOutput->functions.push_back({nameToken.contents, &tokens[startTokenIndex],
 	                                     &tokens[endTokenIndex], std::move(argumentsMetadata)});
@@ -1770,6 +1772,7 @@ static bool ComptimeGenerateTokenArguments(const std::vector<Token>& tokens, int
 		                &tokens[startArgsIndex]);
 		addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startArgsIndex]);
 		addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startArgsIndex]);
+		addLangTokenOutput(output.source, StringOutMod_ScopeExitAll, &tokens[startArgsIndex]);
 		addStringOutput(output.source, "return false", StringOutMod_SpaceBefore,
 		                &tokens[startArgsIndex]);
 		addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startArgsIndex]);
@@ -1857,7 +1860,8 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 
 	int startBodyIndex = endArgsIndex + 1;
-	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenScopeBlock,
+	                   &tokens[startBodyIndex]);
 
 	if (!ComptimeGenerateTokenArguments(tokens, argsIndex, *compTimeOutput))
 		return false;
@@ -1876,7 +1880,8 @@ bool DefMacroGenerator(EvaluatorEnvironment& environment, const EvaluatorContext
 		return false;
 	}
 
-	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseScopeBlock,
+	                   &tokens[endTokenIndex]);
 
 	return true;
 }
@@ -1954,7 +1959,8 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseParen, &tokens[endArgsIndex]);
 
 	int startBodyIndex = endArgsIndex + 1;
-	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenBlock, &tokens[startBodyIndex]);
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_OpenScopeBlock,
+	                   &tokens[startBodyIndex]);
 
 	if (!ComptimeGenerateTokenArguments(tokens, argsIndex, *compTimeOutput))
 		return false;
@@ -1971,7 +1977,8 @@ bool DefGeneratorGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	if (numErrors)
 		return false;
 
-	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseBlock, &tokens[endTokenIndex]);
+	addLangTokenOutput(compTimeOutput->source, StringOutMod_CloseScopeBlock,
+	                   &tokens[endTokenIndex]);
 
 	return true;
 }
@@ -2109,7 +2116,7 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 	{
 		int scopedBlockIndex = blockAbsorbScope(tokens, blockIndex);
 
-		addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[scopedBlockIndex]);
+		addLangTokenOutput(output.source, StringOutMod_OpenScopeBlock, &tokens[scopedBlockIndex]);
 		EvaluatorContext trueBlockBodyContext = context;
 		trueBlockBodyContext.scope = EvaluatorScope_Body;
 		trueBlockBodyContext.delimiterTemplate = {};
@@ -2122,7 +2129,7 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 			                                       scopedBlockIndex, output);
 		if (numErrors)
 			return false;
-		addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[scopedBlockIndex + 1]);
+		addLangTokenOutput(output.source, StringOutMod_CloseScopeBlock, &tokens[scopedBlockIndex + 1]);
 	}
 
 	// Optional false block
@@ -2133,7 +2140,7 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 
 		addStringOutput(output.source, "else", StringOutMod_None, &tokens[falseBlockIndex]);
 
-		addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[falseBlockIndex]);
+		addLangTokenOutput(output.source, StringOutMod_OpenScopeBlock, &tokens[falseBlockIndex]);
 		EvaluatorContext falseBlockBodyContext = context;
 		falseBlockBodyContext.scope = EvaluatorScope_Body;
 		falseBlockBodyContext.delimiterTemplate = {};
@@ -2146,7 +2153,8 @@ bool IfGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& cont
 			                                       scopedFalseBlockIndex, output);
 		if (numErrors)
 			return false;
-		addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[falseBlockIndex + 1]);
+		addLangTokenOutput(output.source, StringOutMod_CloseScopeBlock,
+		                   &tokens[falseBlockIndex + 1]);
 	}
 
 	int extraArgument = getNextArgument(tokens, falseBlockIndex, endInvocationIndex);
@@ -2225,7 +2233,7 @@ bool ConditionGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 		int blockIndex = getArgument(tokens, currentConditionBlockIndex, 1, endConditionBlockIndex);
 		if (blockIndex != -1)
 		{
-			addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[blockIndex]);
+			addLangTokenOutput(output.source, StringOutMod_OpenScopeBlock, &tokens[blockIndex]);
 			EvaluatorContext trueBlockBodyContext = context;
 			trueBlockBodyContext.scope = EvaluatorScope_Body;
 			trueBlockBodyContext.delimiterTemplate = {};
@@ -2233,13 +2241,14 @@ bool ConditionGenerator(EvaluatorEnvironment& environment, const EvaluatorContex
 			                                              blockIndex, output);
 			if (numErrors)
 				return false;
-			addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[blockIndex + 1]);
+			addLangTokenOutput(output.source, StringOutMod_CloseScopeBlock,
+			                   &tokens[blockIndex + 1]);
 		}
 		else
 		{
-			addLangTokenOutput(output.source, StringOutMod_OpenBlock,
+			addLangTokenOutput(output.source, StringOutMod_OpenScopeBlock,
 			                   &tokens[endConditionBlockIndex]);
-			addLangTokenOutput(output.source, StringOutMod_CloseBlock,
+			addLangTokenOutput(output.source, StringOutMod_CloseScopeBlock,
 			                   &tokens[endConditionBlockIndex]);
 		}
 
@@ -2581,6 +2590,7 @@ bool TokenizePushGenerator(EvaluatorEnvironment& environment, const EvaluatorCon
 	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startTokenIndex]);
 	addLangTokenOutput(output.source, StringOutMod_CloseParen, &tokens[startTokenIndex]);
 	addLangTokenOutput(output.source, StringOutMod_OpenBlock, &tokens[startTokenIndex]);
+	addLangTokenOutput(output.source, StringOutMod_ScopeExitAll, &tokens[startTokenIndex]);
 	addStringOutput(output.source, "return false", StringOutMod_None, &tokens[startTokenIndex]);
 	addLangTokenOutput(output.source, StringOutMod_EndStatement, &tokens[startTokenIndex]);
 	addLangTokenOutput(output.source, StringOutMod_CloseBlock, &tokens[startTokenIndex]);
@@ -2793,6 +2803,29 @@ bool SplicePointGenerator(EvaluatorEnvironment& environment, const EvaluatorCont
 	return true;
 }
 
+bool DeferGenerator(EvaluatorEnvironment& environment, const EvaluatorContext& context,
+					const std::vector<Token>& tokens, int startTokenIndex,
+					GeneratorOutput& output)
+{
+	if (!ExpectEvaluatorScope("defer", tokens[startTokenIndex], context,
+	                          EvaluatorScope_Body))
+		return false;
+
+	GeneratorOutput* spliceOutput = new GeneratorOutput;
+	// Make sure the splice gets cleaned up once everything's done
+	environment.orphanedOutputs.push_back(spliceOutput);
+	addSpliceOutputWithModifiers(output, spliceOutput, &tokens[startTokenIndex],
+	                             StringOutMod_SpliceOnScopeExit);
+
+	EvaluatorContext deferContext = context;
+	int numErrors = EvaluateGenerateAll_Recursive(environment, deferContext, tokens,
+	                                              startTokenIndex + 2, *spliceOutput);
+	if (numErrors)
+		return false;
+
+	return true;
+}
+
 // Give the user a replacement suggestion
 typedef std::unordered_map<std::string, const char*> DeprecatedHelpStringMap;
 DeprecatedHelpStringMap s_deprecatedHelpStrings;
@@ -2826,25 +2859,25 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	// Loops
 	const CStatementOperation whileStatement[] = {
 	    {Keyword, "while", -1},    {OpenParen, nullptr, -1}, {Expression, nullptr, 1},
-	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
-	    {CloseBlock, nullptr, -1}};
+	    {CloseParen, nullptr, -1}, {OpenContinueBreakableScope, nullptr, -1}, {Body, nullptr, 2},
+	    {CloseContinueBreakableScope, nullptr, -1}};
 
 	const CStatementOperation rangeBasedFor[] = {
 	    {Keyword, "for", -1},     {OpenParen, nullptr, -1},  {TypeNoArray, nullptr, 2},
 	    {Keyword, " ", -1},       {Expression, nullptr, 1},  {Keyword, ":", -1},
-	    {Expression, nullptr, 3}, {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1},
-	    {Body, nullptr, 4},       {CloseBlock, nullptr, -1}};
+	    {Expression, nullptr, 3}, {CloseParen, nullptr, -1}, {OpenContinueBreakableScope, nullptr, -1},
+	    {Body, nullptr, 4},       {CloseContinueBreakableScope, nullptr, -1}};
 
 	// Conditionals
 	const CStatementOperation whenStatement[] = {
 	    {Keyword, "if", -1},       {OpenParen, nullptr, -1}, {Expression, nullptr, 1},
-	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
-	    {CloseBlock, nullptr, -1}};
+	    {CloseParen, nullptr, -1}, {OpenScope, nullptr, -1}, {Body, nullptr, 2},
+	    {CloseScope, nullptr, -1}};
 	const CStatementOperation unlessStatement[] = {
 	    {Keyword, "if", -1},       {OpenParen, nullptr, -1}, {KeywordNoSpace, "!", -1},
 	    {OpenParen, nullptr, -1},  {Expression, nullptr, 1}, {CloseParen, nullptr, -1},
-	    {CloseParen, nullptr, -1}, {OpenBlock, nullptr, -1}, {Body, nullptr, 2},
-	    {CloseBlock, nullptr, -1}};
+	    {CloseParen, nullptr, -1}, {OpenScope, nullptr, -1}, {Body, nullptr, 2},
+	    {CloseScope, nullptr, -1}};
 
 	const CStatementOperation ternaryOperatorStatement[] = {
 	    {OpenParen, nullptr, -1},  {Expression /*Name*/, nullptr, 1},
@@ -2853,14 +2886,17 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	    {CloseParen, nullptr, -1}, {SmartEndStatement, nullptr, -1}};
 
 	// Control flow
-	const CStatementOperation returnStatement[] = {{Keyword, "return", -1},
+	const CStatementOperation returnStatement[] = {{ExitAllScopes, nullptr, -1},
+	                                               {Keyword, "return", -1},
 	                                               {ExpressionOptional, nullptr, 1},
 	                                               {SmartEndStatement, nullptr, -1}};
 
-	const CStatementOperation continueStatement[] = {{KeywordNoSpace, "continue", -1},
+	const CStatementOperation continueStatement[] = {{ContinueOrBreakInScope, nullptr, -1},
+	                                                 {KeywordNoSpace, "continue", -1},
 	                                                 {SmartEndStatement, nullptr, -1}};
 
-	const CStatementOperation breakStatement[] = {{KeywordNoSpace, "break", -1},
+	const CStatementOperation breakStatement[] = {{ContinueOrBreakInScope, nullptr, -1},
+	                                              {KeywordNoSpace, "break", -1},
 	                                              {SmartEndStatement, nullptr, -1}};
 
 	const CStatementOperation newStatement[] = {
@@ -2925,7 +2961,7 @@ bool CStatementGenerator(EvaluatorEnvironment& environment, const EvaluatorConte
 	// barriers or anything). It's useful both for making arbitrary scopes and for making if
 	// blocks with multiple statements
 	const CStatementOperation blockStatement[] = {
-	    {OpenBlock, nullptr, -1}, {Body, nullptr, 1}, {CloseBlock, nullptr, -1}};
+	    {OpenScope, nullptr, -1}, {Body, nullptr, 1}, {CloseScope, nullptr, -1}};
 
 	// https://www.tutorialspoint.com/cprogramming/c_operators.htm proved useful
 	// These could probably be made smarter to not need all the redundant parentheses. For now I'll
@@ -3196,6 +3232,8 @@ void importFundamentalGenerators(EvaluatorEnvironment& environment)
 
 	// Handle complex pathing, e.g. a->b.c->d.e
 	environment.generators["path"] = ObjectPathGenerator;
+
+	environment.generators["defer"] = DeferGenerator;
 
 	// Token manipulation
 	environment.generators["tokenize-push"] = TokenizePushGenerator;

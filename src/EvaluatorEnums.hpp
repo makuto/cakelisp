@@ -17,6 +17,8 @@ enum StringOutputModifierFlags
 
 	// Curly braces ({}) will be added for open and close, respectively
 	// These are also clues to the output formatter to indent all within, etc.
+	// If you expect statements to run within, use StringOutMod_OpenScopeBlock and
+	// StringOutMod_CloseScopeBlock instead.
 	StringOutMod_OpenBlock = 1 << 7,
 	StringOutMod_CloseBlock = 1 << 8,
 
@@ -35,6 +37,22 @@ enum StringOutputModifierFlags
 
 	// Signals the Writer that it needs to splice in another output list
 	StringOutMod_Splice = 1 << 15,
+
+	// The Writer should paste the spliceOutput of this operation before exiting the current scope
+	StringOutMod_SpliceOnScopeExit = 1 << 16,
+
+	StringOutMod_ScopeEnter = 1 << 17,
+	StringOutMod_ScopeExit = 1 << 18,
+	// for/while/switch all can have continue or break, which "exits" the scope or maybe just
+	// restarts it. We need to handle these specially because they can exist within another scope,
+	// so the writer needs to peel back all scopes
+	StringOutMod_ScopeContinueBreakableEnter = 1 << 19,
+	StringOutMod_ScopeContinueBreakableExit = 1 << 20,
+	StringOutMod_ScopeContinueOrBreak = 1 << 21,
+	StringOutMod_ScopeExitAll = 1 << 22,
+
+	StringOutMod_OpenScopeBlock = StringOutMod_OpenBlock | StringOutMod_ScopeEnter,
+	StringOutMod_CloseScopeBlock = StringOutMod_CloseBlock | StringOutMod_ScopeExit,
 };
 
 enum ImportLanguage

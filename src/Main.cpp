@@ -138,6 +138,10 @@ int main(int numArguments, char* arguments[])
 	    {"--verbose-splices", &logging.splices,
 	     "Output in the source file when text splices start and end. This will cause rebuilds "
 	     "every time, but can be helpful in deep debugging"},
+	    {"--verbose-scopes", &logging.scopes,
+	     "Output in the source file when scopes are entered and exited. This will cause rebuilds "
+	     "every time, but can be helpful in deep debugging. Useful when debugging unexpected "
+	     "behavior of scope-related operations like defer"},
 	};
 
 	if (numArguments == 1)

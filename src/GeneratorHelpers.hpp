@@ -101,6 +101,9 @@ CAKELISP_API void addLangTokenOutput(std::vector<StringOutput>& output,
 void addSpliceOutput(GeneratorOutput& output, GeneratorOutput* spliceOutput,
                      const Token* startToken);
 
+void addSpliceOutputWithModifiers(GeneratorOutput& output, GeneratorOutput* spliceOutput,
+                                  const Token* startToken, StringOutputModifierFlags modifiers);
+
 struct FunctionArgumentTokens
 {
 	int startTypeIndex;

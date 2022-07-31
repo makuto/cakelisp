@@ -247,9 +247,9 @@
      (array Keyword ";" -1)
      (array Expression null update)
      (array CloseParen null -1)
-     (array OpenBlock null -1)
+     (array OpenContinueBreakableScope null -1)
      (array Body null body)
-     (array CloseBlock null -1)))
+     (array CloseContinueBreakableScope null -1)))
   (return (c-statement-out statement)))
 
 ;; This only works for arrays where the size is known at compile-time

@@ -8,10 +8,24 @@ enum CStatementOperationType
 
 	OpenParen,
 	CloseParen,
+
+	// Open a scope. Always use when regular statements can be executed within
+	OpenScope,
+	CloseScope,
+	// Anything which responds to continue or break should open its scope with these
+	OpenContinueBreakableScope,
+	CloseContinueBreakableScope,
+	// Do not open a scope. Use only for declarations
 	OpenBlock,
 	CloseBlock,
+	// Used only for e.g. array initializers
 	OpenList,
 	CloseList,
+
+	// "Unnatural" flow control, i.e., cases where the normal CloseScope will not be hit
+	ContinueOrBreakInScope,
+	// return keyword
+	ExitAllScopes,
 
 	Keyword,
 	KeywordNoSpace,

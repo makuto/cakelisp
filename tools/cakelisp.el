@@ -45,6 +45,8 @@
     (put 'defenum 'lisp-indent-function 1)
     (put 'defenum-local 'lisp-indent-function 1)
 
+    (put 'defer 'lisp-indent-function 0)
+
     ;; Keywords
     ;; "(def[a-zA-Z0-9-]*" all define keywords
 

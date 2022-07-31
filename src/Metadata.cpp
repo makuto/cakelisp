@@ -312,6 +312,11 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "comptime-error",
     },
+    {"defer", GeneratorCategory_ControlFlow, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 1, MaxArgumentsUnlimited,
+     "Defer the statements in the body until the current scope is exited. This is useful to e.g. "
+     "(defer (free buffer)). defer will ensure that the code is called, both in \"natural\" scope "
+     "exits and \"explicit\" exits (those caused by return, continue, or break)."},
 
     //
     // Definitions
@@ -379,12 +384,16 @@ GeneratorMetadata g_generatorMetadata[] = {
     {
         "set",
     },
-    {
-        "field",
-    },
-    {
-        "path",
-    },
+    {"field", GeneratorCategory_Memory, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 2, MaxArgumentsUnlimited,
+     "field accesses the field of a structure. (field my-struct field) would generate "
+     "myStruct.field. If you need to access fields through a pointer, use (path) instead."},
+    {"path", GeneratorCategory_Memory, LanguageRequirement_C,
+     (EvaluationTime_CompileTime | EvaluationTime_Runtime), 3, MaxArgumentsUnlimited,
+     "path allows you to access nested fields, including through pointers. For example, (path "
+     "my-ptr > ptr-to-struct > inline-struct . field) would generate "
+     "myPtr->ptrToStruct->inlineStruct.field. Use (field) if you are not accessing memory "
+     "through pointers."},
     {
         "addr",
     },

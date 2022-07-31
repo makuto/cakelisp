@@ -337,8 +337,9 @@ struct EvaluatorEnvironment
 	ArtifactCrcTable comptimeNewCommandCrcs;
 
 	// When a definition is replaced (e.g. by ReplaceAndEvaluateDefinition()), the original
-	// definition's output is still used, but no longer has a definition to keep track of it. We'll
-	// make sure the orphans get destroyed
+	// definition's output is still used, but no longer has a definition to keep track of it. This
+	// is also used for splices that don't have an owning object. We'll make sure the orphans get
+	// destroyed so as to not leak memory.
 	std::vector<GeneratorOutput*> orphanedOutputs;
 
 	// Create a named splice point for later output splicing. Used so the user can insert things

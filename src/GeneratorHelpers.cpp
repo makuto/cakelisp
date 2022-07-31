@@ -451,7 +451,24 @@ void addSpliceOutput(GeneratorOutput& output, GeneratorOutput* spliceOutput,
 
 	// Splice marker must be pushed to both source and header to preserve ordering in case
 	// spliceOutput has both source and header outputs
-	output.source.push_back(std::move(newStringOutput));
+	output.source.push_back(newStringOutput);
+	// Now we can have the header just take ownership
+	output.header.push_back(std::move(newStringOutput));
+}
+
+void addSpliceOutputWithModifiers(GeneratorOutput& output, GeneratorOutput* spliceOutput,
+                                  const Token* startToken, StringOutputModifierFlags modifiers)
+{
+	StringOutput newStringOutput = {};
+	newStringOutput.modifiers = (StringOutputModifierFlags)((int)StringOutMod_Splice | (int)modifiers);
+	newStringOutput.startToken = startToken;
+
+	newStringOutput.spliceOutput = spliceOutput;
+
+	// Splice marker must be pushed to both source and header to preserve ordering in case
+	// spliceOutput has both source and header outputs
+	output.source.push_back(newStringOutput);
+	// Now we can have the header just take ownership
 	output.header.push_back(std::move(newStringOutput));
 }
 
@@ -1043,6 +1060,38 @@ bool CStatementOutput(EvaluatorEnvironment& environment, const EvaluatorContext&
 				break;
 			case CloseParen:
 				addLangTokenOutput(output.source, StringOutMod_CloseParen, &nameToken);
+				break;
+			case OpenScope:
+				addLangTokenOutput(output.source,
+				                   (StringOutputModifierFlags)((int)StringOutMod_OpenBlock |
+				                                               (int)StringOutMod_ScopeEnter),
+				                   &nameToken);
+				break;
+			case CloseScope:
+				addLangTokenOutput(output.source,
+				                   (StringOutputModifierFlags)((int)StringOutMod_CloseBlock |
+				                                               (int)StringOutMod_ScopeExit),
+				                   &nameToken);
+				break;
+			case OpenContinueBreakableScope:
+				addLangTokenOutput(
+				    output.source,
+				    (StringOutputModifierFlags)((int)StringOutMod_OpenBlock |
+				                                (int)StringOutMod_ScopeContinueBreakableEnter),
+				    &nameToken);
+				break;
+			case CloseContinueBreakableScope:
+				addLangTokenOutput(
+				    output.source,
+				    (StringOutputModifierFlags)((int)StringOutMod_CloseBlock |
+				                                (int)StringOutMod_ScopeContinueBreakableExit),
+				    &nameToken);
+				break;
+			case ContinueOrBreakInScope:
+				addLangTokenOutput(output.source, StringOutMod_ScopeContinueOrBreak, &nameToken);
+				break;
+			case ExitAllScopes:
+				addLangTokenOutput(output.source, StringOutMod_ScopeExitAll, &nameToken);
 				break;
 			case OpenBlock:
 				addLangTokenOutput(output.source, StringOutMod_OpenBlock, &nameToken);

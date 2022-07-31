@@ -134,6 +134,22 @@ static NameStyleMode getNameStyleModeForFlags(const NameStyleSettings& settings,
 	return mode;
 }
 
+enum WriterOutputScopeType
+{
+	WriterOutputScope_Normal,
+	WriterOutputScope_ContinueBreakable,
+};
+
+struct WriterOutputScope
+{
+	std::vector<const StringOutput*> onScopeExitOutputs;
+	WriterOutputScopeType type;
+	// Return, continue, or break will cause the scope to have already written out its
+	// onScopeExitOutputs. We need to record this so we don't re-write them in the natural
+	// ScopeExit.
+	bool scopeHasBeenExitedExplicitly;
+};
+
 struct StringOutputState
 {
 	int blockDepth;
@@ -142,6 +158,8 @@ struct StringOutputState
 	int currentLine;
 	int lastLineIndented;
 	FILE* fileOut;
+
+	std::vector<WriterOutputScope> scopeStack;
 };
 
 static void Writer_Writef(StringOutputState& state, const char* format, ...)
@@ -320,11 +338,71 @@ static void writeStringOutput(const NameStyleSettings& nameSettings,
 	}
 }
 
-void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
-                                        const WriterFormatSettings& formatSettings,
-                                        StringOutputState& outputState,
-                                        const std::vector<StringOutput>& outputOperations,
-                                        bool isHeader)
+static void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
+                                               const WriterFormatSettings& formatSettings,
+                                               StringOutputState& outputState,
+                                               const std::vector<StringOutput>& outputOperations,
+                                               bool isHeader);
+
+static void writeSpliceOutput(const NameStyleSettings& nameSettings,
+                              const WriterFormatSettings& formatSettings,
+                              StringOutputState& outputState, const StringOutput& operation,
+                              bool isHeader)
+{
+	if (operation.spliceOutput)
+	{
+		// Even if the spliceOutput has output for the other type, we'll get to it when we
+		// go to write that type, because all splices must push to both types
+		if (isHeader)
+		{
+			writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
+			                                   operation.spliceOutput->header,
+			                                   /*isHeader=*/true);
+		}
+		else
+		{
+			if (logging.splices)
+				Writer_Writef(outputState, "/* Splice %p { */", operation.spliceOutput);
+
+			writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
+			                                   operation.spliceOutput->source,
+			                                   /*isHeader=*/false);
+
+			if (logging.splices)
+				Writer_Writef(outputState, "/* Splice %p } */", operation.spliceOutput);
+		}
+	}
+	else
+		ErrorAtToken(*operation.startToken, "expected splice output");
+}
+
+static void writeOnScopeExit(const NameStyleSettings& nameSettings,
+                             const WriterFormatSettings& formatSettings,
+                             StringOutputState& outputState, bool isHeader, int scopeIndex)
+{
+	int numScopeOutputs = 0;
+	if (scopeIndex >= 0)
+	{
+		WriterOutputScope* currentScope = &outputState.scopeStack[scopeIndex];
+		numScopeOutputs = currentScope->onScopeExitOutputs.size();
+	}
+	for (int i = 0; i < numScopeOutputs; ++i)
+	{
+		// We need to rely on indices because nested scopes could push to the stack
+		// Unlikely in a defer, but possible.
+		const StringOutput* outputOnScopeExit =
+		    outputState.scopeStack[scopeIndex].onScopeExitOutputs[i];
+		if (outputOnScopeExit->spliceOutput)
+			writeSpliceOutput(nameSettings, formatSettings, outputState, *outputOnScopeExit,
+			                  isHeader);
+	}
+}
+
+static void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
+                                               const WriterFormatSettings& formatSettings,
+                                               StringOutputState& outputState,
+                                               const std::vector<StringOutput>& outputOperations,
+                                               bool isHeader)
 {
 	for (const StringOutput& operation : outputOperations)
 	{
@@ -335,33 +413,115 @@ void writeOutputFollowSplices_Recursive(const NameStyleSettings& nameSettings,
 			     outputState.currentLine + 1);
 		}
 
-		if (operation.modifiers == StringOutMod_Splice)
+		// Handle scope-related splicing
+		// Scopes don't ever make sense in headers
+		if (!isHeader)
 		{
-			if (operation.spliceOutput)
+			if (operation.modifiers & StringOutMod_ScopeEnter)
 			{
-				// Even if the spliceOutput has output for the other type, we'll get to it when we
-				// go to write that type, because all splices must push to both types
-				if (isHeader)
-				{
-					writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
-					                                   operation.spliceOutput->header,
-					                                   /*isHeader=*/true);
-				}
+				if (logging.scopes)
+					NoteAtToken(*operation.startToken, "Enter scope");
+				WriterOutputScope newScope;
+				newScope.type = WriterOutputScope_Normal;
+				newScope.scopeHasBeenExitedExplicitly = false;
+				outputState.scopeStack.push_back(newScope);
+				if (logging.scopes)
+					Writer_Writef(outputState, "/* Enter scope %d { */",
+					              outputState.scopeStack.size());
+			}
+			else if (operation.modifiers & StringOutMod_ScopeContinueBreakableEnter)
+			{
+				if (logging.scopes)
+					NoteAtToken(*operation.startToken, "Enter continue breakable scope");
+				WriterOutputScope newScope;
+				newScope.type = WriterOutputScope_ContinueBreakable;
+				newScope.scopeHasBeenExitedExplicitly = false;
+				outputState.scopeStack.push_back(newScope);
+				if (logging.scopes)
+					Writer_Writef(outputState, "/* Enter continue breakable scope %d { */",
+					              outputState.scopeStack.size());
+			}
+
+			if (operation.modifiers & StringOutMod_SpliceOnScopeExit)
+			{
+				if (outputState.scopeStack.empty())
+					ErrorAtToken(*operation.startToken,
+					             "Scope stack is invalid when trying to add splice. This is likely "
+					             "an error with Cakelisp itself, or a generator which isn't "
+					             "opening and closing scopes as expected.");
 				else
 				{
-					if (logging.splices)
-						Writer_Writef(outputState, "/* Splice %p { */", operation.spliceOutput);
-
-					writeOutputFollowSplices_Recursive(nameSettings, formatSettings, outputState,
-					                                   operation.spliceOutput->source,
-					                                   /*isHeader=*/false);
-
-					if (logging.splices)
-						Writer_Writef(outputState, "/* Splice %p } */", operation.spliceOutput);
+					WriterOutputScope* currentScope =
+					    &outputState.scopeStack[(outputState.scopeStack.size() - 1)];
+					currentScope->onScopeExitOutputs.push_back(&operation);
 				}
 			}
-			else
-				ErrorAtToken(*operation.startToken, "expected splice output");
+
+			if (logging.scopes)
+			{
+				if (operation.modifiers & StringOutMod_ScopeExit ||
+				    operation.modifiers & StringOutMod_ScopeContinueBreakableExit)
+				{
+					if (logging.scopes)
+						NoteAtToken(*operation.startToken, "Exit scope");
+					Writer_Writef(outputState, "/* Exit scope %d } */",
+					              outputState.scopeStack.size());
+				}
+			}
+
+			if (operation.modifiers & StringOutMod_ScopeExit ||
+			    // Do we need this?
+			    operation.modifiers & StringOutMod_ScopeContinueBreakableExit)
+			{
+				int currentScopeIndex = (outputState.scopeStack.size() - 1);
+				if (!outputState.scopeStack.empty() &&
+				    !outputState.scopeStack[currentScopeIndex].scopeHasBeenExitedExplicitly)
+					writeOnScopeExit(nameSettings, formatSettings, outputState, isHeader,
+					                 currentScopeIndex);
+
+				if (!outputState.scopeStack.empty())
+					outputState.scopeStack.pop_back();
+				else
+					ErrorAtToken(*operation.startToken,
+					             "Scope stack is invalid on scope exit. This is likely an error "
+					             "with Cakelisp itself, or a generator which isn't opening and "
+					             "closing scopes as expected.");
+			}
+
+			if (operation.modifiers & StringOutMod_ScopeContinueOrBreak)
+			{
+				if (logging.scopes)
+					NoteAtToken(*operation.startToken, "Continue or break");
+				int currentScopeIndex = (outputState.scopeStack.size() - 1);
+				if (!outputState.scopeStack.empty())
+					outputState.scopeStack[currentScopeIndex].scopeHasBeenExitedExplicitly = true;
+				for (int i = currentScopeIndex; i >= 0; --i)
+				{
+					writeOnScopeExit(nameSettings, formatSettings, outputState, isHeader, i);
+					// Stop at the first for/while/etc. we find
+					if (outputState.scopeStack[i].type == WriterOutputScope_ContinueBreakable)
+						break;
+				}
+				// We don't pop the scope because this is an unusual control flow exit
+			}
+
+			if (operation.modifiers & StringOutMod_ScopeExitAll)
+			{
+				int currentScopeIndex = (outputState.scopeStack.size() - 1);
+				if (!outputState.scopeStack.empty())
+					outputState.scopeStack[currentScopeIndex].scopeHasBeenExitedExplicitly = true;
+				for (int i = (outputState.scopeStack.size() - 1); i >= 0; --i)
+				{
+					writeOnScopeExit(nameSettings, formatSettings, outputState, isHeader, i);
+				}
+				// We don't pop the scope because this is an unusual control flow exit
+			}
+		}
+
+		// Only plain old splices are output this way
+		if (operation.modifiers == StringOutMod_Splice)
+		{
+			writeSpliceOutput(nameSettings, formatSettings, outputState, operation, isHeader);
 		}
 		else
 			writeStringOutput(nameSettings, formatSettings, operation, outputState);

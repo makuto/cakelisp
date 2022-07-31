@@ -83,10 +83,6 @@ It needs to be possible to mix strict C and C++ modules, because it's unlikely t
 Currently, defining which headers to include from compile-time functions is not possible. This is important to support complex compile-time code bases spread across multiple functions and headers. It's also necessary to be able to include Cakelisp headers optionally, so compile-time functions can help macros/generators/etc.
 
 This shouldn't be a hard add, but it is tricky to decide where import list should go: within each function, at the module level, both of those, etc.
-** ~defer~ support
-This one is going to be a bit tricky, because scopes are going to need to be tracked. I think it's a really nice to have feature, but one of the harder, more error-prone ones.
-
-I don't want to just use C++ destructors because I want a pure-C option.
 ** ~for~ loop
 In GameLib, almost all loops would be fine with a number range, e.g. here are some ideas:
 #+BEGIN_SRC lisp
@@ -214,6 +210,11 @@ Mostly listing this because it's what I use (LSP is a bit too heavyweight for my
 The following are things that were on the Roadmap that are now complete.
 
 These are sorted with most recently completed appearing first.
+
+** ~defer~ support
+This one is going to be a bit tricky, because scopes are going to need to be tracked. I think it's a really nice to have feature, but one of the harder, more error-prone ones.
+
+I don't want to just use C++ destructors because I want a pure-C option.
 ** Conditionals based on build configuration
 It is useful to be able to define blocks of code which are e.g. operating-system specific, e.g. something like:
 #+BEGIN_SRC lisp
