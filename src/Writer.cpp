@@ -386,7 +386,8 @@ static void writeOnScopeExit(const NameStyleSettings& nameSettings,
 		WriterOutputScope* currentScope = &outputState.scopeStack[scopeIndex];
 		numScopeOutputs = currentScope->onScopeExitOutputs.size();
 	}
-	for (int i = 0; i < numScopeOutputs; ++i)
+	// We output discrete (defer) invocations in reverse order because they can be dependent
+	for (int i = numScopeOutputs - 1; i >= 0; --i)
 	{
 		// We need to rely on indices because nested scopes could push to the stack
 		// Unlikely in a defer, but possible.
