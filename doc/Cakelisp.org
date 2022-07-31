@@ -2,6 +2,8 @@
 
 This document aspires to be one page of everything you need to know to learn the Cakelisp language. I liked how [[https://ziglang.org/documentation/master/][Zig]] is all on one page, so I'm going to emulate that here.
 
+*This document is still a work in progress.* For now, you will need to use the ~--list-built-ins-details~ command and read existing Cakelisp code (see ~test/~, ~runtime/~, and [[https://macoy.me/code/macoy/gamelib][GameLib]] for examples) in order to learn all the things you can do with Cakelisp.
+
 This doesn't cover the internal workings of the Cakelisp transpiler. See [[file:Internals.org][Internals.org]] for that information.
 
 Cakelisp is not intended to be an easy language for beginners. You should already have a strong grasp of either C or C++, because many functions and idioms used are actually straight from C/C++. Cakelisp is intended for people who already know C/C++ but want more features on top of the language.
