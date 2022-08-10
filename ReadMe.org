@@ -44,7 +44,7 @@ cd cakelisp
 ./Build.sh
 #+END_SRC
 
-This script first builds cakelisp explicitly, then uses the ~cakelisp_bootstrap~ executable to build Cakelisp using Cakelisp. Subsequent executions of ~Build.sh~ will also build using Cakelisp, which means all the caching features will be in effect (making builds much faster).
+This script first builds cakelisp explicitly, then uses the ~cakelisp_bootstrap_v2~ executable to build Cakelisp using Cakelisp. Subsequent executions of ~Build.sh~ will also build using Cakelisp, which means all the caching features will be in effect (making builds much faster).
 
 You can then run ~./bin/cakelisp~. Have fun! A simple test:
 #+BEGIN_SRC sh

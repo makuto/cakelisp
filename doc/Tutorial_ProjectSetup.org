@@ -128,8 +128,8 @@ You should see the following output, if all things go well:
   Cakelisp
 
 
-  bin/cakelisp_bootstrap does not exist. Building bootstrap executable manually
-  Built bin/cakelisp_bootstrap successfully. Now building with Cakelisp
+  bin/cakelisp_bootstrap_v2 does not exist. Building bootstrap executable manually
+  Built bin/cakelisp_bootstrap_v2 successfully. Now building with Cakelisp
   Successfully built and linked bin/cakelisp
   Cakelisp successfully bootstrapped. Use ./bin/cakelisp to build your files
 
@@ -148,10 +148,10 @@ Run ~chmod +x Build.sh~ to give the build script executable permissions, then ru
 ** No such directory "Dependencies/cakelisp"
 Check you are in project's root directory when running build script. Download cakelisp to ~Dependencies/cakelisp~.
 
-** Build fails after "Building bootstrap executable manually", and "Built bin/cakelisp_bootstrap successfully." was not output
+** Build fails after "Building bootstrap executable manually", and "Built bin/cakelisp_bootstrap_v2 successfully." was not output
 Check ~Dependencies/cakelisp/Build.sh~. Does it reference your system's compiler toolchain correctly? Edit it if not.
 
-** Build fails after "Built bin/cakelisp_bootstrap successfully.", and "Successfully built and linked bin/cakelisp" was not output
+** Build fails after "Built bin/cakelisp_bootstrap_v2 successfully.", and "Successfully built and linked bin/cakelisp" was not output
 Cakelisp itself must not refer to your system's compiler toolchain correctly. Open ~ModuleManager.cpp~ and find your platform in ~moduleManagerInitialize()~. You may need to edit these defaults.
 
 Another option is to look at ~Dependencies/cakelisp/runtime/Config_Mingw.cake~ and add similar code to the ~Dependencies/cakelisp/Bootstrap*.cake~ script for your platform. This allows you to override Cakelisp's default compiler toolchain variables.
