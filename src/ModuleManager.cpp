@@ -1315,7 +1315,11 @@ bool moduleManagerBuild(ModuleManager& manager, std::vector<BuildObject*>& build
 			// Forget that the command was changed because the artifact wasn't successfully built
 			manager.newCommandCrcs.erase(object->filename.c_str());
 			succeededBuild = false;
-			continue;
+		}
+		else
+		{
+			setSourceArtifactCrc(manager.environment, object->sourceFilename.c_str(),
+			                     object->filename.c_str());
 		}
 	}
 
@@ -1548,6 +1552,10 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 			return false;
 		}
 
+		for (BuildObject* object : buildObjects)
+			setSourceArtifactCrc(manager.environment, object->filename.c_str(),
+			                     outputExecutableName.c_str());
+
 		Logf("Successfully built and linked %s\n", finalOutputName.c_str());
 		builtOutputs.push_back(finalOutputName);
 	}
@@ -1558,7 +1566,8 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 
 bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs)
 {
-	if (!buildReadCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs))
+	if (!buildReadCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
+	                        manager.environment.sourceArtifactFileCrcs))
 		return false;
 
 	// Pointer because the objects can't move, status codes are pointed to
@@ -1571,8 +1580,9 @@ bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>&
 	{
 		// Remember any succeeded artifact command CRCs so they don't get forgotten just because
 		// some others failed
-		buildWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
-		                    manager.newCommandCrcs);
+		buildReadMergeWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
+		                             manager.newCommandCrcs,
+		                             manager.environment.sourceArtifactFileCrcs);
 		return false;
 	}
 
@@ -1580,13 +1590,15 @@ bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>&
 	{
 		// Remember any succeeded artifact command CRCs so they don't get forgotten just because
 		// some others failed
-		buildWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
-		                    manager.newCommandCrcs);
+		buildReadMergeWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
+		                             manager.newCommandCrcs,
+		                             manager.environment.sourceArtifactFileCrcs);
 		return false;
 	}
 
-	buildWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
-	                    manager.newCommandCrcs);
+	buildReadMergeWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
+	                             manager.newCommandCrcs,
+	                             manager.environment.sourceArtifactFileCrcs);
 
 	return true;
 }

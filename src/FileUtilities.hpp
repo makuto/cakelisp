@@ -46,3 +46,5 @@ CAKELISP_API void makeBackslashFilename(char* buffer, int bufferSize, const char
 // Does NOT validate whether your buffer can fit the new extension + null terminator
 // TODO: Safer version
 CAKELISP_API bool changeExtension(char* buffer, const char* newExtension);
+
+CAKELISP_API uint32_t getFileCrc32(const char* filename);

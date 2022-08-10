@@ -407,8 +407,9 @@ void makeTargetPlatformVersionArgument(char* resolvedArgumentOut, int resolvedAr
 #endif
 }
 
-void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
-                         ArtifactCrcTable& newCommandCrcs)
+static void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
+                                ArtifactCrcTable& newCommandCrcs,
+                                HashedSourceArtifactCrcTable& sourceArtifactFileCrcs)
 {
 	char outputFilename[MAX_PATH_LENGTH] = {0};
 	if (!outputFilenameFromSourceFilename(buildOutputDir, "Cache", "cake", outputFilename,
@@ -430,6 +431,7 @@ void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCom
 	const Token openParen = {TokenType_OpenParen, EmptyString, "Build.cpp", 1, 0, 0};
 	const Token closeParen = {TokenType_CloseParen, EmptyString, "Build.cpp", 1, 0, 0};
 	const Token crcInvoke = {TokenType_Symbol, "command-crc", "Build.cpp", 1, 0, 0};
+	const Token sourceArtifactInvoke = {TokenType_Symbol, "source-artifact-crc", "Build.cpp", 1, 0, 0};
 
 	for (ArtifactCrcTablePair& crcPair : outputCrcs)
 	{
@@ -438,6 +440,21 @@ void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCom
 
 		Token artifactName = {TokenType_String, crcPair.first, "Build.cpp", 1, 0, 0};
 		outputTokens.push_back(artifactName);
+
+		Token crcToken = {TokenType_Symbol, std::to_string(crcPair.second), "Build.cpp", 1, 0, 0};
+		outputTokens.push_back(crcToken);
+
+		outputTokens.push_back(closeParen);
+	}
+
+	for (const HashedSourceArtifactCrcTablePair& crcPair : sourceArtifactFileCrcs)
+	{
+		outputTokens.push_back(openParen);
+		outputTokens.push_back(sourceArtifactInvoke);
+
+		Token sourceArtifactName = {
+		    TokenType_String, std::to_string(crcPair.first), "Build.cpp", 1, 0, 0};
+		outputTokens.push_back(sourceArtifactName);
 
 		Token crcToken = {TokenType_Symbol, std::to_string(crcPair.second), "Build.cpp", 1, 0, 0};
 		outputTokens.push_back(crcToken);
@@ -464,7 +481,8 @@ void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCom
 }
 
 // Returns false if there were errors; the file not existing is not an error
-bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs)
+bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
+                        HashedSourceArtifactCrcTable& sourceArtifactFileCrcs)
 {
 	char inputFilename[MAX_PATH_LENGTH] = {0};
 	if (!outputFilenameFromSourceFilename(buildOutputDir, "Cache", "cake", inputFilename,
@@ -512,6 +530,27 @@ bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedComm
 				cachedCommandCrcs[(*tokens)[artifactIndex].contents] =
 				    static_cast<uint32_t>(std::stoul((*tokens)[crcIndex].contents));
 			}
+			else if (invocationToken.contents.compare("source-artifact-crc") == 0)
+			{
+				int artifactSourceIndex = getExpectedArgument("expected artifact source CRC",
+				                                              (*tokens), i, 1, endInvocationIndex);
+				if (artifactSourceIndex == -1)
+				{
+					delete tokens;
+					return false;
+				}
+				int crcIndex =
+				    getExpectedArgument("expected crc", (*tokens), i, 2, endInvocationIndex);
+				if (crcIndex == -1)
+				{
+					delete tokens;
+					return false;
+				}
+
+				sourceArtifactFileCrcs[static_cast<uint32_t>(
+				    std::stoul((*tokens)[artifactSourceIndex].contents))] =
+				    static_cast<uint32_t>(std::stoul((*tokens)[crcIndex].contents));
+			}
 			else
 			{
 				Logf("error: unrecognized invocation in %s: %s\n", inputFilename,
@@ -526,6 +565,25 @@ bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedComm
 
 	delete tokens;
 	return true;
+}
+
+void buildReadMergeWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
+                                  ArtifactCrcTable& newCommandCrcs,
+                                  HashedSourceArtifactCrcTable& sourceArtifactFileCrcs)
+{
+	ArtifactCrcTable mergedCachedCommandCrcs;
+	HashedSourceArtifactCrcTable mergedSourceArtifactFileCrcs;
+
+	buildReadCacheFile(buildOutputDir, mergedCachedCommandCrcs, mergedSourceArtifactFileCrcs);
+
+	// Merge, using our version as latest
+	for (ArtifactCrcTablePair& crcPair : newCommandCrcs)
+		mergedCachedCommandCrcs[crcPair.first] = crcPair.second;
+	for (const HashedSourceArtifactCrcTablePair& crcPair : sourceArtifactFileCrcs)
+		mergedSourceArtifactFileCrcs[crcPair.first] = crcPair.second;
+
+	buildWriteCacheFile(buildOutputDir, mergedCachedCommandCrcs, newCommandCrcs,
+	                    mergedSourceArtifactFileCrcs);
 }
 
 // It is essential to scan the #include files to determine if any of the headers have been modified,

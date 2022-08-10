@@ -538,3 +538,23 @@ bool changeExtension(char* buffer, const char* newExtension)
 	*extensionWrite = '\0';
 	return true;
 }
+
+uint32_t getFileCrc32(const char* filename)
+{
+	FILE* file = fileOpen(filename, "rb");
+	if (!file)
+		return 0;
+
+	uint32_t crc = 0;
+
+	char buffer[4096] = {0};
+	size_t numCharsRead = fread(buffer, 1, sizeof(buffer), file);
+	while (numCharsRead)
+	{
+		crc32(buffer, numCharsRead, &crc);
+		numCharsRead = fread(buffer, 1, sizeof(buffer), file);
+	}
+
+	fclose(file);
+	return crc;
+}

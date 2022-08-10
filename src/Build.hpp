@@ -71,11 +71,20 @@ typedef std::unordered_map<std::string, FileModifyTime> HeaderModificationTimeTa
 typedef std::unordered_map<std::string, uint32_t> ArtifactCrcTable;
 typedef std::pair<const std::string, uint32_t> ArtifactCrcTablePair;
 
-void buildWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
-                         ArtifactCrcTable& newCommandCrcs);
+// Uses a hash of the artifact name, then the source name
+typedef std::unordered_map<uint32_t, uint32_t> HashedSourceArtifactCrcTable;
+typedef std::pair<uint32_t, uint32_t> HashedSourceArtifactCrcTablePair;
+
+// Why read, merge, write? Because it's possible we ran another instance of cakelisp in the same
+// directory during our build phase. The caches are shared state, so we don't want to blow away
+// their data.
+void buildReadMergeWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
+                                  ArtifactCrcTable& newCommandCrcs,
+                                  HashedSourceArtifactCrcTable& sourceArtifactFileCrcs);
 
 // Returns false if there were errors; the file not existing is not an error
-bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs);
+bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
+                        HashedSourceArtifactCrcTable& sourceArtifactFileCrcs);
 
 // commandArguments should have terminating null sentinel
 bool commandEqualsCachedCommand(ArtifactCrcTable& cachedCommandCrcs, const char* artifactKey,

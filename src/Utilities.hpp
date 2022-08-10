@@ -90,6 +90,8 @@ bool writeStringToBuffer(const char* str, char** at, char* bufferStart, int buff
 
 FILE* fileOpen(const char* filename, const char* mode);
 
+uint32_t crc32_for_byte(uint32_t r);
+
 CAKELISP_API void crc32(const void* data, size_t n_bytes, uint32_t* crc);
 
 // Let this serve as more of a TODO to get rid of std::string

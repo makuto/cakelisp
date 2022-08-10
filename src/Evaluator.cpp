@@ -770,6 +770,7 @@ struct ComptimeBuildObject
 	bool hasAnyRefs = false;
 	std::string artifactsName;
 	std::string dynamicLibraryPath;
+	std::string sourceOutputName;
 	std::string buildObjectName;
 	std::vector<std::string> importLibraries;
 	ObjectDefinition* definition = nullptr;
@@ -997,6 +998,7 @@ bool ComptimePrepareHeaders(EvaluatorEnvironment& environment)
 	{
 		environment.comptimeHeadersPrepared = true;
 		environment.comptimeCombinedHeaderFilename = combinedHeaderName;
+		setSourceArtifactCrc(environment, combinedHeaderRelativePath, precompiledHeaderFilename);
 		return true;
 	}
 
@@ -1203,6 +1205,7 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 		char sourceOutputName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(sourceOutputName, "%s/%s.cpp", cakelispWorkingDir,
 		             buildObject.artifactsName.c_str());
+		buildObject.sourceOutputName = sourceOutputName;
 
 		char buildObjectName[MAX_PATH_LENGTH] = {0};
 		PrintfBuffer(buildObjectName, "%s/%s.%s", cakelispWorkingDir,
@@ -1435,6 +1438,9 @@ int BuildExecuteCompileTimeFunctions(EvaluatorEnvironment& environment,
 
 		if (logging.buildProcess)
 			Logf("Linked %s successfully\n", buildObject.definition->name.c_str());
+
+		setSourceArtifactCrc(environment, buildObject.sourceOutputName.c_str(),
+		                     buildObject.dynamicLibraryPath.c_str());
 
 		DynamicLibHandle builtLib = loadDynamicLibrary(buildObject.dynamicLibraryPath.c_str());
 		if (!builtLib)
@@ -1728,7 +1734,8 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 {
 	// We're about to start compiling comptime code; read the cache
 	// TODO: Multiple comptime configurations require different working dir
-	if (!buildReadCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs))
+	if (!buildReadCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
+	                        environment.sourceArtifactFileCrcs))
 		return false;
 
 	// Print state
@@ -1881,9 +1888,10 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 
 	// Only write CRCs if we did some comptime compilation. Otherwise, the tokenizer will complain
 	// about loading a completely empty file
-	if (!environment.comptimeNewCommandCrcs.empty())
-		buildWriteCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
-		                    environment.comptimeNewCommandCrcs);
+	if (!environment.comptimeNewCommandCrcs.empty() || !environment.sourceArtifactFileCrcs.empty())
+		buildReadMergeWriteCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
+		                             environment.comptimeNewCommandCrcs,
+		                             environment.sourceArtifactFileCrcs);
 
 	return errors == 0 && numBuildResolveErrors == 0;
 }
@@ -2038,11 +2046,92 @@ void resetGeneratorOutput(GeneratorOutput& output)
 	output.imports.clear();
 }
 
+uint32_t cacheUpdateFileCrc(EvaluatorEnvironment& environment, const char* filename)
+{
+	uint32_t sourceCrc = getFileCrc32(filename);
+	environment.cachedIntraBuildFileCrcs[filename] = sourceCrc;
+	return sourceCrc;
+}
+
+uint32_t getSourceArtifactKey(const char* source,
+                                  const char* artifact)
+{
+	uint32_t artifactSourceNameCrc = 0;
+	crc32(artifact, strlen(artifact), &artifactSourceNameCrc);
+	crc32(source, strlen(source), &artifactSourceNameCrc);
+	return artifactSourceNameCrc;
+}
+
+// Call after an artifact has been built such to have source's latest changes
+void setSourceArtifactCrc(EvaluatorEnvironment& environment, const char* source,
+                          const char* artifact)
+{
+	uint32_t sourceCrc = 0;
+	{
+		ArtifactCrcTable::iterator findIt = environment.cachedIntraBuildFileCrcs.find(source);
+		if (findIt != environment.cachedIntraBuildFileCrcs.end())
+			sourceCrc = findIt->second;
+		else
+			sourceCrc = cacheUpdateFileCrc(environment, source);
+	}
+	uint32_t artifactSourceNameCrc = getSourceArtifactKey(source, artifact);
+
+	// We haven't recorded this association yet, so we cannot confidently say artifact is up to
+	// date with source's changes. We now record the association with the assumption that by
+	// virtue of this function returning false, artifact will be updated with source's changes.
+	// if (logging.buildReasons)
+		// Logf("Artifact %s now has source %s changes (%u)\n", artifact, source, sourceCrc);
+	environment.sourceArtifactFileCrcs[artifactSourceNameCrc] = sourceCrc;
+}
+
+// If either of the files have a CRC that doesn't match what we had last build, we need to re-build
+bool crcsMatchExpectedUpdateCrcPairing(EvaluatorEnvironment& environment, const char* source,
+                                       const char* artifact)
+{
+	uint32_t artifactSourceNameCrc = getSourceArtifactKey(source, artifact);
+	HashedSourceArtifactCrcTable::iterator findIt =
+	    environment.sourceArtifactFileCrcs.find(artifactSourceNameCrc);
+	if (findIt == environment.sourceArtifactFileCrcs.end())
+	{
+		if (logging.buildReasons)
+			Logf(
+			    "Artifact %s was not associated with source %s before. There are %d associations\n",
+			    artifact, source, (int)environment.sourceArtifactFileCrcs.size());
+		// We didn't know previously that artifact depends on source
+		return false;
+	}
+	else
+	{
+		uint32_t sourceCrc = 0;
+		{
+			ArtifactCrcTable::iterator findIt = environment.cachedIntraBuildFileCrcs.find(source);
+			if (findIt != environment.cachedIntraBuildFileCrcs.end())
+				sourceCrc = findIt->second;
+			else
+				sourceCrc = cacheUpdateFileCrc(environment, source);
+		}
+		bool sourceCrcMatchesLastUse = sourceCrc == findIt->second;
+		if (logging.buildReasons)
+		{
+			if (sourceCrcMatchesLastUse)
+			{
+				// Logf("Artifact %s not rebuilding because source %s CRC is same as last time
+				// (%u)\n", artifact, source, sourceCrc);
+			}
+			else
+				Logf("Artifact %s needs to build because source %s CRC is now %u\n", artifact,
+				     source, sourceCrc);
+		}
+		return sourceCrcMatchesLastUse;
+	}
+}
+
 bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
                       const char* reference)
 {
 	if (environment.useCachedFiles)
-		return !fileIsMoreRecentlyModified(filename, reference);
+		return !fileIsMoreRecentlyModified(filename, reference) &&
+		       crcsMatchExpectedUpdateCrcPairing(environment, filename, reference);
 	else
 		return false;
 }

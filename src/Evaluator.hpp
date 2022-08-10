@@ -336,6 +336,10 @@ struct EvaluatorEnvironment
 	// If any artifact no longer matches its crc in cachedCommandCrcs, the change will appear here
 	ArtifactCrcTable comptimeNewCommandCrcs;
 
+	// We cannot fully trust file modification times. Track the file contents hash to be sure
+	ArtifactCrcTable cachedIntraBuildFileCrcs;
+	HashedSourceArtifactCrcTable sourceArtifactFileCrcs;
+
 	// When a definition is replaced (e.g. by ReplaceAndEvaluateDefinition()), the original
 	// definition's output is still used, but no longer has a definition to keep track of it. This
 	// is also used for splices that don't have an owning object. We'll make sure the orphans get
@@ -499,6 +503,9 @@ CAKELISP_API bool GetCompileTimeVariable(EvaluatorEnvironment& environment, cons
 // --ignore-cache
 bool canUseCachedFile(EvaluatorEnvironment& environment, const char* filename,
                       const char* reference);
+
+void setSourceArtifactCrc(EvaluatorEnvironment& environment, const char* source,
+                          const char* artifact);
 
 const char* objectTypeToString(ObjectType type);
 
