@@ -740,7 +740,8 @@ static bool AreIncludedHeadersModified_Recursive(const std::vector<std::string>&
 	if (changedHeaderCrcCache.find(filename) != changedHeaderCrcCache.end())
 	{
 		headerCrcDiffersFromExpected |= true;
-		Logf("   >>> Header %s already marked as different.\n", filename);
+		if (logging.includeScanning)
+			Logf("   >>> Header %s already marked as different.\n", filename);
 	}
 	else
 	{
