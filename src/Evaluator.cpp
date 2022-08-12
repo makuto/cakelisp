@@ -1735,7 +1735,8 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 	// We're about to start compiling comptime code; read the cache
 	// TODO: Multiple comptime configurations require different working dir
 	if (!buildReadCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
-	                        environment.sourceArtifactFileCrcs))
+	                        environment.sourceArtifactFileCrcs,
+	                        environment.loadedHeaderCrcCache))
 		return false;
 
 	// Print state
@@ -1888,10 +1889,12 @@ bool EvaluateResolveReferences(EvaluatorEnvironment& environment)
 
 	// Only write CRCs if we did some comptime compilation. Otherwise, the tokenizer will complain
 	// about loading a completely empty file
-	if (!environment.comptimeNewCommandCrcs.empty() || !environment.sourceArtifactFileCrcs.empty())
+	if (!environment.comptimeNewCommandCrcs.empty() ||
+	    !environment.sourceArtifactFileCrcs.empty() || !environment.changedHeaderCrcCache.empty())
 		buildReadMergeWriteCacheFile(cakelispWorkingDir, environment.comptimeCachedCommandCrcs,
 		                             environment.comptimeNewCommandCrcs,
-		                             environment.sourceArtifactFileCrcs);
+		                             environment.sourceArtifactFileCrcs,
+		                             environment.changedHeaderCrcCache);
 
 	return errors == 0 && numBuildResolveErrors == 0;
 }
@@ -2119,8 +2122,8 @@ bool crcsMatchExpectedUpdateCrcPairing(EvaluatorEnvironment& environment, const 
 				// (%u)\n", artifact, source, sourceCrc);
 			}
 			else
-				Logf("Artifact %s needs to build because source %s CRC is now %u\n", artifact,
-				     source, sourceCrc);
+				Logf("Artifact %s needs to build because source %s CRC is now %u (expected %u)\n",
+				     artifact, source, sourceCrc, findIt->second);
 		}
 		return sourceCrcMatchesLastUse;
 	}

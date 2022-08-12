@@ -330,6 +330,10 @@ struct EvaluatorEnvironment
 
 	// Shared across comptime build rounds
 	HeaderModificationTimeTable comptimeHeaderModifiedCache;
+	ArtifactCrcTable loadedHeaderCrcCache;
+	// Only headers which have CRCs that do not match the values in loadedHeaderCrcCache will end up
+	// here. This is then written out along with the loadedHeaderCrcCache.
+	ArtifactCrcTable changedHeaderCrcCache;
 	// If an existing cached build was run, check the current build's commands against the previous
 	// commands via CRC comparison. This ensures changing commands will cause rebuilds
 	ArtifactCrcTable comptimeCachedCommandCrcs;

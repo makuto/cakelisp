@@ -1567,7 +1567,7 @@ bool moduleManagerLink(ModuleManager& manager, std::vector<BuildObject*>& buildO
 bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>& builtOutputs)
 {
 	if (!buildReadCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
-	                        manager.environment.sourceArtifactFileCrcs))
+	                        manager.environment.sourceArtifactFileCrcs, manager.environment.loadedHeaderCrcCache))
 		return false;
 
 	// Pointer because the objects can't move, status codes are pointed to
@@ -1580,9 +1580,9 @@ bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>&
 	{
 		// Remember any succeeded artifact command CRCs so they don't get forgotten just because
 		// some others failed
-		buildReadMergeWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
-		                             manager.newCommandCrcs,
-		                             manager.environment.sourceArtifactFileCrcs);
+		buildReadMergeWriteCacheFile(
+		    manager.buildOutputDir.c_str(), manager.cachedCommandCrcs, manager.newCommandCrcs,
+		    manager.environment.sourceArtifactFileCrcs, manager.environment.changedHeaderCrcCache);
 		return false;
 	}
 
@@ -1590,15 +1590,15 @@ bool moduleManagerBuildAndLink(ModuleManager& manager, std::vector<std::string>&
 	{
 		// Remember any succeeded artifact command CRCs so they don't get forgotten just because
 		// some others failed
-		buildReadMergeWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
-		                             manager.newCommandCrcs,
-		                             manager.environment.sourceArtifactFileCrcs);
+		buildReadMergeWriteCacheFile(
+		    manager.buildOutputDir.c_str(), manager.cachedCommandCrcs, manager.newCommandCrcs,
+		    manager.environment.sourceArtifactFileCrcs, manager.environment.changedHeaderCrcCache);
 		return false;
 	}
 
 	buildReadMergeWriteCacheFile(manager.buildOutputDir.c_str(), manager.cachedCommandCrcs,
-	                             manager.newCommandCrcs,
-	                             manager.environment.sourceArtifactFileCrcs);
+	                             manager.newCommandCrcs, manager.environment.sourceArtifactFileCrcs,
+	                             manager.environment.changedHeaderCrcCache);
 
 	return true;
 }

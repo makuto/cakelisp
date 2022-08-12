@@ -93,3 +93,5 @@
     (fprintf stderr "error: could not find command '%s'\n" (at 1 arguments))
     (return 1))
   (return 0))
+
+(set-cakelisp-option executable-output "test/Tutoral_Basics")

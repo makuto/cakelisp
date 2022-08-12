@@ -80,11 +80,13 @@ typedef std::pair<uint32_t, uint32_t> HashedSourceArtifactCrcTablePair;
 // their data.
 void buildReadMergeWriteCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
                                   ArtifactCrcTable& newCommandCrcs,
-                                  HashedSourceArtifactCrcTable& sourceArtifactFileCrcs);
+                                  HashedSourceArtifactCrcTable& sourceArtifactFileCrcs,
+                                  ArtifactCrcTable& changedHeaderCrcCache);
 
 // Returns false if there were errors; the file not existing is not an error
 bool buildReadCacheFile(const char* buildOutputDir, ArtifactCrcTable& cachedCommandCrcs,
-                        HashedSourceArtifactCrcTable& sourceArtifactFileCrcs);
+                        HashedSourceArtifactCrcTable& sourceArtifactFileCrcs,
+                        ArtifactCrcTable& headerCrcCache);
 
 // commandArguments should have terminating null sentinel
 bool commandEqualsCachedCommand(ArtifactCrcTable& cachedCommandCrcs, const char* artifactKey,

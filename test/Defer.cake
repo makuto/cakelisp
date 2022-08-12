@@ -27,3 +27,5 @@
 (defun main (&return int)
   (test-defer)
   (return 0))
+
+(set-cakelisp-option executable-output "test/Defer")

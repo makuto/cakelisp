@@ -46,6 +46,9 @@ test/Defines
 test/Hello
 test/Hooks
 test/SimpleMacros
+test/Defer
+test/Export
+test/Tutoral_Basics
 
 *.cake.cpp
 *.cake.hpp
