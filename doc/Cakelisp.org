@@ -223,6 +223,7 @@ Use the argument ~--list-built-ins~ to see an up-to-date list of all possible ex
 - ~deref~: Return the value at the pointer's address
 - ~addr~: Take the address of a variable/member
 - ~field~: Access a struct/class member. For example, with struct ~(defstruct my-struct num int)~, and variable ~(var my-thing my-struct)~, access ~num~: ~(field my-thing num)~
+- ~path~: Access fields from struct addresses. For example, ~(path my-struct-ptr > num)~. You can nest these and access non-pointer fields as well, e.g. ~(path my-struct . ptr-field > another-struct . field)~. Path removes the need to do e.g. ~(field (deref my-struct-ptr) num)~, which can become hard to read with deep accessing.
 - ~call-on~: Call a member function. For example, if I have a variable ~my-bar~ of type ~Bar~ with member function ~do-thing~, I can call it like so: ~(call-on do-thing my-bar arg-1 arg-2)~
 - ~call-on-ptr~: Like ~call-on~, only it works on pointers, e.g. ~(var my-pointer-to-bar (* Bar) (addr a-bar))~, call its member: ~(call-on-ptr do-thing my-pointer-to-bar arg-1 arg-2)~. These can be nested as necessary
 - ~call~: Call the first argument as a function. This is necessary when you can't type the function's name directly, e.g. it is a function pointer. For example, to call a static member function: ~(call (in my-class do-static-thing) arg-1 arg-2)~
