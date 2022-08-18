@@ -12,6 +12,10 @@ You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction 
 
 Note that while Cakelisp has "Lisp" in the name, Cakelisp takes some inspiration from Lisp, but is not compatible and does not aspire to become "a Lisp". I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme (on their modern titles). I've also taken several ideas from Jonathan Blow's talks on Jai.
 
+* Cakelisp is moving!
+Cakelisp will be moving off of GitHub in the near future.
+
+Please use ~https://macoy.me/code/macoy/cakelisp.git~ instead.
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
 - *The performance of C:* No heavyweight runtime, boxing/unboxing overhead, etc.
