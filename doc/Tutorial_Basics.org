@@ -6,7 +6,7 @@ This tutorial will introduce you to Cakelisp's most unique feature, compile-time
 - Experience writing C or C++ programs. If you're just learning how to program, you should learn a different language rather than Cakelisp for now.
 
 * Setup
-First, [[https://github.com/makuto/cakelisp/archive/refs/heads/master.zip][download Cakelisp]]. You can also clone it through git. The URL is [[https://github.com/makuto/cakelisp]].
+First, [[https://macoy.me/code/macoy/cakelisp][download Cakelisp]]. You can also clone it through git via ~git clone https://macoy.me/code/macoy/cakelisp.git~. The source is hosted [[https://macoy.me/code/macoy/cakelisp][here]].
 
 Unzip the ~master.zip~ file, if you downloaded it manually.
 
@@ -662,7 +662,7 @@ It can take some time to appreciate the power that compile-time code generation 
 - [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/Introspection.cake][Introspection.cake]] generates metadata for structs to provide automatic plain-text serialization and a [[https://macoy.me/blog/programming/TypeIntrospection][plethora of other features]]
 - [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/TaskSystem.cake][TaskSystem.cake]] allows for a much more [[https://macoy.me/blog/programming/InterfaceFriction][ergonomic interface]] to multi-threaded task systems
 - [[https://macoy.me/code/macoy/gamelib/src/branch/master/src/AutoTest.cake][AutoTest.cake]] does very similarly to our ~defcommand~ in order to collect and execute test functions
-- [[https://github.com/makuto/cakelisp/blob/master/runtime/HotReloadingCodeModifier.cake][HotReloadingCodeModifier.cake]] converts module-local and global variables into heap-allocated variables automatically, which is an essential step to making hot-reloadable code possible
+- [[https://macoy.me/code/macoy/cakelisp/src/branch/master/runtime/HotReloadingCodeModifier.cake][HotReloadingCodeModifier.cake]] converts module-local and global variables into heap-allocated variables automatically, which is an essential step to making hot-reloadable code possible
 
 You can see that this one feature makes possible many things which would be very cumbersome to do without it.
 

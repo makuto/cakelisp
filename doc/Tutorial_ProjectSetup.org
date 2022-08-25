@@ -34,13 +34,13 @@ I also recommend you include a ~COPYING~ for copyright and ~LICENSE~ for license
 Let's get cakelisp with ~git~. In ~my-project/~:
 
 #+BEGIN_SRC sh
-  git clone https://github.com/makuto/cakelisp.git Dependencies/cakelisp
+  git clone https://macoy.me/code/macoy/cakelisp.git Dependencies/cakelisp
 #+END_SRC
 
 *** Submodules
 If you are using Git on your project, I recommend you use submodules to track Cakelisp's version. To do so, instead of the above command, run this:
 #+BEGIN_SRC sh
-  git submodule add https://github.com/makuto/cakelisp.git Dependencies/cakelisp
+  git submodule add https://macoy.me/code/macoy/cakelisp.git Dependencies/cakelisp
 #+END_SRC
 
 That way, I can freely update Cakelisp and your project won't break, because your project tracks a specific version of Cakelisp.
