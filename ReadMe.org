@@ -2,6 +2,13 @@
 
 [[file:images/CakeLisp_gradient_128.png]]
 
+* Cakelisp has moved!
+Cakelisp has moved off of GitHub. *The GitHub repository will no longer be updated.*
+
+Please visit [[https://macoy.me/code/macoy/cakelisp][Cakelisp's main host]] instead. Development will continue normally. Email macoy@macoy.me with any questions.
+
+* Introduction
+
 This is a programming language where I [[https://en.wikipedia.org/wiki/You_can%27t_have_your_cake_and_eat_it][can have my cake and eat it too]].
 
 Cakelisp is a compiled language ideal for high performance, iteratively-developed applications. There is an emphasis on compile-time code generation, modification, and execution. These features are used to acquire and build 3rd party dependencies, automatically instrument the code, generate introspection metadata, and do various other things that are normally impossible with most compiled languages.
@@ -12,10 +19,6 @@ You can see the [[https://macoy.me/blog/programming/CakelispIntro][introduction 
 
 Note that while Cakelisp has "Lisp" in the name, Cakelisp takes some inspiration from Lisp, but is not compatible and does not aspire to become "a Lisp". I was inspired by Naughty Dog's use of GOAL, GOOL, and Racket/Scheme (on their modern titles). I've also taken several ideas from Jonathan Blow's talks on Jai.
 
-* Cakelisp is moving!
-Cakelisp will be moving off of GitHub in the near future.
-
-Please use ~https://macoy.me/code/macoy/cakelisp.git~ instead.
 * Features
 - *The metaprogramming capabilities of Lisp:* True full-power macro support. Macros can use compile-time code execution to conditionally change what is output based on the context of the invocation
 - *The performance of C:* No heavyweight runtime, boxing/unboxing overhead, etc.
